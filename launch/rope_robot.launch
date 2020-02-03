@@ -2,7 +2,7 @@
      <arg name="gui" default="true" />
 
      <!-- send the cogimon robot XML to param server -->
-     <param name="robot_description" textfile="$(find centauro_casadi_demo)/configs/template-config/urdf/roped_template.urdf" />
+     <param name="robot_description" textfile="$(find Horizon)/configs/urdf/roped_template.urdf" />
      
         
     <!-- start robot state publisher -->
