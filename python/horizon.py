@@ -97,6 +97,15 @@ def create_variable(name, size, number_of_nodes, type):
 
     return SX_var, MX_var
 
+# cost_function return the value of cost computed from from_node to to_node
+def cost_function(cost, from_node, to_node):
+    J = MX([0])
+    for k in range(from_node, to_node):
+        J += cost(k)
+    return J
+
+
+
 
 
 

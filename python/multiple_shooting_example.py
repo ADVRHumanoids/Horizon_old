@@ -91,6 +91,12 @@ g = []
 g_min = []
 g_max = []
 J = MX([0])
+
+min_qdot = lambda k: 1*dot(Q[k], Q[k])
+
+J += cost_function(min_qdot, 0, ns)
+
+JJ = MX([0])
 for k in range(ns):
     CRope_jac = Jac_CRope(q=Q[k])['J']
     JtF = mtimes(CRope_jac.T, vertcat(F[k][6:9], MX.zeros(3,1)))
@@ -99,7 +105,7 @@ for k in range(ns):
 
     # Cost function
 
-    J += 1*dot(Q[k], Q[k])
+    JJ += 1*dot(Q[k], Q[k])
 
     # Multiple shooting constraint
     integrator_out = F_integrator(x0=X[k], p=Qddot[k])
@@ -128,7 +134,6 @@ for k in range(ns):
     g += [Tau[15:16]]
     g_min += np.array([-10000.]).tolist()
     g_max += np.array([0.]).tolist()
-
 
 
 
