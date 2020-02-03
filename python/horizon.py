@@ -97,7 +97,7 @@ def create_variable(name, size, number_of_nodes, type):
 
     return SX_var, MX_var
 
-# cost_function return the value of cost computed from from_node to to_node
+# cost_function return the value of cost (functor) computed from from_node to to_node
 def cost_function(cost, from_node, to_node):
     J = MX([0])
     for k in range(from_node, to_node):
@@ -105,10 +105,31 @@ def cost_function(cost, from_node, to_node):
     return J
 
 
+def constraint(constraint, from_node, to_node):
+    g = []
+    g_min = []
+    g_max = []
+
+    for k in range(from_node, to_node):
+        gk, g_mink, g_maxk = constraint(k)
+        g += gk
+        g_min += g_mink
+        g_max += g_maxk
+    return g, g_min, g_max
 
 
+class constraint_class:
+    def __init__(self):
+        self.gk = []
+        self.g_mink = []
+        self.g_maxk = []
 
+    def __call__(self, k):
+        self.virtual_method(k)
+        return self.gk, self.g_mink, self.g_maxk
 
+    def virtual_method(self, k):
+        raise NotImplementedError()
 
 
 
