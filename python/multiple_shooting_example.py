@@ -4,6 +4,8 @@ import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
 import rospy
 from constraints import *
+from previewer import *
+import math as mt
 
 logger = matl.MatLogger2('/tmp/template_rope_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -49,7 +51,7 @@ q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0, # Floating base
                   -0.3, -0.1, -0.1, # Contact 1
                   -0.3, -0.05, -0.1, # Contact 2
                   -1.57, -1.57, -3.1415, #rope_anchor
-                  0.5]).tolist() #rope
+                  0.0]).tolist() #rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0, # Floating base
                   0.3, 0.05,  0.1, # Contact 1
                   0.3, 0.1,  0.1, # Contact 2
@@ -59,7 +61,7 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
                    0., 0., 0.,
-                   0.5]).tolist()
+                   0.1]).tolist()
 
 print "Q: ", Q
 print "Q size: ", np.size(Q)
@@ -117,7 +119,7 @@ x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
 
 L = 0.01*dot(qddot, qddot) # Objective term
 
-tf = 3. #[s]
+tf = 1. #[s]
 
 #Formulate discrete time dynamics
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
@@ -146,13 +148,21 @@ print "v_max size: ", v_max.size1()
 
 # Cost function
 J = MX([0])
-min_qdot = lambda k: 1*dot(Qdot[k], Qdot[k])
+min_qdot = lambda k: 100.*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
 
 # CONSTRAINTS
 g = []
 g_min = []
 g_max = []
+
+# Initial condition
+init = initial_condition(Q, q_init)
+dg, dg_min, dg_max = constraint(init, 0, 1)
+g += dg
+g_min += dg_min
+g_max += dg_max
+
 
 # Multiple Shooting
 multiple_shooting_constraint = multiple_shooting(X, Qddot, F_integrator)
@@ -161,27 +171,37 @@ g += dg
 g_min += dg_min
 g_max += dg_max
 
-# Torque Limits
-# 0-5 Floating base constraint
+
+# # Torque Limits
+# # 0-5 Floating base constraint
 tau_min = np.zeros((6, 1)).tolist()
 tau_max = np.zeros((6, 1)).tolist()
-# 6-11 Actuated Joints, free
+# # # 6-11 Actuated Joints, free
 tau_min += np.full((6,1), -1000.).tolist()
 tau_max += np.full((6,1),  1000.).tolist()
-# 12-14 Underactuation on spherical joint rope
+# # # 12-14 Underactuation on spherical joint rope
 tau_min += np.array([0., 0., 0.]).tolist()
 tau_max += np.array([0., 0., 0.]).tolist()
-# 15 force rope unilaterality
-tau_min += np.array([-10000.]).tolist()
+# # # 15 force rope unilaterality
+#tau_min += np.array([-10000.]).tolist()
+tau_min += np.array([0.]).tolist()
 tau_max += np.array([0.]).tolist()
-
-torque_lims = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
-dg, dg_min, dg_max = constraint(torque_lims, 0, ns-1)
+#
+torque_lims1 = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
+dg, dg_min, dg_max = constraint(torque_lims1, 0, 10)
 g += dg
 g_min += dg_min
 g_max += dg_max
 
-# Contact constraint
+tau_min[15] = np.array([-10000.]).tolist()
+torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
+dg, dg_min, dg_max = constraint(torque_lims2, 10, ns-1)
+g += dg
+g_min += dg_min
+g_max += dg_max
+#
+
+# # Contact constraint
 contact_constr = contact(FKRope, Q, q_init)
 dg, dg_min, dg_max = constraint(contact_constr, 0, ns)
 g += dg
@@ -195,15 +215,71 @@ opts = {'ipopt.tol': 1e-3,
         'ipopt.linear_solver': 'ma57'}
 
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': vertcat(*g)}, opts)
-#sol = solver(x0=vertcat(*[q_init, qdot_init, qddot_init, f_init]), lbx=vertcat(*v_min), ubx=vertcat(*v_max), lbg=vertcat(*g_min), ubg=vertcat(*g_max))
 
 x0 = create_init([q_init, qdot_init], [qddot_init, f_init], ns)
+
+
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=vertcat(*g_min), ubg=vertcat(*g_max))
 w_opt = sol['x'].full().flatten()
 
 
+# PRINT AND REPLAY SOLUTION
+dt = 0.01
+#q_hist_res = trajectory_resampler(ns, F_integrator, V, X, Qddot, tf, dt, nq, nq+nv, w_opt)
 
 
+
+
+
+resampler = Function("Resampler", [V], [vertcat(*Q)] ,['V'], ['Q'])
+q_hist = resampler(V=w_opt)['Q'].full()
+
+q_hist_res = q_hist.reshape(ns, nq)
+print "q_hist_res: ", q_hist_res
+
+from sensor_msgs.msg import JointState
+from std_msgs.msg import Header
+import tf as ros_tf
+import geometry_msgs.msg
+
+pub = rospy.Publisher('joint_states', JointState, queue_size=10)
+rospy.init_node('joint_state_publisher')
+rate = rospy.Rate(1. / dt)
+joint_state_pub = JointState()
+joint_state_pub.header = Header()
+joint_state_pub.name = ['Contact1_x', 'Contact1_y', 'Contact1_z',
+                        'Contact2_x', 'Contact2_y', 'Contact2_z',
+                        'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
+                        'rope_joint']
+
+br = ros_tf.TransformBroadcaster()
+m = geometry_msgs.msg.TransformStamped()
+m.header.frame_id = 'world_odom'
+m.child_frame_id = 'base_link'
+
+while not rospy.is_shutdown():
+    for k in range(ns):
+        m.transform.translation.x = q_hist_res[k, 0]
+        m.transform.translation.y = q_hist_res[k, 1]
+        m.transform.translation.z = q_hist_res[k, 2]
+        quat = [q_hist_res[k, 3],q_hist_res[k, 4],q_hist_res[k, 5],q_hist_res[k, 6]]
+        quat = normalize(quat)
+        m.transform.rotation.x = quat[0]
+        m.transform.rotation.y = quat[1]
+        m.transform.rotation.z = quat[2]
+        m.transform.rotation.w = quat[3]
+
+        br.sendTransform((m.transform.translation.x, m.transform.translation.y, m.transform.translation.z),
+                         (m.transform.rotation.x, m.transform.rotation.y, m.transform.rotation.z,
+                          m.transform.rotation.w),
+                         rospy.Time.now(), m.child_frame_id, m.header.frame_id)
+
+        joint_state_pub.header.stamp = rospy.Time.now()
+        joint_state_pub.position = q_hist_res[k, 7:nq]
+        joint_state_pub.velocity = []
+        joint_state_pub.effort = []
+        pub.publish(joint_state_pub)
+        rate.sleep()
 
 
 
