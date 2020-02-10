@@ -3,6 +3,7 @@ from horizon import *
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
 import rospy
+from constraints import *
 
 logger = matl.MatLogger2('/tmp/template_rope_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -93,81 +94,51 @@ J = MX([0])
 min_qdot = lambda k: 1*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
 
-# Constraint
+# CONSTRAINTS
 g = []
 g_min = []
 g_max = []
 
-class force_unilaterality(constraint_class):
-    def __init__(self, Jac_CRope, Q, Qdot, Qddot, F, ID):
-        self.Q = Q
-        self.Qdot = Qdot
-        self.Qddot = Qddot
-        self.F = F
-        self.ID = ID
-        self.Jac_CRope = Jac_CRope
-
-    def virtual_method(self, k):
-        CRope_jac = self.Jac_CRope(q=self.Q[k])['J']
-        JtF = mtimes(CRope_jac.T, vertcat(self.F[k][6:9], MX.zeros(3, 1)))
-        Tau = self.ID(q=self.Q[k], v=self.Qdot[k], a=self.Qddot[k])['tau'] - JtF
-
-        self.gk = [Tau[15:16]]
-        self.g_mink = np.array([-10000.]).tolist()
-        self.g_maxk = np.array([0.]).tolist()
-
-force_unilaterality_constraint = force_unilaterality(Jac_CRope, Q, Qdot, Qddot, F, ID)
-
-dg, dg_min, dg_max = constraint(force_unilaterality_constraint, 0, ns)
+# Multiple Shooting
+multiple_shooting_constraint = multiple_shooting(X, Qddot, F_integrator)
+dg, dg_min, dg_max = constraint(multiple_shooting_constraint, 0, ns)
 g += dg
 g_min += dg_min
 g_max += dg_max
 
-gg = []
-gg_min = []
-gg_max = []
-for k in range(ns):
-    CRope_jac = Jac_CRope(q=Q[k])['J']
-    JtF = mtimes(CRope_jac.T, vertcat(F[k][6:9], MX.zeros(3,1)))
+# Torque Limits
+# 0-5 Floating base constraint
+tau_min = np.zeros((6, 1)).tolist()
+tau_max = np.zeros((6, 1)).tolist()
+# 6-11 Actuated Joints, free
+tau_min += np.full((6,1), -1000.).tolist()
+tau_max += np.full((6,1),  1000.).tolist()
+# 12-14 Underactuation on spherical joint rope
+tau_min += np.array([0., 0., 0.]).tolist()
+tau_max += np.array([0., 0., 0.]).tolist()
+# 15 force rope unilaterality
+tau_min += np.array([-10000.]).tolist()
+tau_max += np.array([0.]).tolist()
 
-    Tau = ID(q=Q[k], v=Qdot[k], a=Qddot[k])['tau'] - JtF
+torque_lims = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
+dg, dg_min, dg_max = constraint(torque_lims, 0, ns)
+g += dg
+g_min += dg_min
+g_max += dg_max
 
+# Contact constraint
+contact_constr = contact(FKRope, Q, q_init)
 
-
-
-
-    # # Multiple shooting constraint
-    # integrator_out = F_integrator(x0=X[k], p=Qddot[k])
-    # g += [integrator_out['xf'] - X[k + 1]]
-    # g_min += [0] * X[k + 1].size1()
-    # g_max += [0] * X[k + 1].size1()
-    #
-    # # Underactuation on spherical joint rope
-    # g += [Tau[12:15]]
-    # g_min += np.array([0., 0., 0.]).tolist()
-    # g_max += np.array([0., 0., 0.]).tolist()
-    #
-    # # Floating base constraint
-    # g += [Tau[0:6]]
-    # g_min += np.zeros((6, 1)).tolist()
-    # g_max += np.zeros((6, 1)).tolist()
-    #
-    # # Contact constraints
-    # CRope_pos_init = FKRope(q=q_init)['ee_pos']
-    # CRope_pos = FKRope(q=Q[k])['ee_pos']
-    # g += [CRope_pos - CRope_pos_init]
-    # g_min += np.array([0., 0., 0.]).tolist()
-    # g_max += np.array([0., 0., 0.]).tolist()
-
-    # Unilaterality on rope Force
-    gg += [Tau[15:16]]
-    gg_min += np.array([-10000.]).tolist()
-    gg_max += np.array([0.]).tolist()
+dg, dg_min, dg_max = constraint(contact_constr, 0, ns)
+g += dg
+g_min += dg_min
+g_max += dg_max
 
 
 
-print "g_min: ", g_min
-print "gg_min: ", gg_min
+
+
+
 
 
 

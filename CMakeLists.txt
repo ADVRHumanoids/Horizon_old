@@ -22,6 +22,7 @@ install(DIRECTORY configs/
 
 install(PROGRAMS
    python/horizon.py
+   python/constraints.py
    python/multiple_shooting_example.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
