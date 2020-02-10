@@ -6,7 +6,7 @@ from casadi import *
 def create_bounds(x_min, x_max, u_min, u_max, number_of_nodes):
     v_min = []
     v_max = []
-    for k in range(number_of_nodes):
+    for k in range(number_of_nodes-1):
         v_min += x_min
         v_max += x_max
         v_min += u_min
@@ -14,7 +14,16 @@ def create_bounds(x_min, x_max, u_min, u_max, number_of_nodes):
     v_min += x_min
     v_max += x_max
 
-    return v_min, v_max
+    return vertcat(*v_min), vertcat(*v_max)
+
+def create_init(x_init, u_init, number_of_nodes):
+    v_init = []
+    for k in range(number_of_nodes - 1):
+        v_init += x_init
+        v_init += u_init
+    v_init += x_init
+
+    return vertcat(*v_init)
 
 
 
@@ -29,7 +38,7 @@ def concat_states_and_controls(X, U):
     for k in range(ns):
         V.append(vertcat(X[k], U[k]))
     V.append(X[ns])
-    return V
+    return vertcat(*V)
 
 # concat: creates a list concatenating (vertically) each variable contained in V at the same node:
 # Example: V = [Q, Qdot] then X = [vertcat(Q0, Qdot0), vertcat(Q1, Qdot1), vertcat(Q2, Qdot2), ...]'
@@ -86,9 +95,9 @@ def create_variable(name, size, number_of_nodes, type):
 
     ns = 0
     if type == "STATE":
-        ns = number_of_nodes + 1
-    elif type == "CONTROL":
         ns = number_of_nodes
+    elif type == "CONTROL":
+        ns = number_of_nodes-1
     elif type == "FINAL_STATE":
         ns = 1
 
