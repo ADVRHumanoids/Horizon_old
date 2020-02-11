@@ -147,6 +147,19 @@ class constraint_class:
         raise NotImplementedError()
 
 
+class constraint_handler():
+    def __init__(self):
+        self.g = []
+        self.g_min = []
+        self.g_max = []
+
+    def set_constraint(self, g, g_min, g_max):
+        self.g += g
+        self.g_min += g_min
+        self.g_max += g_max
+
+    def get_constraints(self):
+        return vertcat(*self.g), self.g_min, self.g_max
 
 
 

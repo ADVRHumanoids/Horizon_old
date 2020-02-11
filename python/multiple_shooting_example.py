@@ -155,34 +155,28 @@ min_qdot = lambda k: 100.*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
 
 # CONSTRAINTS
-g = []
-g_min = []
-g_max = []
+G = constraint_handler()
 
 # Initial condition
 init = initial_condition(Q, q_init)
-dg, dg_min, dg_max = constraint(init, 0, 1)
-g += dg
-g_min += dg_min
-g_max += dg_max
+g1, g_min1, g_max1 = constraint(init, 0, 1)
+G.set_constraint(g1, g_min1, g_max1)
 
 print "Initial Condition:"
-print " g: ", dg
-print " g_min: ", dg_min
-print " g_max: ", dg_max
+print " g1: ", g1
+print " g_min1: ", g_min1
+print " g_max1: ", g_max1
 
 
 # Multiple Shooting
 multiple_shooting_constraint = multiple_shooting(X, Qddot, F_integrator)
-dg, dg_min, dg_max = constraint(multiple_shooting_constraint, 0, ns-1)
-g += dg
-g_min += dg_min
-g_max += dg_max
+g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
+G.set_constraint(g2, g_min2, g_max2)
 
 print "Multiple Shooting:"
-print " g: ", dg
-print " g_min: ", dg_min
-print " g_max: ", dg_max
+print " g2: ", g2
+print " g_min2: ", g_min2
+print " g_max2: ", g_max2
 
 
 # Torque Limits
@@ -200,35 +194,34 @@ tau_max =  np.array([0., 0., 0., 0., 0., 0.,  # Floating base
 
 #
 torque_lims1 = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
-dg, dg_min, dg_max = constraint(torque_lims1, 0, 10)
-g += dg
-g_min += dg_min
-g_max += dg_max
+g3, g_min3, g_max3 = constraint(torque_lims1, 0, 10)
+G.set_constraint(g3, g_min3, g_max3)
 
 print "Torque Lims:"
-print " g: ", dg
-print " g_min: ", dg_min
-print " g_max: ", dg_max
+print " g3: ", g3
+print " g_min3: ", g_min3
+print " g_max3: ", g_max3
 
 tau_min[15] = -10000.
 torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
-dg, dg_min, dg_max = constraint(torque_lims2, 10, ns-1)
-g += dg
-g_min += dg_min
-g_max += dg_max
+g4, g_min4, g_max4 = constraint(torque_lims2, 10, ns-1)
+G.set_constraint(g4, g_min4, g_max4)
+
+print "Torque Lims:"
+print " g4: ", g4
+print " g_min4: ", g_min4
+print " g_max4: ", g_max4
 #
 
 # # Contact constraint
 contact_constr = contact(FKRope, Q, q_init)
-dg, dg_min, dg_max = constraint(contact_constr, 0, ns)
-g += dg
-g_min += dg_min
-g_max += dg_max
+g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
+G.set_constraint(g5, g_min5, g_max5)
 
 print "Contact:"
-print " g: ", dg
-print " g_min: ", dg_min
-print " g_max: ", dg_max
+print " g5: ", g5
+print " g_min5: ", g_min5
+print " g_max5: ", g_max5
 
 
 
@@ -236,8 +229,8 @@ opts = {'ipopt.tol': 1e-3,
         'ipopt.max_iter': 2000,
         'ipopt.linear_solver': 'ma57'}
 
-
-solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': vertcat(*g)}, opts)
+g, g_min, g_max = G.get_constraints()
+solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts)
 
 x0 = create_init([q_init, qdot_init], [qddot_init, f_init], ns)
 
