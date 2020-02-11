@@ -162,7 +162,24 @@ class constraint_handler():
         return vertcat(*self.g), self.g_min, self.g_max
 
 
+def retrieve_solution(input, output_dict, solution):
+    output_keys = []
+    outputs = []
+    ns = []
+    for key in output_dict:
+        output_keys.append(key)
+        outputs += [vertcat(*output_dict[key])]
+        ns.append(np.size(output_dict[key]))
 
+    Resampler = Function("Resampler", [input], outputs, ['V'], output_keys)
+
+    o = {}
+    for i in range(len(output_keys)):
+        tmp = Resampler(V=solution)[output_keys[i]].full().flatten()
+        nq = np.size(tmp)/ns[i]
+        o[output_keys[i]] = tmp.reshape(ns[i], nq)
+
+    return o
 
 
 

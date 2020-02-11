@@ -239,19 +239,15 @@ sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 w_opt = sol['x'].full().flatten()
 
 
+
+
 # PRINT AND REPLAY SOLUTION
 dt = 0.01
 #q_hist_res = trajectory_resampler(ns, F_integrator, V, X, Qddot, tf, dt, nq, nq+nv, w_opt)
 
+solution_dict = retrieve_solution(V, {'Q':Q, 'Qdot':Qdot, 'Qddot':Qddot, 'F':F}, w_opt)
 
-
-
-
-resampler = Function("Resampler", [V], [vertcat(*Q)] ,['V'], ['Q'])
-q_hist = resampler(V=w_opt)['Q'].full()
-
-q_hist_res = q_hist.reshape(ns, nq)
-print "q_hist_res: ", q_hist_res
+q_hist_res = solution_dict['Q']
 
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
@@ -275,10 +271,12 @@ m.child_frame_id = 'base_link'
 
 while not rospy.is_shutdown():
     for k in range(ns):
-        m.transform.translation.x = q_hist_res[k, 0]
-        m.transform.translation.y = q_hist_res[k, 1]
-        m.transform.translation.z = q_hist_res[k, 2]
-        quat = [q_hist_res[k, 3],q_hist_res[k, 4],q_hist_res[k, 5],q_hist_res[k, 6]]
+        qk = q_hist_res[k]
+
+        m.transform.translation.x = qk[0]
+        m.transform.translation.y = qk[1]
+        m.transform.translation.z = qk[2]
+        quat = [qk[3], qk[4], qk[5], qk[6]]
         quat = normalize(quat)
         m.transform.rotation.x = quat[0]
         m.transform.rotation.y = quat[1]
@@ -291,19 +289,8 @@ while not rospy.is_shutdown():
                          rospy.Time.now(), m.child_frame_id, m.header.frame_id)
 
         joint_state_pub.header.stamp = rospy.Time.now()
-        joint_state_pub.position = q_hist_res[k, 7:nq]
+        joint_state_pub.position = qk[7:nq]
         joint_state_pub.velocity = []
         joint_state_pub.effort = []
         pub.publish(joint_state_pub)
         rate.sleep()
-
-
-
-
-
-
-
-
-
-
-
