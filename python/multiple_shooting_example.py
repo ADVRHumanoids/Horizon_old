@@ -77,6 +77,7 @@ qdot_min = (-100.*np.ones(nv)).tolist()
 qdot_max = (100.*np.ones(nv)).tolist()
 qdot_init = np.zeros(nv).tolist()
 
+
 print "Qdot:", Qdot
 print "Qdot size: ", np.size(Qdot)
 print "qdot_min: ", qdot_min
@@ -116,6 +117,8 @@ print "f_init size: ", np.size(f_init)
 
 
 x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
+print "x: ", x
+print "xdot: ", xdot
 
 L = 0.01*dot(qddot, qddot) # Objective term
 

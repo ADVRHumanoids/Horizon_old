@@ -3,6 +3,8 @@ from casadi import *
 
 # create_bounds: creates a list of bounds, along the number of knots, for the variables given the list of bounds
 # on states x and controls u
+#
+# Output: v_min = [v_min1, v_min2, ..., v_minn]
 def create_bounds(x_min, x_max, u_min, u_max, number_of_nodes):
     v_min = []
     v_max = []
@@ -29,9 +31,9 @@ def create_init(x_init, u_init, number_of_nodes):
 
 # concat_states_and_controls: creates a list concatenating (vertically) each variable concatenated variable contained in X
 # and U at the same node adding the final state at the end:
-# Example: X = [vertcat(Q0, Qdot0), vertcat(Q1, Qdot1), vertcat(Q2, Qdot2), ..., vertcat(Qn, Qdotn)]'
-#          U = [vertcat(Qddot0, F0), vertcat(Qddot1, F1), vertcat(Qddot2, F2), ..., vertcat(Qddotn-1, Fn-1)]'
-# then V = [vertcat(Q0, Qdot0, Qddot0, F0), vertcat(Q1, Qdot1, Qddot1, F1), vertcat(Q2, Qdot2, Qddot2, F2), ..., vertcat(Qn, Qdotn)]'
+# Example: X = [MX(vertcat(Q0, Qdot0)), MX(vertcat(Q1, Qdot1)), MX(vertcat(Q2, Qdot2)), ..., MX(vertcat(Qn, Qdotn))]'
+#          U = [MX(vertcat(Qddot0, F0)), MX(vertcat(Qddot1, F1)), MX(vertcat(Qddot2, F2)), ..., MX(vertcat(Qddotn-1, Fn-1))]'
+# then V = [vertcat(Q0, Qdot0, Qddot0, F0, Q1, Qdot1, Qddot1, F1, Q2, Qdot2, Qddot2, F2, ..., Qn, Qdotn]'
 def concat_states_and_controls(X, U):
     ns = np.size(U)
     V = []
@@ -41,7 +43,7 @@ def concat_states_and_controls(X, U):
     return vertcat(*V)
 
 # concat: creates a list concatenating (vertically) each variable contained in V at the same node:
-# Example: V = [Q, Qdot] then X = [vertcat(Q0, Qdot0), vertcat(Q1, Qdot1), vertcat(Q2, Qdot2), ...]'
+# Example: V = [Q, Qdot] then X = [MX(vertcat(Q0, Qdot0)), MX((vertcat(Q1, Qdot1)), MX(vertcat(Q2, Qdot2)), ...]'
 def concat(V, s):
     X = []
     for k in range(s):
@@ -85,10 +87,13 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
     return x, xdot
 
 # create_variable: return a SX_var of size [size, 1] and a MX_var of size [size, ns] where:
-# if type is STATE then ns = number_of_nodes + 1
-# if type is CONTRON then ns = number_of_nodes
+# if type is STATE then ns = number_of_nodes
+# if type is CONTROL then ns = number_of_nodes-1
 # if type is FINAL_STATE then ns = 1
 # else ns = 0
+#
+# output: SX_var = [SX_Q_0, SX_Q_1, ..., SX_Q_size]
+#         MX_var = [MX(Q0), MX(Q1), ..., MX(Qnumber_of_nodes-1)] NOTE: if type is STATE
 def create_variable(name, size, number_of_nodes, type):
     SX_var = SX.sym('SX_'+name, size)
     MX_var = []
