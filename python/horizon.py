@@ -1,6 +1,7 @@
 from casadi import *
 
 
+
 # create_bounds: creates a list of bounds, along the number of knots, for the variables given the list of bounds
 # on states x and controls u
 #

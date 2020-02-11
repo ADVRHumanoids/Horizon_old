@@ -166,6 +166,11 @@ g += dg
 g_min += dg_min
 g_max += dg_max
 
+print "Initial Condition:"
+print " g: ", dg
+print " g_min: ", dg_min
+print " g_max: ", dg_max
+
 
 # Multiple Shooting
 multiple_shooting_constraint = multiple_shooting(X, Qddot, F_integrator)
@@ -174,21 +179,25 @@ g += dg
 g_min += dg_min
 g_max += dg_max
 
+print "Multiple Shooting:"
+print " g: ", dg
+print " g_min: ", dg_min
+print " g_max: ", dg_max
 
-# # Torque Limits
-# # 0-5 Floating base constraint
-tau_min = np.zeros((6, 1)).tolist()
-tau_max = np.zeros((6, 1)).tolist()
-# # # 6-11 Actuated Joints, free
-tau_min += np.full((6,1), -1000.).tolist()
-tau_max += np.full((6,1),  1000.).tolist()
-# # # 12-14 Underactuation on spherical joint rope
-tau_min += np.array([0., 0., 0.]).tolist()
-tau_max += np.array([0., 0., 0.]).tolist()
-# # # 15 force rope unilaterality
-#tau_min += np.array([-10000.]).tolist()
-tau_min += np.array([0.]).tolist()
-tau_max += np.array([0.]).tolist()
+
+# Torque Limits
+tau_min =  np.array([0., 0., 0., 0., 0., 0.,  # Floating base
+                     -1000., -1000., -1000.,  # Contact 1
+                     -1000., -1000., -1000.,  # Contact 2
+                     0., 0., 0.,  # rope_anchor
+                     0.0]).tolist()  # rope
+
+tau_max =  np.array([0., 0., 0., 0., 0., 0.,  # Floating base
+                     1000., 1000., 1000.,  # Contact 1
+                     1000., 1000., 1000.,  # Contact 2
+                     0., 0., 0.,  # rope_anchor
+                     0.0]).tolist()  # rope
+
 #
 torque_lims1 = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
 dg, dg_min, dg_max = constraint(torque_lims1, 0, 10)
@@ -196,7 +205,12 @@ g += dg
 g_min += dg_min
 g_max += dg_max
 
-tau_min[15] = np.array([-10000.]).tolist()
+print "Torque Lims:"
+print " g: ", dg
+print " g_min: ", dg_min
+print " g_max: ", dg_max
+
+tau_min[15] = -10000.
 torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
 dg, dg_min, dg_max = constraint(torque_lims2, 10, ns-1)
 g += dg
@@ -211,18 +225,24 @@ g += dg
 g_min += dg_min
 g_max += dg_max
 
+print "Contact:"
+print " g: ", dg
+print " g_min: ", dg_min
+print " g_max: ", dg_max
+
 
 
 opts = {'ipopt.tol': 1e-3,
         'ipopt.max_iter': 2000,
         'ipopt.linear_solver': 'ma57'}
 
+
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': vertcat(*g)}, opts)
 
 x0 = create_init([q_init, qdot_init], [qddot_init, f_init], ns)
 
 
-sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=vertcat(*g_min), ubg=vertcat(*g_max))
+sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 w_opt = sol['x'].full().flatten()
 
 
