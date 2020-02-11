@@ -42,7 +42,7 @@ print "DoF: ", DoF
 nv = kindyn.nv() # Velocity DoFs
 print "nv: ", nv
 
-nf = 3*nc # 2 feet contacts + rope contact with wall, Force DOfs
+nf = 3 # 2 feet contacts + rope contact with wall, Force DOfs
 print "nf: ", nf
 
 # Variables
@@ -101,20 +101,20 @@ print "qddot_max size: ", np.size(qddot_max)
 print "qddot_init: ", qddot_init
 print "qddot_init size: ", np.size(qddot_init)
 
-f, F = create_variable('F', nf, ns, "CONTROL")
-f_min = (-10000.*np.ones(nf)).tolist()
-f_max = (10000.*np.ones(nf)).tolist()
-f_init = np.zeros(nf).tolist()
+f1, F1 = create_variable('F1', nf, ns, "CONTROL")
+f_min1 = (-10000.*np.ones(nf)).tolist()
+f_max1 = (10000.*np.ones(nf)).tolist()
+f_init1 = np.zeros(nf).tolist()
 
-print "F:", F
-print "F size: ", np.size(F)
-print "f_min: ", f_min
-print "f_min size: ", np.size(f_min)
-print "f_max: ", f_max
-print "f_max size: ", np.size(f_max)
-print "f_init: ", f_init
-print "f_init size: ", np.size(f_init)
+f2, F2 = create_variable('F2', nf, ns, "CONTROL")
+f_min2 = (-10000.*np.ones(nf)).tolist()
+f_max2 = (10000.*np.ones(nf)).tolist()
+f_init2 = np.zeros(nf).tolist()
 
+fRope, FRope = create_variable('FRope', nf, ns, "CONTROL")
+f_minRope = (-10000.*np.ones(nf)).tolist()
+f_maxRope = (10000.*np.ones(nf)).tolist()
+f_initRope = np.zeros(nf).tolist()
 
 x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
 print "x: ", x
@@ -131,7 +131,7 @@ F_integrator = integrator('F_integrator', 'rk', dae, opts)
 
 # Start with an empty NLP
 
-X, U = create_state_and_control([Q, Qdot], [Qddot, F])
+X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
 print "X:", X
 print "X size: ", np.size(X)
 print "U:", U
@@ -141,7 +141,7 @@ V = concat_states_and_controls(X,U)
 print "V:", V
 print "V size: ", V.size1()
 
-v_min, v_max = create_bounds([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min], [qddot_max, f_max], ns)
+v_min, v_max = create_bounds([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min1, f_min2, f_minRope], [qddot_max, f_max1, f_max2, f_maxRope], ns)
 print "v_min: ", v_min
 print "v_min size: ", v_min.size1()
 print "v_max: ", v_max
@@ -193,7 +193,7 @@ tau_max =  np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                      0.0]).tolist()  # rope
 
 #
-torque_lims1 = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
+torque_lims1 = torque_lims(Jac_CRope, Q, Qdot, Qddot, FRope, ID, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, 10)
 G.set_constraint(g3, g_min3, g_max3)
 
@@ -203,7 +203,7 @@ print " g_min3: ", g_min3
 print " g_max3: ", g_max3
 
 tau_min[15] = -10000.
-torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max)
+torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, FRope, ID, tau_min, tau_max)
 g4, g_min4, g_max4 = constraint(torque_lims2, 10, ns-1)
 G.set_constraint(g4, g_min4, g_max4)
 
@@ -232,7 +232,7 @@ opts = {'ipopt.tol': 1e-3,
 g, g_min, g_max = G.get_constraints()
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts)
 
-x0 = create_init([q_init, qdot_init], [qddot_init, f_init], ns)
+x0 = create_init([q_init, qdot_init], [qddot_init, f_init1, f_init2, f_initRope], ns)
 
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
@@ -245,9 +245,16 @@ w_opt = sol['x'].full().flatten()
 dt = 0.01
 #q_hist_res = trajectory_resampler(ns, F_integrator, V, X, Qddot, tf, dt, nq, nq+nv, w_opt)
 
-solution_dict = retrieve_solution(V, {'Q':Q, 'Qdot':Qdot, 'Qddot':Qddot, 'F':F}, w_opt)
+solution_dict = retrieve_solution(V, {'Q':Q, 'Qdot':Qdot, 'Qddot':Qddot, 'F1':F1, 'F2':F2, 'FRope':FRope}, w_opt)
 
 q_hist_res = solution_dict['Q']
+
+# LOGGING
+for k in solution_dict:
+    logger.add(k, solution_dict[k])
+
+del(logger)
+#####
 
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header

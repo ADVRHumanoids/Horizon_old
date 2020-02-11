@@ -27,7 +27,7 @@ class torque_lims(constraint_class):
 
     def virtual_method(self, k):
         CRope_jac = self.Jac_CRope(q=self.Q[k])['J']
-        JtF = mtimes(CRope_jac.T, vertcat(self.F[k][6:9], MX.zeros(3, 1)))
+        JtF = mtimes(CRope_jac.T, vertcat(self.F[k], MX.zeros(3, 1)))
         Tau = self.ID(q=self.Q[k], v=self.Qdot[k], a=self.Qddot[k])['tau'] - JtF
 
         self.gk = [Tau]
