@@ -1,27 +1,43 @@
 from casadi import *
+from horizon import *
 
-def trajectory_resampler(ns, integrator, V, X, Qddot, tf, dt, nq, nx, w_opt):
-    n_res = int(round(tf/dt))
 
-    q_res = MX(Sparsity.dense(nq, n_res))
-    X_res = MX(Sparsity.dense(nx, n_res + 1))
+def resample_solution(X, Qddot, tf, dt, dae):
+    ns = np.size(X)
+    nx = X[0].size1()
+
+    ti = tf/ns #interval time
+
+    ni = int(round(ti/dt)) # number of intermidiate nodes in interval
+
+    n_res = ns*ni
+
+
+
+    X_res = MX(Sparsity.dense(nx, n_res))
+
+    opts = {'tf': dt}
+    F_integrator = integrator('F_integrator', 'rk', dae, opts)
+
+    X_res[0:nx, 0] = X[0]
 
     k = 0
-    for i in range(ns-1):
-        for j in range(int(round(n_res/ns))):
+    for i in range(ns-1): # cycle on intervals
+        for j in range(ni): # cycle on intermediate nodes in interval
 
             if j == 0:
-                X_res[0:nx,k+1] = integrator(x0=X[i], p=Qddot[i])['xf']
+                 X_res[0:nx, k+1] = F_integrator(x0=X[i], p=Qddot[i])['xf']
             else:
-                X_res[0:nx,k+1] = integrator(x0=X_res[k], p=Qddot[i])['xf']
-
-            q_res[0:nq,k] = X_res[0:nq, k + 1]
+                 X_res[0:nx, k+1] = F_integrator(x0=X_res[0:nx, k], p=Qddot[i])['xf']
 
             k += 1
 
-    resampler = Function("Resampler", [V], [q_res], ['V'], ['q_res'])
+        print k
+    for i in range(n_res-k):
+        X_res[0:nx, k+i] = X[-1]
 
-    return resampler(V=w_opt)['q_res'].full()
+    return X_res
+
 
 def normalize(v):
     return v/np.linalg.norm(v)

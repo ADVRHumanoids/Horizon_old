@@ -120,7 +120,7 @@ x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
 print "x: ", x
 print "xdot: ", xdot
 
-L = 0.01*dot(qddot, qddot) # Objective term
+L = 0.001*dot(qddot, qddot) # Objective term
 
 tf = 1. #[s]
 
@@ -151,14 +151,17 @@ print "v_max size: ", v_max.size1()
 
 # Cost function
 J = MX([0])
-min_qdot = lambda k: 100.*dot(Qdot[k], Qdot[k])
+min_qdot = lambda k: 10.*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
+min_control = lambda k: 1.*dot(Qddot[k], Qddot[k])
+J += cost_function(min_control, 0, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
 
 # Initial condition
-init = initial_condition(Q, q_init)
+v_init = q_init + qdot_init + qddot_init + f_init1 + f_init2 + f_initRope
+init = initial_condition(vertcat(X[0],U[0]), v_init)
 g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
@@ -194,7 +197,7 @@ tau_max =  np.array([0., 0., 0., 0., 0., 0.,  # Floating base
 
 #
 torque_lims1 = torque_lims(Jac_CRope, Q, Qdot, Qddot, FRope, ID, tau_min, tau_max)
-g3, g_min3, g_max3 = constraint(torque_lims1, 0, 10)
+g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
 print "Torque Lims:"
@@ -202,15 +205,15 @@ print " g3: ", g3
 print " g_min3: ", g_min3
 print " g_max3: ", g_max3
 
-tau_min[15] = -10000.
-torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, FRope, ID, tau_min, tau_max)
-g4, g_min4, g_max4 = constraint(torque_lims2, 10, ns-1)
-G.set_constraint(g4, g_min4, g_max4)
-
-print "Torque Lims:"
-print " g4: ", g4
-print " g_min4: ", g_min4
-print " g_max4: ", g_max4
+# tau_min[15] = -10000.
+# torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, FRope, ID, tau_min, tau_max)
+# g4, g_min4, g_max4 = constraint(torque_lims2, 10, ns-1)
+# G.set_constraint(g4, g_min4, g_max4)
+#
+# print "Torque Lims:"
+# print " g4: ", g4
+# print " g_min4: ", g_min4
+# print " g_max4: ", g_max4
 #
 
 # # Contact constraint
@@ -242,19 +245,33 @@ w_opt = sol['x'].full().flatten()
 
 
 # PRINT AND REPLAY SOLUTION
-dt = 0.01
+dt = 0.05
 #q_hist_res = trajectory_resampler(ns, F_integrator, V, X, Qddot, tf, dt, nq, nq+nv, w_opt)
 
 solution_dict = retrieve_solution(V, {'Q':Q, 'Qdot':Qdot, 'Qddot':Qddot, 'F1':F1, 'F2':F2, 'FRope':FRope}, w_opt)
 
-q_hist_res = solution_dict['Q']
+q_hist = solution_dict['Q']
+
+
+X_res = resample_solution(X, Qddot, tf, dt, dae)
+
+Resampler = Function("Resampler", [V], [X_res], ['V'], ['X_res'])
+
+x_hist_res = Resampler(V=w_opt)['X_res'].full()
+#q_hist_res = (x_hist_res[0:nq,:]).transpose()
+q_hist_res = q_hist
 
 # LOGGING
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
+logger.add('q_hist_res', q_hist_res)
+
+
 del(logger)
 #####
+
+
 
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
@@ -263,7 +280,7 @@ import geometry_msgs.msg
 
 pub = rospy.Publisher('joint_states', JointState, queue_size=10)
 rospy.init_node('joint_state_publisher')
-rate = rospy.Rate(1. / dt)
+rate = rospy.Rate(1./dt)
 joint_state_pub = JointState()
 joint_state_pub.header = Header()
 joint_state_pub.name = ['Contact1_x', 'Contact1_y', 'Contact1_z',

@@ -171,11 +171,11 @@ def retrieve_solution(input, output_dict, solution):
         outputs += [vertcat(*output_dict[key])]
         ns.append(np.size(output_dict[key]))
 
-    Resampler = Function("Resampler", [input], outputs, ['V'], output_keys)
+    Retrieve = Function("Retrieve", [input], outputs, ['V'], output_keys)
 
     o = {}
     for i in range(len(output_keys)):
-        tmp = Resampler(V=solution)[output_keys[i]].full().flatten()
+        tmp = Retrieve(V=solution)[output_keys[i]].full().flatten()
         nq = np.size(tmp)/ns[i]
         o[output_keys[i]] = tmp.reshape(ns[i], nq)
 
