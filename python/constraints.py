@@ -1,5 +1,6 @@
 from horizon import *
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
+from inverse_dynamics import *
 
 class contact(constraint_class):
     def __init__(self, FKlink, Q, qinit):
@@ -15,22 +16,13 @@ class contact(constraint_class):
         self.g_maxk = np.array([0., 0., 0.]).tolist()
 
 class torque_lims(constraint_class):
-    def __init__(self, Jac_CRope, Q, Qdot, Qddot, F, ID, tau_min, tau_max):
-        self.Q = Q
-        self.Qdot = Qdot
-        self.Qddot = Qddot
-        self.F = F
-        self.ID = ID
-        self.Jac_CRope = Jac_CRope
+    def __init__(self, id, tau_min, tau_max):
+        self.id = id
         self.tau_min = tau_min
         self.tau_max = tau_max
 
     def virtual_method(self, k):
-        CRope_jac = self.Jac_CRope(q=self.Q[k])['J']
-        JtF = mtimes(CRope_jac.T, vertcat(self.F[k], MX.zeros(3, 1)))
-        Tau = self.ID(q=self.Q[k], v=self.Qdot[k], a=self.Qddot[k])['tau'] - JtF
-
-        self.gk = [Tau]
+        self.gk = [self.id.compute(k)]
         self.g_mink = self.tau_min
         self.g_maxk = self.tau_max
 

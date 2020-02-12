@@ -5,6 +5,7 @@ import matlogger2.matlogger as matl
 import rospy
 from constraints import *
 from previewer import *
+from inverse_dynamics import *
 import math as mt
 
 logger = matl.MatLogger2('/tmp/template_rope_log')
@@ -153,7 +154,7 @@ print "v_max size: ", v_max.size1()
 J = MX([0])
 min_qdot = lambda k: 10.*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
-min_control = lambda k: 1.*dot(Qddot[k], Qddot[k])
+min_control = lambda k: 1.*dot(U[k], U[k])
 J += cost_function(min_control, 0, ns-1)
 
 # CONSTRAINTS
@@ -161,7 +162,7 @@ G = constraint_handler()
 
 # Initial condition
 v_init = q_init + qdot_init + qddot_init + f_init1 + f_init2 + f_initRope
-init = initial_condition(vertcat(X[0],U[0]), v_init)
+init = initial_condition(vertcat(X[0], U[0]), v_init)
 g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
@@ -183,20 +184,24 @@ print " g_max2: ", g_max2
 
 
 # Torque Limits
-tau_min =  np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                     -1000., -1000., -1000.,  # Contact 1
-                     -1000., -1000., -1000.,  # Contact 2
-                     0., 0., 0.,  # rope_anchor
-                     0.0]).tolist()  # rope
+tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
+                    -1000., -1000., -1000.,  # Contact 1
+                    -1000., -1000., -1000.,  # Contact 2
+                    0., 0., 0.,  # rope_anchor
+                    0.0]).tolist()  # rope
 
-tau_max =  np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                     1000., 1000., 1000.,  # Contact 1
-                     1000., 1000., 1000.,  # Contact 2
-                     0., 0., 0.,  # rope_anchor
-                     0.0]).tolist()  # rope
+tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
+                    1000., 1000., 1000.,  # Contact 1
+                    1000., 1000., 1000.,  # Contact 2
+                    0., 0., 0.,  # rope_anchor
+                    0.0]).tolist()  # rope
 
-#
-torque_lims1 = torque_lims(Jac_CRope, Q, Qdot, Qddot, FRope, ID, tau_min, tau_max)
+# inverse_dynamics
+
+id = inverse_dynamics(Q, Qdot, Qddot, ID, {'rope_anchor2': FRope}, kindyn)
+
+
+torque_lims1 = torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
@@ -214,7 +219,6 @@ print " g_max3: ", g_max3
 # print " g4: ", g4
 # print " g_min4: ", g_min4
 # print " g_max4: ", g_max4
-#
 
 # # Contact constraint
 contact_constr = contact(FKRope, Q, q_init)
@@ -225,8 +229,6 @@ print "Contact:"
 print " g5: ", g5
 print " g_min5: ", g_min5
 print " g_max5: ", g_max5
-
-
 
 opts = {'ipopt.tol': 1e-3,
         'ipopt.max_iter': 2000,
@@ -242,18 +244,14 @@ sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 w_opt = sol['x'].full().flatten()
 
 
-
-
 # PRINT AND REPLAY SOLUTION
 dt = 0.05
-#q_hist_res = trajectory_resampler(ns, F_integrator, V, X, Qddot, tf, dt, nq, nq+nv, w_opt)
 
-solution_dict = retrieve_solution(V, {'Q':Q, 'Qdot':Qdot, 'Qddot':Qddot, 'F1':F1, 'F2':F2, 'FRope':FRope}, w_opt)
+solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope}, w_opt)
 
 q_hist = solution_dict['Q']
 
-
-X_res = resample_solution(X, Qddot, tf, dt, dae)
+X_res, Qddot_res = resample_integrator(X, Qddot, tf, dt, dae)
 
 Resampler = Function("Resampler", [V], [X_res], ['V'], ['X_res'])
 
@@ -261,17 +259,21 @@ x_hist_res = Resampler(V=w_opt)['X_res'].full()
 #q_hist_res = (x_hist_res[0:nq,:]).transpose()
 q_hist_res = q_hist
 
+Tau = id.compute_nodes(0, ns-1)
+Resampler = Function("Resampler", [V], [Tau], ['V'], ['Tau'])
+tau_hist = Resampler(V=w_opt)['Tau'].full()
+
 # LOGGING
 for k in solution_dict:
     logger.add(k, solution_dict[k])
+
+logger.add('tau_hist', tau_hist)
 
 logger.add('q_hist_res', q_hist_res)
 
 
 del(logger)
 #####
-
-
 
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
