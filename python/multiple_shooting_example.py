@@ -29,78 +29,49 @@ Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # Optimization Params
 ns = 30  # number of shooting nodes
-print "ns: ", ns
 
 nc = 3  # number of contacts
-print "nc: ", nc
 
 nq = kindyn.nq()  # number of DoFs - NB: 7 DoFs floating base (quaternions)
-print "nq:", nq
 
 DoF = nq - 7 # Contacts + anchor_rope + rope
-print "DoF: ", DoF
 
 nv = kindyn.nv() # Velocity DoFs
-print "nv: ", nv
 
 nf = 3 # 2 feet contacts + rope contact with wall, Force DOfs
-print "nf: ", nf
 
 # Variables
 q, Q = create_variable("Q", nq, ns, "STATE")
+
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0, # Floating base
                   -0.3, -0.1, -0.1, # Contact 1
                   -0.3, -0.05, -0.1, # Contact 2
                   -1.57, -1.57, -3.1415, #rope_anchor
                   0.0]).tolist() #rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0, # Floating base
-                  0.3, 0.05,  0.1, # Contact 1
-                  0.3, 0.1,  0.1, # Contact 2
+                  0.3, 0.05, 0.1,  # Contact 1
+                  0.3, 0.1, 0.1,  # Contact 2
                   1.57, 1.57, 3.1415,  #rope_anchor
-                  0.5]).tolist() #rope
+                  10.0]).tolist() #rope
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
                    0., 0., 0.,
                    0.1]).tolist()
 
-print "Q: ", Q
-print "Q size: ", np.size(Q)
-print "q_min: ", q_min
-print "q_min size: ", np.size(q_min)
-print "q_max: ", q_max
-print "q_max size: ", np.size(q_max)
-print "q_init: ", q_init
-print "q_init size: ", np.size(q_init)
 
 qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
 qdot_min = (-100.*np.ones(nv)).tolist()
 qdot_max = (100.*np.ones(nv)).tolist()
 qdot_init = np.zeros(nv).tolist()
 
-
-print "Qdot:", Qdot
-print "Qdot size: ", np.size(Qdot)
-print "qdot_min: ", qdot_min
-print "qdot_min size: ", np.size(qdot_min)
-print "qdot_max: ", qdot_max
-print "qdot_max size: ", np.size(qdot_max)
-print "qdot_init: ", qdot_init
-print "qdot_init size: ", np.size(qdot_init)
-
 qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
 qddot_min = (-100.*np.ones(nv)).tolist()
 qddot_max = (100.*np.ones(nv)).tolist()
+# qddot_min[2] = -9.81
+# qddot_max[2] = -9.81
 qddot_init = np.zeros(nv).tolist()
-
-print "Qddot:", Qddot
-print "Qddot size: ", np.size(Qddot)
-print "qddot_min: ", qddot_min
-print "qddot_min size: ", np.size(qddot_min)
-print "qddot_max: ", qddot_max
-print "qddot_max size: ", np.size(qddot_max)
-print "qddot_init: ", qddot_init
-print "qddot_init size: ", np.size(qddot_init)
+qddot_init[2] = -9.8
 
 f1, F1 = create_variable('F1', nf, ns, "CONTROL")
 f_min1 = (-10000.*np.ones(nf)).tolist()
@@ -118,12 +89,10 @@ f_maxRope = (10000.*np.ones(nf)).tolist()
 f_initRope = np.zeros(nf).tolist()
 
 x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
-print "x: ", x
-print "xdot: ", xdot
 
-L = 0.001*dot(qddot, qddot) # Objective term
+L = 0.5*dot(qdot, qdot) # Objective term
 
-tf = 1. #[s]
+tf = 1.0 #[s]
 
 #Formulate discrete time dynamics
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
@@ -133,62 +102,55 @@ F_integrator = integrator('F_integrator', 'rk', dae, opts)
 # Start with an empty NLP
 
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
-print "X:", X
-print "X size: ", np.size(X)
-print "U:", U
-print "U size: ", np.size(U)
 
 V = concat_states_and_controls(X,U)
-print "V:", V
-print "V size: ", V.size1()
 
 v_min, v_max = create_bounds([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min1, f_min2, f_minRope], [qddot_max, f_max1, f_max2, f_maxRope], ns)
-print "v_min: ", v_min
-print "v_min size: ", v_min.size1()
-print "v_max: ", v_max
-print "v_max size: ", v_max.size1()
 
 # Create Problem (J, v_min, v_max, g_min, g_max)
 
 # Cost function
 J = MX([0])
-min_qdot = lambda k: 10.*dot(Qdot[k], Qdot[k])
+min_qdot = lambda k: 100.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
 J += cost_function(min_qdot, 0, ns)
-min_control = lambda k: 1.*dot(U[k], U[k])
-J += cost_function(min_control, 0, ns-1)
+
+min_qddot_a = lambda k: 1000.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
+J += cost_function(min_qddot_a, 0, ns-1)
+min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
+J += cost_function(min_F1, 0, ns-1)
+min_F2 = lambda k: 1000.*dot(F2[k], F2[k])
+J += cost_function(min_F2, 0, ns-1)
+min_FRope = lambda k: 100.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1]) # min Fdot SUCA!
+J += cost_function(min_FRope, 1, ns-1)
+
+# dd = {'Contact1': F1, 'Contact2': F2, 'rope_anchor2': FRope}
+dd = {'rope_anchor2': FRope}
+id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
+Tau = id.compute_nodes(0, ns-1)
+#
+# min_torque = lambda k: 1.*dot(Tau[k], Tau[k])
+# J += cost_function(min_torque, 0, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
 
 # Initial condition
-v_init = q_init + qdot_init + qddot_init + f_init1 + f_init2 + f_initRope
-init = initial_condition(vertcat(X[0], U[0]), v_init)
+x_init = q_init + qdot_init
+init = initial_condition(X[0], x_init)
 g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
-
-print "Initial Condition:"
-print " g1: ", g1
-print " g_min1: ", g_min1
-print " g_max1: ", g_max1
-
 
 # Multiple Shooting
 multiple_shooting_constraint = multiple_shooting(X, Qddot, F_integrator)
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
-print "Multiple Shooting:"
-print " g2: ", g2
-print " g_min2: ", g_min2
-print " g_max2: ", g_max2
-
-
 # Torque Limits
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     -1000., -1000., -1000.,  # Contact 1
                     -1000., -1000., -1000.,  # Contact 2
                     0., 0., 0.,  # rope_anchor
-                    0.0]).tolist()  # rope
+                    0.]).tolist()  # rope
 
 tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     1000., 1000., 1000.,  # Contact 1
@@ -198,39 +160,25 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
 
 # inverse_dynamics
 
-id = inverse_dynamics(Q, Qdot, Qddot, ID, {'rope_anchor2': FRope}, kindyn)
 
 
 torque_lims1 = torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
-print "Torque Lims:"
-print " g3: ", g3
-print " g_min3: ", g_min3
-print " g_max3: ", g_max3
-
 # tau_min[15] = -10000.
 # torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, FRope, ID, tau_min, tau_max)
 # g4, g_min4, g_max4 = constraint(torque_lims2, 10, ns-1)
 # G.set_constraint(g4, g_min4, g_max4)
-#
-# print "Torque Lims:"
-# print " g4: ", g4
-# print " g_min4: ", g_min4
-# print " g_max4: ", g_max4
+
 
 # # Contact constraint
 contact_constr = contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
-print "Contact:"
-print " g5: ", g5
-print " g_min5: ", g_min5
-print " g_max5: ", g_max5
 
-opts = {'ipopt.tol': 1e-3,
+opts = {'ipopt.tol': 1e-4,
         'ipopt.max_iter': 2000,
         'ipopt.linear_solver': 'ma57'}
 
@@ -251,17 +199,19 @@ solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1'
 
 q_hist = solution_dict['Q']
 
-X_res, Qddot_res = resample_integrator(X, Qddot, tf, dt, dae)
+#X_res, Qddot_res = resample_integrator(X, Qddot, tf, dt, dae)
 
-Resampler = Function("Resampler", [V], [X_res], ['V'], ['X_res'])
+#Resampler = Function("Resampler", [V], [X_res], ['V'], ['X_res'])
 
-x_hist_res = Resampler(V=w_opt)['X_res'].full()
+#x_hist_res = Resampler(V=w_opt)['X_res'].full()
 #q_hist_res = (x_hist_res[0:nq,:]).transpose()
 q_hist_res = q_hist
 
-Tau = id.compute_nodes(0, ns-1)
+
 Resampler = Function("Resampler", [V], [Tau], ['V'], ['Tau'])
-tau_hist = Resampler(V=w_opt)['Tau'].full()
+tau_hist = (Resampler(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
+
+
 
 # LOGGING
 for k in solution_dict:

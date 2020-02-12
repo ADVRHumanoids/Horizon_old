@@ -49,3 +49,7 @@ class initial_condition(constraint_class):
         self.g_mink = self.x_init
         self.g_maxk = self.x_init
 
+
+
+
+
