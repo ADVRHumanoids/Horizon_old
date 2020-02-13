@@ -6,8 +6,7 @@ import geometry_msgs.msg
 import rospy
 
 class replay_trajectory:
-    def __init__(self, ns, dt, joint_list, q_replay):
-        self.ns = ns
+    def __init__(self, dt, joint_list, q_replay):
         self.dt = dt
         self.joint_list = joint_list
         self.q_replay = q_replay
@@ -29,16 +28,16 @@ class replay_trajectory:
         m.child_frame_id = 'base_link'
 
         nq = np.shape(self.q_replay)[1]
+        n_res = np.shape(self.q_replay)[0]
 
         while not rospy.is_shutdown():
-            for k in range(self.ns):
+            for k in range(int(round(n_res))):
                 qk = self.q_replay[k]
 
                 m.transform.translation.x = qk[0]
                 m.transform.translation.y = qk[1]
                 m.transform.translation.z = qk[2]
-                quat = [qk[3], qk[4], qk[5], qk[6]]
-                quat = self.normalize(quat)
+                quat = self.normalize([qk[3], qk[4], qk[5], qk[6]])
                 m.transform.rotation.x = quat[0]
                 m.transform.rotation.y = quat[1]
                 m.transform.rotation.z = quat[2]
@@ -55,10 +54,3 @@ class replay_trajectory:
                 joint_state_pub.effort = []
                 pub.publish(joint_state_pub)
                 rate.sleep()
-
-
-
-
-
-
-

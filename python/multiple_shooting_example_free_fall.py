@@ -222,6 +222,4 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
               'rope_joint']
 
-n_res = int(round(np.size(q_hist_res)/nq))
-
-replay_trajectory(n_res, dt, joint_list, q_hist_res).replay()
+replay_trajectory(dt, joint_list, q_hist_res).replay()
