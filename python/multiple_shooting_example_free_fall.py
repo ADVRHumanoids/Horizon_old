@@ -192,21 +192,17 @@ sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 w_opt = sol['x'].full().flatten()
 
 
-# PRINT AND REPLAY SOLUTION
-dt = 0.001
+# RETRIEVE SOLUTION AND LOGGING
 
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope}, w_opt)
-
 q_hist = solution_dict['Q']
 
+# RESAMPLE STATE
+dt = 0.001
 X_res = resample_integrator(X, Qddot, tf, dt, dae)
-
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
-
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
-
-# q_hist_res = q_hist
 
 get_Tau = Function("get_Tau", [V], [Tau], ['V'], ['Tau'])
 tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
@@ -215,13 +211,12 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
+logger.add('q_hist_res', q_hist_res)
 logger.add('tau_hist', tau_hist)
 
-logger.add('q_hist_res', q_hist_res)
-
 del(logger)
-#####
 
+# REPLAY TRAJECTORY
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
 import tf as ros_tf
