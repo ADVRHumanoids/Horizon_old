@@ -4,7 +4,7 @@ import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
 import rospy
 from constraints import *
-from previewer import *
+from resample_integrator import *
 from inverse_dynamics import *
 import math as mt
 

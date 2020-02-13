@@ -2,9 +2,8 @@
 from horizon import *
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
-import rospy
 from constraints import *
-from previewer import *
+from resample_integrator import *
 from inverse_dynamics import *
 from replay_trajectory import *
 
@@ -27,8 +26,8 @@ ID = Function.deserialize(kindyn.rnea())
 Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
 Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
-# Optimization Params
-ns = 60  # number of shooting nodes
+# OPTIMIZATION PARAMETERS
+ns = 30  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -40,7 +39,7 @@ nv = kindyn.nv()  # Velocity DoFs
 
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
-# Variables
+# CREATE VARIABLES
 q, Q = create_variable("Q", nq, ns, "STATE")
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
@@ -68,8 +67,6 @@ qdot_init = np.zeros(nv).tolist()
 qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
 qddot_min = (-100.*np.ones(nv)).tolist()
 qddot_max = (100.*np.ones(nv)).tolist()
-# qddot_min[2] = -9.81
-# qddot_max[2] = -9.81
 qddot_init = np.zeros(nv).tolist()
 qddot_init[2] = -9.8
 
@@ -94,58 +91,52 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 tf = 1.0  # [s]
 
-#Formulate discrete time dynamics
+# FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
 opts = {'tf': tf/ns}
 F_integrator = integrator('F_integrator', 'rk', dae, opts)
 
-# Start with an empty NLP
-
+# START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
-
 V = concat_states_and_controls(X, U)
-
 v_min, v_max = create_bounds([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min1, f_min2, f_minRope], [qddot_max, f_max1, f_max2, f_maxRope], ns)
 
-# Create Problem (J, v_min, v_max, g_min, g_max)
-
-# Cost function
+# SET UP COST FUNCTION
 J = MX([0])
+
 min_qdot = lambda k: 100.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
 J += cost_function(min_qdot, 0, ns)
 
 min_qddot_a = lambda k: 1000.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
 J += cost_function(min_qddot_a, 0, ns-1)
+
 min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
 J += cost_function(min_F1, 0, ns-1)
+
 min_F2 = lambda k: 1000.*dot(F2[k], F2[k])
 J += cost_function(min_F2, 0, ns-1)
-min_FRope = lambda k: 1000.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot SUCA!
-J += cost_function(min_FRope, 1, ns-1)
 
-# dd = {'Contact1': F1, 'Contact2': F2, 'rope_anchor2': FRope}
-dd = {'rope_anchor2': FRope}
-id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
-Tau = id.compute_nodes(0, ns-1)
-#
-# min_torque = lambda k: 1.*dot(Tau[k], Tau[k])
-# J += cost_function(min_torque, 0, ns-1)
+min_FRope = lambda k: 1000.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+J += cost_function(min_FRope, 1, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
 
-# Initial condition
+# INITIAL CONDITION CONSTRAINT
 x_init = q_init + qdot_init
 init = initial_condition(X[0], x_init)
 g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
-# Multiple Shooting
+# MULTIPLE SHOOTING CONSTRAINT
 multiple_shooting_constraint = multiple_shooting(X, Qddot, F_integrator)
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
-# Torque Limits
+# INVERSE DYNAMICS CONSTRAINT
+dd = {'rope_anchor2': FRope}
+id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
+
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     -1000., -1000., -1000.,  # Contact 1
                     -1000., -1000., -1000.,  # Contact 2
@@ -158,21 +149,11 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     0., 0., 0.,  # rope_anchor
                     0.0]).tolist()  # rope
 
-# inverse_dynamics
-
-
-
 torque_lims1 = torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
-# tau_min[15] = -10000.
-# torque_lims2 = torque_lims(Jac_CRope, Q, Qdot, Qddot, FRope, ID, tau_min, tau_max)
-# g4, g_min4, g_max4 = constraint(torque_lims2, 10, ns-1)
-# G.set_constraint(g4, g_min4, g_max4)
-
-
-# # Contact constraint
+# ROPE CONTACT CONSTRAINT
 contact_constr = contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
@@ -193,17 +174,18 @@ w_opt = sol['x'].full().flatten()
 
 
 # RETRIEVE SOLUTION AND LOGGING
-
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope}, w_opt)
 q_hist = solution_dict['Q']
 
-# RESAMPLE STATE
+# RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
 X_res = resample_integrator(X, Qddot, tf, dt, dae)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
 
+# GET ADDITIONAL VARIABLES
+Tau = id.compute_nodes(0, ns-1)
 get_Tau = Function("get_Tau", [V], [Tau], ['V'], ['Tau'])
 tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 
@@ -211,8 +193,8 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
-logger.add('q_hist_res', q_hist_res)
-logger.add('tau_hist', tau_hist)
+logger.add('Q_res', q_hist_res)
+logger.add('Tau', tau_hist)
 
 del(logger)
 

@@ -2,7 +2,7 @@ from casadi import *
 from horizon import *
 
 
-def resample_integrator(X, Qddot, tf, dt, dae):
+def resample_integrator(X, U_integrator, tf, dt, dae):
 
     ns = np.size(X)
     ti = tf/ns  # interval time
@@ -28,9 +28,9 @@ def resample_integrator(X, Qddot, tf, dt, dae):
         for j in range(ni):  # cycle on intermediate nodes in interval
 
             if j == 0:
-                 X_res[0:nx, k+1] = F_integrator(x0=X[i], p=Qddot[i])['xf']
+                 X_res[0:nx, k+1] = F_integrator(x0=X[i], p=U_integrator[i])['xf']
             else:
-                 X_res[0:nx, k+1] = F_integrator(x0=X_res[0:nx, k], p=Qddot[i])['xf']
+                 X_res[0:nx, k+1] = F_integrator(x0=X_res[0:nx, k], p=U_integrator[i])['xf']
 
             k += 1
 
