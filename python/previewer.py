@@ -36,6 +36,3 @@ def resample_integrator(X, Qddot, tf, dt, dae):
 
     return X_res
 
-
-def normalize(v):
-    return v/np.linalg.norm(v)

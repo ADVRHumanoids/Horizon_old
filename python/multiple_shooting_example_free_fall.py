@@ -6,7 +6,7 @@ import rospy
 from constraints import *
 from previewer import *
 from inverse_dynamics import *
-import math as mt
+from replay_trajectory import *
 
 logger = matl.MatLogger2('/tmp/template_rope_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -34,25 +34,25 @@ nc = 3  # number of contacts
 
 nq = kindyn.nq()  # number of DoFs - NB: 7 DoFs floating base (quaternions)
 
-DoF = nq - 7 # Contacts + anchor_rope + rope
+DoF = nq - 7  # Contacts + anchor_rope + rope
 
-nv = kindyn.nv() # Velocity DoFs
+nv = kindyn.nv()  # Velocity DoFs
 
-nf = 3 # 2 feet contacts + rope contact with wall, Force DOfs
+nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # Variables
 q, Q = create_variable("Q", nq, ns, "STATE")
 
-q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0, # Floating base
-                  -0.3, -0.1, -0.1, # Contact 1
-                  -0.3, -0.05, -0.1, # Contact 2
-                  -1.57, -1.57, -3.1415, #rope_anchor
-                  0.0]).tolist() #rope
-q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0, # Floating base
+q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
+                  -0.3, -0.1, -0.1,  # Contact 1
+                  -0.3, -0.05, -0.1,  # Contact 2
+                  -1.57, -1.57, -3.1415,  # rope_anchor
+                  0.0]).tolist()  # rope
+q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
                   0.3, 0.05, 0.1,  # Contact 1
                   0.3, 0.1, 0.1,  # Contact 2
-                  1.57, 1.57, 3.1415,  #rope_anchor
-                  10.0]).tolist() #rope
+                  1.57, 1.57, 3.1415,  # rope_anchor
+                  10.0]).tolist()  # rope
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
@@ -90,9 +90,9 @@ f_initRope = np.zeros(nf).tolist()
 
 x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
 
-L = 0.5*dot(qdot, qdot) # Objective term
+L = 0.5*dot(qdot, qdot)  # Objective term
 
-tf = 1.0 #[s]
+tf = 1.0  # [s]
 
 #Formulate discrete time dynamics
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
@@ -103,7 +103,7 @@ F_integrator = integrator('F_integrator', 'rk', dae, opts)
 
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
 
-V = concat_states_and_controls(X,U)
+V = concat_states_and_controls(X, U)
 
 v_min, v_max = create_bounds([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min1, f_min2, f_minRope], [qddot_max, f_max1, f_max2, f_maxRope], ns)
 
@@ -217,50 +217,11 @@ logger.add('tau_hist', tau_hist)
 del(logger)
 
 # REPLAY TRAJECTORY
-from sensor_msgs.msg import JointState
-from std_msgs.msg import Header
-import tf as ros_tf
-import geometry_msgs.msg
-
-pub = rospy.Publisher('joint_states', JointState, queue_size=10)
-rospy.init_node('joint_state_publisher')
-rate = rospy.Rate(1./dt)
-joint_state_pub = JointState()
-joint_state_pub.header = Header()
-joint_state_pub.name = ['Contact1_x', 'Contact1_y', 'Contact1_z',
-                        'Contact2_x', 'Contact2_y', 'Contact2_z',
-                        'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
-                        'rope_joint']
-
-br = ros_tf.TransformBroadcaster()
-m = geometry_msgs.msg.TransformStamped()
-m.header.frame_id = 'world_odom'
-m.child_frame_id = 'base_link'
+joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
+              'Contact2_x', 'Contact2_y', 'Contact2_z',
+              'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
+              'rope_joint']
 
 n_res = int(round(np.size(q_hist_res)/nq))
 
-while not rospy.is_shutdown():
-    for k in range(n_res):
-        qk = q_hist_res[k]
-
-        m.transform.translation.x = qk[0]
-        m.transform.translation.y = qk[1]
-        m.transform.translation.z = qk[2]
-        quat = [qk[3], qk[4], qk[5], qk[6]]
-        quat = normalize(quat)
-        m.transform.rotation.x = quat[0]
-        m.transform.rotation.y = quat[1]
-        m.transform.rotation.z = quat[2]
-        m.transform.rotation.w = quat[3]
-
-        br.sendTransform((m.transform.translation.x, m.transform.translation.y, m.transform.translation.z),
-                         (m.transform.rotation.x, m.transform.rotation.y, m.transform.rotation.z,
-                          m.transform.rotation.w),
-                         rospy.Time.now(), m.child_frame_id, m.header.frame_id)
-
-        joint_state_pub.header.stamp = rospy.Time.now()
-        joint_state_pub.position = qk[7:nq]
-        joint_state_pub.velocity = []
-        joint_state_pub.effort = []
-        pub.publish(joint_state_pub)
-        rate.sleep()
+replay_trajectory(n_res, dt, joint_list, q_hist_res).replay()
