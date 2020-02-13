@@ -28,7 +28,7 @@ Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
 Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # Optimization Params
-ns = 30  # number of shooting nodes
+ns = 60  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -120,7 +120,7 @@ min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
 J += cost_function(min_F1, 0, ns-1)
 min_F2 = lambda k: 1000.*dot(F2[k], F2[k])
 J += cost_function(min_F2, 0, ns-1)
-min_FRope = lambda k: 100.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1]) # min Fdot SUCA!
+min_FRope = lambda k: 1000.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot SUCA!
 J += cost_function(min_FRope, 1, ns-1)
 
 # dd = {'Contact1': F1, 'Contact2': F2, 'rope_anchor2': FRope}
@@ -193,25 +193,23 @@ w_opt = sol['x'].full().flatten()
 
 
 # PRINT AND REPLAY SOLUTION
-dt = 0.05
+dt = 0.001
 
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope}, w_opt)
 
 q_hist = solution_dict['Q']
 
-#X_res, Qddot_res = resample_integrator(X, Qddot, tf, dt, dae)
+X_res = resample_integrator(X, Qddot, tf, dt, dae)
 
-#Resampler = Function("Resampler", [V], [X_res], ['V'], ['X_res'])
+get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 
-#x_hist_res = Resampler(V=w_opt)['X_res'].full()
-#q_hist_res = (x_hist_res[0:nq,:]).transpose()
-q_hist_res = q_hist
+x_hist_res = get_X_res(V=w_opt)['X_res'].full()
+q_hist_res = (x_hist_res[0:nq, :]).transpose()
 
+# q_hist_res = q_hist
 
-Resampler = Function("Resampler", [V], [Tau], ['V'], ['Tau'])
-tau_hist = (Resampler(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
-
-
+get_Tau = Function("get_Tau", [V], [Tau], ['V'], ['Tau'])
+tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 
 # LOGGING
 for k in solution_dict:
@@ -220,7 +218,6 @@ for k in solution_dict:
 logger.add('tau_hist', tau_hist)
 
 logger.add('q_hist_res', q_hist_res)
-
 
 del(logger)
 #####
@@ -245,8 +242,10 @@ m = geometry_msgs.msg.TransformStamped()
 m.header.frame_id = 'world_odom'
 m.child_frame_id = 'base_link'
 
+n_res = int(round(np.size(q_hist_res)/nq))
+
 while not rospy.is_shutdown():
-    for k in range(ns):
+    for k in range(n_res):
         qk = q_hist_res[k]
 
         m.transform.translation.x = qk[0]
