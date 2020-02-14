@@ -22,10 +22,13 @@ install(DIRECTORY configs/
 
 install(PROGRAMS
    python/horizon.py
-   python/constraints.py
-   python/resample_integrator.py
-   python/replay_trajectory.py
-   python/inverse_dynamics.py
-   python/multiple_shooting_example.py
+   python/constraints/torque_limits.py
+   python/constraints/initial_condition.py
+   python/constraints/contact.py
+   python/utils/resample_integrator.py
+   python/utils/replay_trajectory.py
+   python/utils/inverse_dynamics.py
+   python/examples/multiple_shooting_example.py
+   python/examples/multiple_shooting_example_free_fall.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

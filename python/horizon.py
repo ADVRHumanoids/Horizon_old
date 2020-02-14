@@ -146,6 +146,17 @@ class constraint_class:
     def virtual_method(self, k):
         raise NotImplementedError()
 
+class multiple_shooting(constraint_class):
+    def __init__(self, X, Qddot, F_integrator):
+        self.X = X
+        self.Qddot = Qddot
+        self.F_integrator = F_integrator
+
+    def virtual_method(self, k):
+        integrator_out = self.F_integrator(x0=self.X[k], p=self.Qddot[k])
+        self.gk = [integrator_out['xf'] - self.X[k + 1]]
+        self.g_mink = [0] * self.X[k + 1].size1()
+        self.g_maxk = [0] * self.X[k + 1].size1()
 
 class constraint_handler():
     def __init__(self):
