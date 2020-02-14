@@ -7,7 +7,9 @@ import horizon
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
 import constraints as cons
-from utils import *
+from utils.resample_integrator import *
+from utils.inverse_dynamics import *
+from utils.replay_trajectory import *
 
 logger = matl.MatLogger2('/tmp/template_rope_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
