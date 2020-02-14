@@ -23,7 +23,8 @@ install(DIRECTORY configs/
 install(PROGRAMS
    python/horizon.py
    python/constraints.py
-   python/previewer.py
+   python/resample_integrator.py
+   python/replay_trajectory.py
    python/inverse_dynamics.py
    python/multiple_shooting_example.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
