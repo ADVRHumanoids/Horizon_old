@@ -116,8 +116,8 @@ Q_RK = Q_RK + DT_RK / 6 * (k1_q + 2 * k2_q + 2 * k3_q + k4_q)
 F_integrator_time = Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
 
 # START WITH AN EMPTY NLP
-X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Tf])
-V = concat_states_and_controls(X, U)
+X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
+V = concat_states_and_controls_and_final_time(X, U, Tf)
 v_min, v_max = create_bounds([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min1, f_min2, f_minRope], [qddot_max, f_max1, f_max2, f_maxRope], ns)
 
 exit()

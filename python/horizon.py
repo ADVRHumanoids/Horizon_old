@@ -43,6 +43,15 @@ def concat_states_and_controls(X, U):
     V.append(X[ns])
     return vertcat(*V)
 
+def concat_states_and_controls_and_final_time(X, U, Tf):
+    ns = np.size(U)
+    V = []
+    for k in range(ns):
+        V.append(vertcat(X[k], U[k]))
+    V.append(*Tf)
+    V.append(X[ns])
+    return vertcat(*V)
+
 # concat: creates a list concatenating (vertically) each variable contained in V at the same node:
 # Example: V = [Q, Qdot] then X = [MX(vertcat(Q0, Qdot0)), MX((vertcat(Q1, Qdot1)), MX(vertcat(Q2, Qdot2)), ...]'
 def concat(V, s):
