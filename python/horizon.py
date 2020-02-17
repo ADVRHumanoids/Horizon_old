@@ -19,6 +19,21 @@ def create_bounds(x_min, x_max, u_min, u_max, number_of_nodes):
 
     return vertcat(*v_min), vertcat(*v_max)
 
+def create_bounds_with_final_time(x_min, x_max, u_min, u_max, tf_min, tf_max, number_of_nodes):
+    v_min = []
+    v_max = []
+    for k in range(number_of_nodes-1):
+        v_min += x_min
+        v_max += x_max
+        v_min += u_min
+        v_max += u_max
+    v_min.append(tf_min)
+    v_max.append(tf_max)
+    v_min += x_min
+    v_max += x_max
+
+    return vertcat(*v_min), vertcat(*v_max)
+
 def create_init(x_init, u_init, number_of_nodes):
     v_init = []
     for k in range(number_of_nodes - 1):
