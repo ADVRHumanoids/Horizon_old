@@ -26,6 +26,7 @@ install(PROGRAMS
    python/constraints/initial_condition.py
    python/constraints/contact.py
    python/utils/resample_integrator.py
+   python/utils/integrator_time.py
    python/utils/replay_trajectory.py
    python/utils/inverse_dynamics.py
    python/examples/multiple_shooting_example.py
