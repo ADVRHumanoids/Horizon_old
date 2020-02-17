@@ -31,7 +31,7 @@ Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
 Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # OPTIMIZATION PARAMETERS
-ns = 40  # number of shooting nodes
+ns = 100  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -108,10 +108,14 @@ v_min, v_max = create_bounds([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f
 # SET UP COST FUNCTION
 J = MX([0])
 
-min_q = lambda k: 10.*dot(Q[k][7:13]-q_init[7:13], Q[k][7:13]-q_init[7:13])
+K = 300000.
+min_q = lambda k: K*dot(Q[k][7:13]-q_init[7:13], Q[k][7:13]-q_init[7:13])
 J += cost_function(min_q, 0, ns)
 
-min_qdot = lambda k: 1.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
+D = 100.
+min_qdot_legs = lambda k: D*dot(Qdot[k][6:12], Qdot[k][6:12])
+J += cost_function(min_qdot_legs, 0, ns)
+min_qdot = lambda k: 1.*dot(Qdot[k][12:-1], Qdot[k][12:-1])
 J += cost_function(min_qdot, 0, ns)
 
 min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
