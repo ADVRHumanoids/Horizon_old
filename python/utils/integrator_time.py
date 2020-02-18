@@ -1,7 +1,7 @@
 from casadi import *
 from horizon import *
 
-class integrator_time:
+class integrator_time(object):
     def __init__(self, dae_time):
         self.x = dae_time['x']
         self.qddot = dae_time['p']
