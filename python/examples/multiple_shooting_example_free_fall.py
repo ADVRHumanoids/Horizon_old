@@ -134,7 +134,8 @@ g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
 # MULTIPLE SHOOTING CONSTRAINT
-multiple_shooting_constraint = multiple_shooting(X, Qddot, F_integrator)
+integrator_dict = {'x0': X, 'p': Qddot}
+multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
