@@ -12,7 +12,7 @@ from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
 from utils.integrator_time import *
 
-logger = matl.MatLogger2('/tmp/template_rope_log')
+logger = matl.MatLogger2('/tmp/template_rope_final_time_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
 urdf = rospy.get_param('robot_description')
@@ -137,10 +137,9 @@ G.set_constraint(g1, g_min1, g_max1)
 # MULTIPLE SHOOTING CONSTRAINT
 integrator_dict = {'x0': X, 'p': Qddot, 'time': Tf}
 multiple_shooting_constraint = multiple_shooting_dict(integrator_dict, F_integrator)
+
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
-
-exit()
 
 # INVERSE DYNAMICS CONSTRAINT
 dd = {'rope_anchor2': FRope}
@@ -175,16 +174,15 @@ opts = {'ipopt.tol': 1e-4,
 g, g_min, g_max = G.get_constraints()
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts)
 
-x0 = create_init([q_init, qdot_init], [qddot_init, f_init1, f_init2, f_initRope], ns)
-
+x0 = create_init_with_final_time([q_init, qdot_init], [qddot_init, f_init1, f_init2, f_initRope], tf_init, ns)
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 w_opt = sol['x'].full().flatten()
 
-
 # RETRIEVE SOLUTION AND LOGGING
-solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope}, w_opt)
+solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Tf': Tf}, w_opt)
 q_hist = solution_dict['Q']
+tf = solution_dict['Tf']
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
@@ -202,7 +200,7 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
-logger.add('Q_res', q_hist_res)
+# logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
 
 del(logger)
