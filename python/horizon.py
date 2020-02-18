@@ -185,6 +185,36 @@ class multiple_shooting(constraint_class):
         else:
             raise NotImplementedError()
 
+class multiple_shooting_dict(constraint_class):
+    def __init__(self, dict, F_integrator):
+        self.dict = dict
+        self.F_integrator = F_integrator
+        self.keys = []
+
+        for key in self.dict:
+            self.keys.append(key)
+
+    def virtual_method(self, k):
+        if isinstance(self.F_integrator, Function):
+            if np.size(self.keys) == 2:
+                integrator_out = self.F_integrator(x0=self.dict['x0'][k], p=self.dict['p'][k])
+                self.gk = [integrator_out['xf'] - self.dict['x0'][k + 1]]
+                self.g_mink = [0] * self.dict['x0'][k + 1].size1()
+                self.g_maxk = [0] * self.dict['x0'][k + 1].size1()
+            else:
+                if np.size(self.dict['time']) == 1:  # final time
+                    integrator_out = self.F_integrator(x0=self.dict['x0'][k], p=self.dict['p'][k], time=self.dict['time'][0]/np.size(self.dict['p']))
+                    self.gk = [integrator_out['xf'] - self.dict['x0'][k + 1]]
+                    self.g_mink = [0] * self.dict['x0'][k + 1].size1()
+                    self.g_maxk = [0] * self.dict['x0'][k + 1].size1()
+                else:  # intermediate times
+                    integrator_out = self.F_integrator(x0=self.dict['x0'][k], p=self.dict['p'][k], time=self.dict['time'][k])
+                    self.gk = [integrator_out['xf'] - self.dict['x0'][k + 1]]
+                    self.g_mink = [0] * self.dict['x0'][k + 1].size1()
+                    self.g_maxk = [0] * self.dict['x0'][k + 1].size1()
+        else:
+            raise NotImplementedError()
+
 class constraint_handler():
     def __init__(self):
         self.g = []

@@ -10,6 +10,7 @@ import constraints as cons
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
+from utils.integrator_time import *
 
 logger = matl.MatLogger2('/tmp/template_rope_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -67,7 +68,6 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0.1]).tolist()
 
-
 qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
 qdot_min = (-100.*np.ones(nv)).tolist()
 qdot_max = (100.*np.ones(nv)).tolist()
@@ -98,22 +98,9 @@ x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
 
 L = 0.5*dot(qdot, qdot)  # Objective term
 
-# Runge-Kutta 4 integrator with time
-f_RK = Function('f_RK', [x, qddot], [xdot, L])
-X0_RK = MX.sym('X0_RK', nq+nv)
-U_RK = MX.sym('U_RK', nv)
-DT_RK = MX.sym('DT_RK', 1)
-X_RK = X0_RK
-Q_RK = 0
-
-k1, k1_q = f_RK(X_RK, U_RK)
-k2, k2_q = f_RK(X_RK + 0.5*DT_RK*k1, U_RK)
-k3, k3_q = f_RK(X_RK + DT_RK / 2 * k2, U_RK)
-k4, k4_q = f_RK(X_RK + DT_RK * k3, U_RK)
-X_RK = X_RK + DT_RK / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-Q_RK = Q_RK + DT_RK / 6 * (k1_q + 2 * k2_q + 2 * k3_q + k4_q)
-
-F_integrator_time = Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+# FORMULATE DISCRETE TIME DYNAMICS
+dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
+F_integrator = integrator_time(dae).getIntegrator()
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
@@ -148,9 +135,12 @@ g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
 # MULTIPLE SHOOTING CONSTRAINT
-multiple_shooting_constraint = multiple_shooting(X, Qddot, F_integrator)
+integrator_dict = {'x0': X, 'p': Qddot, 'time': Tf}
+multiple_shooting_constraint = multiple_shooting_dict(integrator_dict, F_integrator)
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
+
+exit()
 
 # INVERSE DYNAMICS CONSTRAINT
 dd = {'rope_anchor2': FRope}
