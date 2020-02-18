@@ -44,6 +44,15 @@ def create_init(x_init, u_init, number_of_nodes):
     return vertcat(*v_init)
 
 
+def create_init_with_final_time(x_init, u_init, tf_init, number_of_nodes):
+    v_init = []
+    for k in range(number_of_nodes - 1):
+        v_init += x_init
+        v_init += u_init
+    v_init.append(tf_init)
+    v_init += x_init
+
+    return vertcat(*v_init)
 
 # concat_states_and_controls: creates a list concatenating (vertically) each variable concatenated variable contained in X
 # and U at the same node adding the final state at the end:
