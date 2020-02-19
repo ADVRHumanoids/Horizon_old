@@ -6,33 +6,32 @@ from casadi import *
 # on states x and controls u
 #
 # Output: v_min = [v_min1, v_min2, ..., v_minn]
-def create_bounds(x_min, x_max, u_min, u_max, number_of_nodes):
+def create_bounds(dict, number_of_nodes):
+    x_min = dict["x_min"]
+    x_max = dict["x_max"]
+    u_min = dict["u_min"]
+    u_max = dict["u_max"]
+
     v_min = []
     v_max = []
-    for k in range(number_of_nodes-1):
+    for k in range(number_of_nodes - 1):
         v_min += x_min
         v_max += x_max
         v_min += u_min
         v_max += u_max
+
+    if "tf_min" in dict:
+        if "tf_max" in dict:
+            tf_min = dict["tf_min"]
+            tf_max = dict["tf_max"]
+            v_min.append(tf_min)
+            v_max.append(tf_max)
+
     v_min += x_min
     v_max += x_max
 
     return vertcat(*v_min), vertcat(*v_max)
 
-def create_bounds_with_final_time(x_min, x_max, u_min, u_max, tf_min, tf_max, number_of_nodes):
-    v_min = []
-    v_max = []
-    for k in range(number_of_nodes-1):
-        v_min += x_min
-        v_max += x_max
-        v_min += u_min
-        v_max += u_max
-    v_min.append(tf_min)
-    v_max.append(tf_max)
-    v_min += x_min
-    v_max += x_max
-
-    return vertcat(*v_min), vertcat(*v_max)
 
 def create_init(dict, number_of_nodes):
     x_init = dict["x_init"]
