@@ -34,22 +34,15 @@ def create_bounds_with_final_time(x_min, x_max, u_min, u_max, tf_min, tf_max, nu
 
     return vertcat(*v_min), vertcat(*v_max)
 
-def create_init(x_init, u_init, number_of_nodes):
+def create_init(dict, number_of_nodes):
+    x_init = dict["x_init"]
+    u_init = dict["u_init"]
     v_init = []
     for k in range(number_of_nodes - 1):
         v_init += x_init
         v_init += u_init
-    v_init += x_init
-
-    return vertcat(*v_init)
-
-
-def create_init_with_final_time(x_init, u_init, tf_init, number_of_nodes):
-    v_init = []
-    for k in range(number_of_nodes - 1):
-        v_init += x_init
-        v_init += u_init
-    v_init.append(tf_init)
+    if "tf_init" in dict:
+        v_init.append(tf_init)
     v_init += x_init
 
     return vertcat(*v_init)
