@@ -123,6 +123,8 @@ J += cost_function(min_qdot, 0, ns)
 min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
 J += cost_function(min_qddot_a, 0, ns-1)
 
+J += 1000.*dot(Tf[0]-tf_init, Tf[0]-tf_init)
+
 # min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
 # J += cost_function(min_F1, 0, ns-1)
 
