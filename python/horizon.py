@@ -59,22 +59,20 @@ def create_init_with_final_time(x_init, u_init, tf_init, number_of_nodes):
 # Example: X = [MX(vertcat(Q0, Qdot0)), MX(vertcat(Q1, Qdot1)), MX(vertcat(Q2, Qdot2)), ..., MX(vertcat(Qn, Qdotn))]'
 #          U = [MX(vertcat(Qddot0, F0)), MX(vertcat(Qddot1, F1)), MX(vertcat(Qddot2, F2)), ..., MX(vertcat(Qddotn-1, Fn-1))]'
 # then V = [vertcat(Q0, Qdot0, Qddot0, F0, Q1, Qdot1, Qddot1, F1, Q2, Qdot2, Qddot2, F2, ..., Qn, Qdotn]'
-def concat_states_and_controls(X, U):
+def concat_states_and_controls(dict):
+    X = dict["X"]
+    U = dict["U"]
     ns = np.size(U)
     V = []
     for k in range(ns):
         V.append(vertcat(X[k], U[k]))
+    if "Tf" in dict:
+        Tf = dict["Tf"]
+        V.append(*Tf)
     V.append(X[ns])
     return vertcat(*V)
 
-def concat_states_and_controls_and_final_time(X, U, Tf):
-    ns = np.size(U)
-    V = []
-    for k in range(ns):
-        V.append(vertcat(X[k], U[k]))
-    V.append(*Tf)
-    V.append(X[ns])
-    return vertcat(*V)
+
 
 # concat: creates a list concatenating (vertically) each variable contained in V at the same node:
 # Example: V = [Q, Qdot] then X = [MX(vertcat(Q0, Qdot0)), MX((vertcat(Q1, Qdot1)), MX(vertcat(Q2, Qdot2)), ...]'

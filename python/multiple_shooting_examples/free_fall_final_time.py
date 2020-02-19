@@ -104,7 +104,7 @@ F_integrator = integrator_time(dae)
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
-V = concat_states_and_controls_and_final_time(X, U, Tf)
+V = concat_states_and_controls({"X": X, "U": U, "Tf": Tf})
 v_min, v_max = create_bounds_with_final_time([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min1, f_min2, f_minRope], [qddot_max, f_max1, f_max2, f_maxRope], tf_min, tf_max, ns)
 
 # SET UP COST FUNCTION
