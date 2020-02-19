@@ -32,7 +32,7 @@ Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
 Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # OPTIMIZATION PARAMETERS
-ns = 100  # number of shooting nodes
+ns = 80  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -46,9 +46,10 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
 tf, Tf = create_variable("Tf", 1, 1, "FINAL_STATE")
-tf_min = 1.0
-tf_max = 10.0
-tf_init = 2.0
+dt = 0.02
+tf_min = dt*(ns-1)
+tf_max = dt*(ns-1)
+tf_init = dt*(ns-1)
 
 q, Q = create_variable("Q", nq, ns, "STATE")
 
@@ -65,7 +66,7 @@ q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
-                   0., 0.3, 0.,
+                   0., 0.2, 0.,
                    0.3]).tolist()
 
 qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
