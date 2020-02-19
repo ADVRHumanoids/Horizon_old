@@ -190,11 +190,11 @@ class multiple_shooting(constraint_class):
             self.keys.append(key)
 
     def virtual_method(self, k):
-        if "time" in self.dict: # time is optimized
-            if np.size(self.dict['time']) == 1: # only final time is optimized
+        if 'time' in self.dict:  # time is optimized
+            if np.size(self.dict['time']) == 1:  # only final time is optimized
                 integrator_out = self.F_integrator(x0=self.dict['x0'][k], p=self.dict['p'][k],
                                                    time=self.dict['time'][0] / np.size(self.dict['p']))
-            else: # intermediate times are control variables
+            else:  # intermediate times are control variables
                 integrator_out = self.F_integrator(x0=self.dict['x0'][k], p=self.dict['p'][k],
                                                    time=self.dict['time'][k])
         else:
