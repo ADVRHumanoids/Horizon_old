@@ -12,7 +12,7 @@ from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
 from utils.integrator_time import *
 
-logger = matl.MatLogger2('/tmp/template_rope_dt_log')
+logger = matl.MatLogger2('/tmp/free_fall_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
 urdf = rospy.get_param('robot_description')

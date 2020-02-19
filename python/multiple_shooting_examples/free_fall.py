@@ -10,9 +10,8 @@ import constraints as cons
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
-from utils.integrator_time import *
 
-logger = matl.MatLogger2('/tmp/template_rope_final_time_log')
+logger = matl.MatLogger2('/tmp/free_fall_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
 urdf = rospy.get_param('robot_description')
@@ -45,11 +44,6 @@ nv = kindyn.nv()  # Velocity DoFs
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
-tf, Tf = create_variable("Tf", 1, 1, "FINAL_STATE")
-tf_min = 0.0
-tf_max = 10.0
-tf_init = 1.0
-
 q, Q = create_variable("Q", nq, ns, "STATE")
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
@@ -67,6 +61,7 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
                    0.1]).tolist()
+
 
 qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
 qdot_min = (-100.*np.ones(nv)).tolist()
@@ -98,14 +93,18 @@ x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
 
 L = 0.5*dot(qdot, qdot)  # Objective term
 
+tf = 1.0  # [s]
+
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = integrator_time(dae)
+opts = {'tf': tf/ns}
+F_integrator = integrator('F_integrator', 'rk', dae, opts)
+
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
-V = concat_states_and_controls_and_final_time(X, U, Tf)
-v_min, v_max = create_bounds_with_final_time([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min1, f_min2, f_minRope], [qddot_max, f_max1, f_max2, f_maxRope], tf_min, tf_max, ns)
+V = concat_states_and_controls(X, U)
+v_min, v_max = create_bounds([q_min, qdot_min], [q_max, qdot_max], [qddot_min, f_min1, f_min2, f_minRope], [qddot_max, f_max1, f_max2, f_maxRope], ns)
 
 # SET UP COST FUNCTION
 J = MX([0])
@@ -135,9 +134,8 @@ g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
 # MULTIPLE SHOOTING CONSTRAINT
-integrator_dict = {'x0': X, 'p': Qddot, 'time': Tf}
+integrator_dict = {'x0': X, 'p': Qddot}
 multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
-
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
@@ -174,15 +172,16 @@ opts = {'ipopt.tol': 1e-4,
 g, g_min, g_max = G.get_constraints()
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts)
 
-x0 = create_init_with_final_time([q_init, qdot_init], [qddot_init, f_init1, f_init2, f_initRope], tf_init, ns)
+x0 = create_init([q_init, qdot_init], [qddot_init, f_init1, f_init2, f_initRope], ns)
+
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 w_opt = sol['x'].full().flatten()
 
+
 # RETRIEVE SOLUTION AND LOGGING
-solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Tf': Tf}, w_opt)
+solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope}, w_opt)
 q_hist = solution_dict['Q']
-tf = solution_dict['Tf']
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
@@ -200,7 +199,7 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
-# logger.add('Q_res', q_hist_res)
+logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
 
 del(logger)

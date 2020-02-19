@@ -11,7 +11,7 @@ from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
 
-logger = matl.MatLogger2('/tmp/template_rope_log')
+logger = matl.MatLogger2('/tmp/swing_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
 urdf = rospy.get_param('robot_description')

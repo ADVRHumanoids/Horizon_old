@@ -29,7 +29,5 @@ install(PROGRAMS
    python/utils/integrator_time.py
    python/utils/replay_trajectory.py
    python/utils/inverse_dynamics.py
-   python/examples/multiple_shooting_example.py
-   python/examples/multiple_shooting_example_free_fall.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
