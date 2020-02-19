@@ -42,6 +42,7 @@ def create_init(dict, number_of_nodes):
         v_init += x_init
         v_init += u_init
     if "tf_init" in dict:
+        tf_init = dict["tf_init"]
         v_init.append(tf_init)
     v_init += x_init
 

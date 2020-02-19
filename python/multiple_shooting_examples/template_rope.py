@@ -171,7 +171,7 @@ opts = {'ipopt.tol': 1e-4,
 g, g_min, g_max = G.get_constraints()
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts)
 
-x0 = create_init([q_init, qdot_init], [qddot_init, f_init1, f_init2, f_initRope], ns)
+x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_initRope]}, ns)
 
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
