@@ -217,7 +217,7 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
-# logger.add('Q_res', q_hist_res)
+logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
 
 del(logger)

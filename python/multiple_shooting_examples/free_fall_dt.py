@@ -192,7 +192,7 @@ for i in range(ns-1):
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res = resample_integrator(X, Qddot, tf, dt, dae)
+X_res = resample_integrator(X, Qddot, dt_hist, dt, dae)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
