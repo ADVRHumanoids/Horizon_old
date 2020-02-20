@@ -25,6 +25,7 @@ install(PROGRAMS
    python/constraints/torque_limits.py
    python/constraints/initial_condition.py
    python/constraints/contact.py
+   python/constraints/final_time.py
    python/utils/resample_integrator.py
    python/utils/integrator_time.py
    python/utils/replay_trajectory.py
