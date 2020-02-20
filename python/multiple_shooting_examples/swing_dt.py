@@ -32,7 +32,7 @@ Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
 Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # OPTIMIZATION PARAMETERS
-ns = 80  # number of shooting nodes
+ns = 200  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -47,8 +47,10 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, "CONTROL")
 dt_min = 0.02
-dt_max = 0.02
-dt_init = 0.02
+dt_max = 0.03
+dt_init = 0.01
+
+t_final = ns*dt_min
 
 q, Q = create_variable("Q", nq, ns, "STATE")
 
@@ -100,7 +102,7 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = integrator_time(dae)
+F_integrator = RKF45(dae)
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
@@ -111,11 +113,11 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = MX([0])
 
-K = 300000.
+K = 300.
 min_q = lambda k: K*dot(Q[k][7:13]-q_init[7:13], Q[k][7:13]-q_init[7:13])
 J += cost_function(min_q, 0, ns)
 
-D = 100.
+D = 1.
 min_qdot_legs = lambda k: D*dot(Qdot[k][6:12], Qdot[k][6:12])
 J += cost_function(min_qdot_legs, 0, ns)
 
@@ -134,14 +136,20 @@ J += cost_function(min_qddot_a, 0, ns-1)
 # min_FRope = lambda k: 1.*dot(FRope[k], FRope[k])
 # J += cost_function(min_FRope, 0, ns-1)
 
-# min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
-# J += cost_function(min_deltaFRope, 1, ns-1)
+min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+J += cost_function(min_deltaFRope, 1, ns-1)
+
+# min_deltaDt = lambda k: 1.*(Dt[k]-Dt[k-1])
+# J += cost_function(min_deltaDt, 1, ns-1)
+#
+# min_deltaQddot = lambda k: 1.*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])  # min Fdot
+# J += cost_function(min_deltaQddot, 1, ns-1)
 
 # min_Tf = lambda k: 1000.*Tf[0]
 # J += cost_function(min_Tf, 0, ns-1)
 
-min_Dt = lambda k: 0.01*dot(Dt[k], Dt[k])
-J += cost_function(min_Dt, 0, ns-1)
+# min_Dt = lambda k: 100000.*(Dt[k]-dt_max)
+# J += cost_function(min_Dt, 0, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -184,6 +192,9 @@ contact_constr = cons.contact.contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
+# MINIMUM FINAL TIME
+g6, g_min6, g_max6 = cons.final_time.final_time(Dt, t_final)
+G.set_constraint(g6, g_min6, g_max6)
 
 opts = {'ipopt.tol': 1e-3,
         'ipopt.max_iter': 2000,
