@@ -32,7 +32,7 @@ Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
 Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # OPTIMIZATION PARAMETERS
-ns = 200  # number of shooting nodes
+ns = 60  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -67,7 +67,7 @@ q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
-                   0., 0.2, 0.,
+                   0., 1., 0.,
                    0.3]).tolist()
 
 qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
@@ -113,19 +113,27 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = MX([0])
 
-K = 300.
-min_q = lambda k: K*dot(Q[k][7:13]-q_init[7:13], Q[k][7:13]-q_init[7:13])
+q_rest = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+                   0., 0., 0.,
+                   0., 0., 0.,
+                   0., 0., 0.,
+                   0.3]).tolist()
+
+
+K = 30000.
+min_q = lambda k: K*dot(Q[k][7:-1]-q_rest[7:-1], Q[k][7:-1]-q_rest[7:-1])
 J += cost_function(min_q, 0, ns)
 
 D = 1.
 min_qdot_legs = lambda k: D*dot(Qdot[k][6:12], Qdot[k][6:12])
 J += cost_function(min_qdot_legs, 0, ns)
 
-min_qdot = lambda k: 1.*dot(Qdot[k][12:-1], Qdot[k][12:-1])
+min_qdot = lambda k: 1.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
 J += cost_function(min_qdot, 0, ns)
 
 min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
 J += cost_function(min_qddot_a, 0, ns-1)
+
 
 # min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
 # J += cost_function(min_F1, 0, ns-1)
@@ -197,7 +205,8 @@ g6, g_min6, g_max6 = cons.final_time.final_time(Dt, t_final)
 G.set_constraint(g6, g_min6, g_max6)
 
 opts = {'ipopt.tol': 1e-3,
-        'ipopt.max_iter': 2000,
+        'ipopt.constr_viol_tol': 1e-4,
+        'ipopt.max_iter': 3000,
         'ipopt.linear_solver': 'ma57'}
 
 g, g_min, g_max = G.get_constraints()
