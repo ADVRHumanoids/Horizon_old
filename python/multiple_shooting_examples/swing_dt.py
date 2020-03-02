@@ -10,7 +10,7 @@ import constraints as cons
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
-from utils.integrator_time import *
+from utils.integrator_MX import *
 
 logger = matl.MatLogger2('/tmp/swing_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -102,7 +102,7 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = RKF45(dae)
+F_integrator = RKF45_MX_time(dae)
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])

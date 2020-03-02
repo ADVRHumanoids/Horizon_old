@@ -136,9 +136,32 @@ def create_variable(name, size, number_of_nodes, type):
 
     return SX_var, MX_var
 
+def create_variableSX(name, size, number_of_nodes, type):
+    SX_var = SX.sym('SX_'+name, size)
+    SX_var_vec = []
+
+    ns = 0
+    if type == "STATE":
+        ns = number_of_nodes
+    elif type == "CONTROL":
+        ns = number_of_nodes-1
+    elif type == "FINAL_STATE":
+        ns = 1
+
+    for i in range(ns):
+        SX_var_vec.append(SX.sym(name + str(i), SX_var.size1()))
+
+    return SX_var, SX_var_vec
+
 # cost_function return the value of cost (functor) computed from from_node to to_node
 def cost_function(cost, from_node, to_node):
     J = MX([0])
+    for k in range(from_node, to_node):
+        J += cost(k)
+    return J
+
+def cost_functionSX(cost, from_node, to_node):
+    J = SX([0])
     for k in range(from_node, to_node):
         J += cost(k)
     return J

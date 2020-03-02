@@ -10,9 +10,9 @@ import constraints as cons
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
-from utils.integrator_MX import *
+from utils.integrator_SX import *
 
-logger = matl.MatLogger2('/tmp/swing_final_time_log')
+logger = matl.MatLogger2('/tmp/free_fall_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
 urdf = rospy.get_param('robot_description')
@@ -32,7 +32,7 @@ Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
 Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # OPTIMIZATION PARAMETERS
-ns = 80  # number of shooting nodes
+ns = 30  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -45,52 +45,51 @@ nv = kindyn.nv()  # Velocity DoFs
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
-tf, Tf = create_variable("Tf", 1, 1, "FINAL_STATE")
-dt = 0.02
-tf_min = dt*(ns-1)
-tf_max = dt*(ns-1)
-tf_init = dt*(ns-1)
+dt, Dt = create_variableSX('Dt', 1, ns, "CONTROL")
+dt_min = 0.0
+dt_max = 0.1
+dt_init = 0.05
 
-q, Q = create_variable("Q", nq, ns, "STATE")
+q, Q = create_variableSX("Q", nq, ns, "STATE")
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1,  # Contact 1
                   -0.3, -0.05, -0.1,  # Contact 2
                   -1.57, -1.57, -3.1415,  # rope_anchor
-                  0.3]).tolist()  # rope
+                  0.0]).tolist()  # rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
                   0.3, 0.05, 0.1,  # Contact 1
                   0.3, 0.1, 0.1,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
-                  0.3]).tolist()  # rope
+                  10.0]).tolist()  # rope
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
-                   0., 0.2, 0.,
-                   0.3]).tolist()
+                   0., 0., 0.,
+                   0.1]).tolist()
 
-qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
+qdot, Qdot = create_variableSX('Qdot', nv, ns, "STATE")
 qdot_min = (-100.*np.ones(nv)).tolist()
 qdot_max = (100.*np.ones(nv)).tolist()
 qdot_init = np.zeros(nv).tolist()
 
-qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
+qddot, Qddot = create_variableSX('Qddot', nv, ns, "CONTROL")
 qddot_min = (-100.*np.ones(nv)).tolist()
 qddot_max = (100.*np.ones(nv)).tolist()
 qddot_init = np.zeros(nv).tolist()
 qddot_init[2] = -9.8
 
-f1, F1 = create_variable('F1', nf, ns, "CONTROL")
+f1, F1 = create_variableSX('F1', nf, ns, "CONTROL")
 f_min1 = (-10000.*np.ones(nf)).tolist()
 f_max1 = (10000.*np.ones(nf)).tolist()
 f_init1 = np.zeros(nf).tolist()
 
-f2, F2 = create_variable('F2', nf, ns, "CONTROL")
+f2, F2 = create_variableSX('F2', nf, ns, "CONTROL")
 f_min2 = (-10000.*np.ones(nf)).tolist()
 f_max2 = (10000.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
-fRope, FRope = create_variable('FRope', nf, ns, "CONTROL")
+fRope, FRope = create_variableSX('FRope', nf, ns, "CONTROL")
 f_minRope = (-10000.*np.ones(nf)).tolist()
 f_maxRope = (10000.*np.ones(nf)).tolist()
 f_initRope = np.zeros(nf).tolist()
@@ -101,46 +100,31 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = RKF45_MX_time(dae)
+F_integrator = RKF45_SX_time(dae)
 
 # START WITH AN EMPTY NLP
-X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
-V = concat_states_and_controls({"X": X, "U": U, "Tf": Tf})
-v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max], "u_min": [qddot_min, f_min1, f_min2, f_minRope],
-                              "u_max": [qddot_max, f_max1, f_max2, f_maxRope], "tf_min": tf_min, "tf_max": tf_max}, ns)
+X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
+V = concat_states_and_controls({"X": X, "U": U})
+v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max],
+                              "u_min": [qddot_min, f_min1, f_min2, f_minRope, dt_min], "u_max": [qddot_max, f_max1, f_max2, f_maxRope, dt_max]}, ns)
 
 # SET UP COST FUNCTION
-J = MX([0])
+J = SX([0])
 
-K = 300000.
-min_q = lambda k: K*dot(Q[k][7:13]-q_init[7:13], Q[k][7:13]-q_init[7:13])
-J += cost_function(min_q, 0, ns)
+min_qdot = lambda k: 100.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
+J += cost_functionSX(min_qdot, 0, ns)
 
-D = 100.
-min_qdot_legs = lambda k: D*dot(Qdot[k][6:12], Qdot[k][6:12])
-J += cost_function(min_qdot_legs, 0, ns)
-min_qdot = lambda k: 1.*dot(Qdot[k][12:-1], Qdot[k][12:-1])
-J += cost_function(min_qdot, 0, ns)
+min_qddot_a = lambda k: 1000.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
+J += cost_functionSX(min_qddot_a, 0, ns-1)
 
-min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
-J += cost_function(min_qddot_a, 0, ns-1)
+min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
+J += cost_functionSX(min_F1, 0, ns-1)
 
-J += 1000.*dot(Tf[0]-tf_init, Tf[0]-tf_init)
+min_F2 = lambda k: 1000.*dot(F2[k], F2[k])
+J += cost_functionSX(min_F2, 0, ns-1)
 
-# min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
-# J += cost_function(min_F1, 0, ns-1)
-
-# min_F2 = lambda k: 1000.*dot(F2[k], F2[k])
-# J += cost_function(min_F2, 0, ns-1)
-
-# min_FRope = lambda k: 1.*dot(FRope[k], FRope[k])
-# J += cost_function(min_FRope, 0, ns-1)
-
-# min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
-# J += cost_function(min_deltaFRope, 1, ns-1)
-
-# min_Tf = lambda k: 1000.*Tf[0]
-# J += cost_function(min_Tf, 0, ns-1)
+min_FRope = lambda k: 1000.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+J += cost_functionSX(min_FRope, 1, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -152,7 +136,7 @@ g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
 # MULTIPLE SHOOTING CONSTRAINT
-integrator_dict = {'x0': X, 'p': Qddot, 'time': Tf}
+integrator_dict = {'x0': X, 'p': Qddot, 'time': Dt}
 multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
 
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
@@ -160,13 +144,13 @@ G.set_constraint(g2, g_min2, g_max2)
 
 # INVERSE DYNAMICS CONSTRAINT
 dd = {'rope_anchor2': FRope}
-id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
+id = inverse_dynamicsSX(Q, Qdot, Qddot, ID, dd, kindyn)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     -1000., -1000., -1000.,  # Contact 1
                     -1000., -1000., -1000.,  # Contact 2
                     0., 0., 0.,  # rope_anchor
-                    -10000.]).tolist()  # rope
+                    0.]).tolist()  # rope
 
 tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     1000., 1000., 1000.,  # Contact 1
@@ -191,19 +175,24 @@ opts = {'ipopt.tol': 1e-3,
 g, g_min, g_max = G.get_constraints()
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts)
 
-x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_initRope], "tf_init": tf_init}, ns)
+x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_initRope, dt_init]}, ns)
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 w_opt = sol['x'].full().flatten()
 
 # RETRIEVE SOLUTION AND LOGGING
-solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Tf': Tf}, w_opt)
+solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Dt': Dt}, w_opt)
 q_hist = solution_dict['Q']
-tf = solution_dict['Tf']
+dt_hist = solution_dict['Dt']
+
+tf = 0.0
+
+for i in range(ns-1):
+    tf += dt_hist[i]
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res = resample_integrator(X, Qddot, tf, dt, dae)
+X_res = resample_integratorSX(X, Qddot, dt_hist, dt, dae)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
@@ -219,6 +208,7 @@ for k in solution_dict:
 
 logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
+logger.add('Tf', tf)
 
 del(logger)
 
