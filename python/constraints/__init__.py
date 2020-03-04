@@ -1,4 +1,5 @@
 import contact
+import contact_force
 import initial_condition
 import torque_limits
 import final_time
