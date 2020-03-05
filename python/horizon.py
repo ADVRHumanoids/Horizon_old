@@ -190,6 +190,9 @@ class constraint_class:
         self.virtual_method(k)
         return self.gk, self.g_mink, self.g_maxk
 
+    def getConstraint(self):
+        return self.gk, self.g_mink, self.g_maxk
+
     def virtual_method(self, k):
         raise NotImplementedError()
 

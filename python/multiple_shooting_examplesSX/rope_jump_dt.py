@@ -44,9 +44,6 @@ nv = kindyn.nv()  # Velocity DoFs
 
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
-lift_node = 10
-touch_down_node = 60
-
 # CREATE VARIABLES
 dt, Dt = create_variableSX('Dt', 1, ns, "CONTROL")
 dt_min = 0.01
@@ -113,6 +110,9 @@ V = concat_states_and_controls({"X": X, "U": U})
 v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max],
                               "u_min": [qddot_min, f_min1, f_min2, f_minRope, dt_min], "u_max": [qddot_max, f_max1, f_max2, f_maxRope, dt_max]}, ns)
 
+lift_node = 2
+touch_down_node = 60
+
 # SET UP COST FUNCTION
 J = SX([0])
 
@@ -138,8 +138,8 @@ J += cost_functionSX(min_qddot_a, 0, ns-1)
 # min_deltaF2 = lambda k: 0.1*dot(F2[k]-F2[k-1], F2[k]-F2[k-1])  # min Fdot
 # J += cost_functionSX(min_deltaF2, 1, ns-1)
 
-min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
-J += cost_functionSX(min_deltaFRope, 1, ns-1)
+# min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+# J += cost_functionSX(min_deltaFRope, 1, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -184,45 +184,54 @@ g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
 # WALL
-mu = 0.8
+mu = 0.1
 
 R_wall = np.zeros([3, 3])
 R_wall[0, 1] = -1.0
 R_wall[1, 2] = -1.0
 R_wall[2, 0] = 1.0
 
-# STANCE PHASE
-friction_cone_F1 = cons.contact_force.linearized_friction_cone(F1, mu, R_wall)
-g, g_min, g_max = constraint(friction_cone_F1, 0, lift_node)
-G.set_constraint(g, g_min, g_max)
 
-friction_cone_F2 = cons.contact_force.linearized_friction_cone(F2, mu, R_wall)
-g, g_min, g_max = constraint(friction_cone_F2, 0, lift_node)
+
+# STANCE PHASE
+# contact_handler_F1 = cons.contact.contact_handler(FKR, F1, ns)
+# contact_handler_F1.setContactAndFrictionCone(Q, q_init, mu R_wall)
+# g, g_min, g_max = constraint(contact_handler_F1, 0, lift_node+1)
+# G.set_constraint(g, g_min, g_max)
+
+friction_cone_F1 = cons.contact.linearized_friction_cone(F1, mu, R_wall)
+g, g_min, g_max = constraint(friction_cone_F1, 0, lift_node+1)
 G.set_constraint(g, g_min, g_max)
 
 contact_FKR = cons.contact.contact(FKR, Q, q_init)
-g, g_min, g_max = constraint(contact_FKR, 0, lift_node)
+g, g_min, g_max = constraint(contact_FKR, 0, lift_node+1)
 G.set_constraint(g, g_min, g_max)
 
+friction_cone_F2 = cons.contact.linearized_friction_cone(F2, mu, R_wall)
+g, g_min, g_max = constraint(friction_cone_F2, 0, lift_node+1)
+G.set_constraint(g, g_min, g_max)
+
+
+
 contact_FKL = cons.contact.contact(FKL, Q, q_init)
-g, g_min, g_max = constraint(contact_FKL, 0, lift_node)
+g, g_min, g_max = constraint(contact_FKL, 0, lift_node+1)
 G.set_constraint(g, g_min, g_max)
 
 # FLIGHT PHASE
-remove_F1 = cons.contact_force.remove_contact(F1)
-g, g_min, g_max = constraint(remove_F1, lift_node, touch_down_node-1)
+remove_F1 = cons.contact.remove_contact(F1)
+g, g_min, g_max = constraint(remove_F1, lift_node+1, touch_down_node)
 G.set_constraint(g, g_min, g_max)
 
-remove_F2 = cons.contact_force.remove_contact(F2)
-g, g_min, g_max = constraint(remove_F2, lift_node, touch_down_node-1)
+remove_F2 = cons.contact.remove_contact(F2)
+g, g_min, g_max = constraint(remove_F2, lift_node+1, touch_down_node)
 G.set_constraint(g, g_min, g_max)
 
 # TOUCH DOWN
-friction_cone_F1 = cons.contact_force.linearized_friction_cone(F1, mu, R_wall)
+friction_cone_F1 = cons.contact.linearized_friction_cone(F1, mu, R_wall)
 g, g_min, g_max = constraint(friction_cone_F1, touch_down_node, ns-1)
 G.set_constraint(g, g_min, g_max)
 
-friction_cone_F2 = cons.contact_force.linearized_friction_cone(F2, mu, R_wall)
+friction_cone_F2 = cons.contact.linearized_friction_cone(F2, mu, R_wall)
 g, g_min, g_max = constraint(friction_cone_F2, touch_down_node, ns-1)
 G.set_constraint(g, g_min, g_max)
 
