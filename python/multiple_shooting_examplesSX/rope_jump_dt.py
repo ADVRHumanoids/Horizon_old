@@ -44,10 +44,13 @@ nv = kindyn.nv()  # Velocity DoFs
 
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
+lift_node = 10
+touch_down_node = 60
+
 # CREATE VARIABLES
 dt, Dt = create_variableSX('Dt', 1, ns, "CONTROL")
 dt_min = 0.01
-dt_max = 0.05
+dt_max = 0.03
 dt_init = dt_min
 
 t_final = ns*dt_min
@@ -113,54 +116,30 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-q_rest = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                   0., 0., 0.,
-                   0., 0., 0.,
-                   0., 0.5, 0.,
-                   0.3]).tolist()
-
+q_trg = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+                  0.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0,
+                  0.0, 0.5, 0.0,
+                  0.3]).tolist()
 
 K = 300000.
-min_q = lambda k: K*dot(Q[k][7:-1]-q_rest[7:-1], Q[k][7:-1]-q_rest[7:-1])
+min_q = lambda k: K*dot(Q[k][7:-1]-q_trg[7:-1], Q[k][7:-1]-q_trg[7:-1])
 J += cost_functionSX(min_q, 0, ns)
 
-# D = 1.
-# min_qdot =  lambda k: D*dot(Qdot[k], Qdot[k])
-# J += cost_functionSX(min_qdot, 0, ns)
-
-# min_qdot_legs = lambda k: D*dot(Qdot[k][6:12], Qdot[k][6:12])
-# J += cost_functionSX(min_qdot_legs, 0, ns)
-#
 min_qdot = lambda k: 1.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
 J += cost_functionSX(min_qdot, 0, ns)
 
 min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
 J += cost_functionSX(min_qddot_a, 0, ns-1)
 
-
-# min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
-# J += cost_functionSX(min_F1, 0, ns-1)
-
-# min_F2 = lambda k: 1000.*dot(F2[k], F2[k])
-# J += cost_functionSX(min_F2, 0, ns-1)
-
-# min_FRope = lambda k: 1.*dot(FRope[k], FRope[k])
-# J += cost_functionSX(min_FRope, 0, ns-1)
+# min_deltaF1 = lambda k: 0.1*dot(F1[k]-F1[k-1], F1[k]-F1[k-1])  # min Fdot
+# J += cost_functionSX(min_deltaF1, 1, ns-1)
+#
+# min_deltaF2 = lambda k: 0.1*dot(F2[k]-F2[k-1], F2[k]-F2[k-1])  # min Fdot
+# J += cost_functionSX(min_deltaF2, 1, ns-1)
 
 min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
 J += cost_functionSX(min_deltaFRope, 1, ns-1)
-
-# min_deltaDt = lambda k: 1.*(Dt[k]-Dt[k-1])
-# J += cost_functionSX(min_deltaDt, 1, ns-1)
-#
-# min_deltaQddot = lambda k: 1.*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])  # min Fdot
-# J += cost_functionSX(min_deltaQddot, 1, ns-1)
-
-# min_Tf = lambda k: 1000.*Tf[0]
-# J += cost_functionSX(min_Tf, 0, ns-1)
-
-# min_Dt = lambda k: 100000.*(Dt[k]-dt_max)
-# J += cost_functionSX(min_Dt, 0, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -204,39 +183,21 @@ contact_constr = cons.contact.contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
-# # # MINIMUM FINAL TIME
-# g6, g_min6, g_max6 = cons.final_time.final_time(Dt, t_final)
-# G.set_constraint(g6, g_min6, g_max6)
-
-# CONTACT FORCE CONSTRAINT
-lift_node = 10
+# WALL
+mu = 0.8
 
 R_wall = np.zeros([3, 3])
 R_wall[0, 1] = -1.0
 R_wall[1, 2] = -1.0
 R_wall[2, 0] = 1.0
 
-R_ground = np.zeros([3, 3])
-R_ground[0, 0] = 1.0
-R_ground[1, 1] = 1.0
-R_ground[2, 2] = 1.0
-
-mu = 0.8
-
+# STANCE PHASE
 friction_cone_F1 = cons.contact_force.linearized_friction_cone(F1, mu, R_wall)
 g, g_min, g_max = constraint(friction_cone_F1, 0, lift_node)
 G.set_constraint(g, g_min, g_max)
 
 friction_cone_F2 = cons.contact_force.linearized_friction_cone(F2, mu, R_wall)
 g, g_min, g_max = constraint(friction_cone_F2, 0, lift_node)
-G.set_constraint(g, g_min, g_max)
-
-remove_F1 = cons.contact_force.remove_contact(F1)
-g, g_min, g_max = constraint(remove_F1, lift_node+1, ns-1)
-G.set_constraint(g, g_min, g_max)
-
-remove_F2 = cons.contact_force.remove_contact(F2)
-g, g_min, g_max = constraint(remove_F2, lift_node+1, ns-1)
 G.set_constraint(g, g_min, g_max)
 
 contact_FKR = cons.contact.contact(FKR, Q, q_init)
@@ -246,6 +207,33 @@ G.set_constraint(g, g_min, g_max)
 contact_FKL = cons.contact.contact(FKL, Q, q_init)
 g, g_min, g_max = constraint(contact_FKL, 0, lift_node)
 G.set_constraint(g, g_min, g_max)
+
+# FLIGHT PHASE
+remove_F1 = cons.contact_force.remove_contact(F1)
+g, g_min, g_max = constraint(remove_F1, lift_node, touch_down_node-1)
+G.set_constraint(g, g_min, g_max)
+
+remove_F2 = cons.contact_force.remove_contact(F2)
+g, g_min, g_max = constraint(remove_F2, lift_node, touch_down_node-1)
+G.set_constraint(g, g_min, g_max)
+
+# TOUCH DOWN
+friction_cone_F1 = cons.contact_force.linearized_friction_cone(F1, mu, R_wall)
+g, g_min, g_max = constraint(friction_cone_F1, touch_down_node, ns-1)
+G.set_constraint(g, g_min, g_max)
+
+friction_cone_F2 = cons.contact_force.linearized_friction_cone(F2, mu, R_wall)
+g, g_min, g_max = constraint(friction_cone_F2, touch_down_node, ns-1)
+G.set_constraint(g, g_min, g_max)
+
+contact_FKR = cons.contact.contact(FKR, Q, q_init)
+g, g_min, g_max = constraint(contact_FKR, touch_down_node, ns)
+G.set_constraint(g, g_min, g_max)
+
+contact_FKL = cons.contact.contact(FKL, Q, q_init)
+g, g_min, g_max = constraint(contact_FKL, touch_down_node, ns)
+G.set_constraint(g, g_min, g_max)
+
 
 opts = {'ipopt.tol': 1e-3,
         'ipopt.constr_viol_tol': 1e-3,
