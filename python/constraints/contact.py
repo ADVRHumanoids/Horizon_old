@@ -52,10 +52,11 @@ class remove_contact(constraint_class):
         self.g_maxk = np.array([0., 0., 0.]).tolist()
 
 class contact_handler(constraint_class):
-    def __init__(self, FKlink, Force, number_of_nodes):
+    def __init__(self, FKlink, Force):
         self.FKlink = FKlink
+
         self.Force = Force
-        self.ns = number_of_nodes
+        self.cns = np.size(Force)
 
         self.kinematic_contact = None
         self.friction_cone = None
@@ -93,11 +94,11 @@ class contact_handler(constraint_class):
             self.kinematic_contact.virtual_method(k)
             self.g_kc, self.g_min_kc, self.g_max_kc = self.kinematic_contact.getConstraint()
         if self.friction_cone is not None:
-            if k < self.ns:
+            if k < self.cns:
                 self.friction_cone.virtual_method(k)
                 self.g_fc, self.g_min_fc, self.g_max_fc = self.friction_cone.getConstraint()
         if self.remove_contact is not None:
-            if k < self.ns:
+            if k < self.cns:
                 self.remove_contact.virtual_method(k)
                 self.g_nc, self.g_min_nc, self.g_max_nc = self.remove_contact.getConstraint()
 
@@ -110,12 +111,10 @@ class contact_handler(constraint_class):
                 self.gk = self.g_kc
                 self.g_mink = self.g_min_kc
                 self.g_maxk = self.g_max_kc
-                print "[WARNING] Friction Cones not set!"
         elif self.g_fc is not None:
             self.gk = self.g_fc
             self.g_mink = self.g_min_fc
             self.g_maxk = self.g_max_fc
-            print "[WARNING] Contact not set!"
         elif self.g_nc is not None:
             self.gk = self.g_nc
             self.g_mink = self.g_min_nc
