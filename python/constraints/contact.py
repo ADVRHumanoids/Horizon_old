@@ -59,6 +59,7 @@ class contact_handler(constraint_class):
 
         self.kinematic_contact = None
         self.friction_cone = None
+        self.remove_contact = None
 
         self.g_kc = None
         self.g_max_kc = None
@@ -67,6 +68,10 @@ class contact_handler(constraint_class):
         self.g_fc = None
         self.g_max_fc = None
         self.g_min_fc = None
+
+        self.g_nc = None
+        self.g_max_nc = None
+        self.g_min_nc = None
 
     def setContact(self, Q, q_contact):
         self.kinematic_contact = contact(self.FKlink, Q, q_contact)
@@ -78,6 +83,11 @@ class contact_handler(constraint_class):
         self.setContact(Q, q_contact)
         self.setFrictionCone(mu, Rot)
 
+    def removeContact(self):
+        self.friction_cone = None
+        self.kinematic_contact = None
+        self.remove_contact = remove_contact(self.Force)
+
     def virtual_method(self, k):
         if self.kinematic_contact is not None:
             self.kinematic_contact.virtual_method(k)
@@ -86,6 +96,10 @@ class contact_handler(constraint_class):
             if k < self.ns:
                 self.friction_cone.virtual_method(k)
                 self.g_fc, self.g_min_fc, self.g_max_fc = self.friction_cone.getConstraint()
+        if self.remove_contact is not None:
+            if k < self.ns:
+                self.remove_contact.virtual_method(k)
+                self.g_nc, self.g_min_nc, self.g_max_nc = self.remove_contact.getConstraint()
 
         if self.g_kc is not None:
             if self.g_fc is not None:
@@ -102,6 +116,10 @@ class contact_handler(constraint_class):
             self.g_mink = self.g_min_fc
             self.g_maxk = self.g_max_fc
             print "[WARNING] Contact not set!"
+        elif self.g_nc is not None:
+            self.gk = self.g_nc
+            self.g_mink = self.g_min_nc
+            self.g_maxk = self.g_max_nc
         else:
             raise ValueError('Neither Contact nor Friction Cone have been set!')
 
@@ -112,6 +130,10 @@ class contact_handler(constraint_class):
         self.g_fc = None
         self.g_max_fc = None
         self.g_min_fc = None
+
+        self.g_nc = None
+        self.g_max_nc = None
+        self.g_min_nc = None
 
 
 
