@@ -110,7 +110,7 @@ V = concat_states_and_controls({"X": X, "U": U})
 v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max],
                               "u_min": [qddot_min, f_min1, f_min2, f_minRope, dt_min], "u_max": [qddot_max, f_max1, f_max2, f_maxRope, dt_max]}, ns)
 
-lift_node = 10
+lift_node = 2
 touch_down_node = 60
 
 # SET UP COST FUNCTION
