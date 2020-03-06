@@ -11,6 +11,7 @@ from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
 from utils.integrator_SX import *
+from utils.kinematics import *
 
 logger = matl.MatLogger2('/tmp/rope_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -47,7 +48,7 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 # CREATE VARIABLES
 dt, Dt = create_variableSX('Dt', 1, ns, "CONTROL")
 dt_min = 0.01
-dt_max = 0.03
+dt_max = 0.04
 dt_init = dt_min
 
 t_final = ns*dt_min
@@ -64,11 +65,16 @@ q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
                   0.3, 0.1, 0.1,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
+alpha = 0.3
+rope_lenght = 0.3
+x_foot = rope_lenght * np.sin(alpha)
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                   0., 0., 0.,
-                   0., 0., 0.,
-                   0., 0., 0.,
-                   0.3]).tolist()
+                   x_foot, 0., 0.,
+                   x_foot, 0., 0.,
+                   0., alpha, 0.,
+                   rope_lenght]).tolist()
+
+print "q_init: ", q_init
 
 qdot, Qdot = create_variableSX('Qdot', nv, ns, "STATE")
 qdot_min = (-100.*np.ones(nv)).tolist()
@@ -116,14 +122,14 @@ touch_down_node = 60
 # SET UP COST FUNCTION
 J = SX([0])
 
-q_trg = np.array([0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+q_trg = np.array([-.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0,
                   0.0, 0.0, 0.0,
                   0.0, 0.0, 0.0,
                   0.3]).tolist()
 
-K = 300000.
-min_q = lambda k: K*dot(Q[k]-q_trg, Q[k]-q_trg)
+K = 500000.
+min_q = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0])
 J += cost_functionSX(min_q, 0, ns)
 
 min_qdot = lambda k: 1.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
@@ -187,9 +193,14 @@ G.set_constraint(g5, g_min5, g_max5)
 mu = 0.1
 
 R_wall = np.zeros([3, 3])
-R_wall[0, 1] = -1.0
-R_wall[1, 2] = -1.0
-R_wall[2, 0] = 1.0
+
+# R_wall[0, 1] = -1.0
+# R_wall[1, 2] = -1.0
+# R_wall[2, 0] = 1.0
+
+R_wall[0, 2] = 1.0
+R_wall[1, 1] = 1.0
+R_wall[2, 0] = -1.0
 
 # STANCE PHASE
 contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
@@ -221,9 +232,9 @@ g, g_min, g_max = constraint(contact_handler_F2, touch_down_node, ns)
 G.set_constraint(g, g_min, g_max)
 
 
-opts = {'ipopt.tol': 1e-3,
-        'ipopt.constr_viol_tol': 1e-3,
-        'ipopt.max_iter': 3000,
+opts = {'ipopt.tol': 0.001,
+        'ipopt.constr_viol_tol': 0.001,
+        'ipopt.max_iter': 4000,
         'ipopt.linear_solver': 'ma57'}
 
 g, g_min, g_max = G.get_constraints()
@@ -260,9 +271,16 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
+FKcomputer = kinematics(kindyn, Q)
+Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
+get_Contact1_pos = Function("get_Contact1_pos", [V], [Contact1_pos], ['V'], ['Contact1_pos'])
+Contact1_pos_hist = (get_Contact1_pos(V=w_opt)['Contact1_pos'].full().flatten()).reshape(ns, 3)
+
+
 logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
 logger.add('Tf', tf)
+logger.add('Contact1', Contact1_pos_hist)
 
 del(logger)
 

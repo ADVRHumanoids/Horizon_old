@@ -3,3 +3,4 @@ import integrator_SX
 import inverse_dynamics
 import replay_trajectory
 import resample_integrator
+import kinematics
