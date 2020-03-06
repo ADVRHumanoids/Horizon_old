@@ -47,7 +47,7 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 # CREATE VARIABLES
 dt, Dt = create_variableSX('Dt', 1, ns, "CONTROL")
 dt_min = 0.01
-dt_max = 0.05
+dt_max = 0.03
 dt_init = dt_min
 
 t_final = ns*dt_min
@@ -110,20 +110,20 @@ V = concat_states_and_controls({"X": X, "U": U})
 v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max],
                               "u_min": [qddot_min, f_min1, f_min2, f_minRope, dt_min], "u_max": [qddot_max, f_max1, f_max2, f_maxRope, dt_max]}, ns)
 
-lift_node = 2
+lift_node = 20
 touch_down_node = 60
 
 # SET UP COST FUNCTION
 J = SX([0])
 
-q_trg = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+q_trg = np.array([0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0,
                   0.0, 0.0, 0.0,
-                  0.0, 0.5, 0.0,
+                  0.0, 0.0, 0.0,
                   0.3]).tolist()
 
 K = 300000.
-min_q = lambda k: K*dot(Q[k][7:-1]-q_trg[7:-1], Q[k][7:-1]-q_trg[7:-1])
+min_q = lambda k: K*dot(Q[k]-q_trg, Q[k]-q_trg)
 J += cost_functionSX(min_q, 0, ns)
 
 min_qdot = lambda k: 1.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
@@ -132,12 +132,12 @@ J += cost_functionSX(min_qdot, 0, ns)
 min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
 J += cost_functionSX(min_qddot_a, 0, ns-1)
 
-# min_deltaF1 = lambda k: 0.1*dot(F1[k]-F1[k-1], F1[k]-F1[k-1])  # min Fdot
+# min_deltaF1 = lambda k: 1*dot(F1[k]-F1[k-1], F1[k]-F1[k-1])  # min Fdot
 # J += cost_functionSX(min_deltaF1, 1, ns-1)
 #
-# min_deltaF2 = lambda k: 0.1*dot(F2[k]-F2[k-1], F2[k]-F2[k-1])  # min Fdot
+# min_deltaF2 = lambda k: 1*dot(F2[k]-F2[k-1], F2[k]-F2[k-1])  # min Fdot
 # J += cost_functionSX(min_deltaF2, 1, ns-1)
-
+#
 # min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
 # J += cost_functionSX(min_deltaFRope, 1, ns-1)
 
@@ -190,8 +190,6 @@ R_wall = np.zeros([3, 3])
 R_wall[0, 1] = -1.0
 R_wall[1, 2] = -1.0
 R_wall[2, 0] = 1.0
-
-
 
 # STANCE PHASE
 contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
