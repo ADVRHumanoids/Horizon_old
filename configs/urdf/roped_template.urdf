@@ -22,9 +22,10 @@
 <link name="Waist">
   <inertial>
       <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
-      <mass value="69.0"/>
-      <!--inertia ixx="1.0417" ixy="0.0" ixz="0.0" iyy="1.8750" iyz="0.0" izz="2.1667"/-->
-      <inertia ixx="2.1667" ixy="0.0" ixz="0.0" iyy="1.8750" iyz="0.0" izz="1.0417"/>
+      <!--mass value="69.0"/-->
+      <mass value="40.0"/>
+      <!--inertia ixx="2.1667" ixy="0.0" ixz="0.0" iyy="1.8750" iyz="0.0" izz="1.0417"/-->
+      <inertia ixx="1.5" ixy="0.0" ixz="0.0" iyy="1.733" iyz="0.0" izz="0.8333"/>
   </inertial>
   <visual>
       <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>

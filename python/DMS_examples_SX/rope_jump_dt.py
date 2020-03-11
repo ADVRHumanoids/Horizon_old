@@ -54,7 +54,6 @@ dt_init = dt_min
 t_final = ns*dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
-print ("type(Q[0]): ",type(Q[0]))
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1,  # Contact 1
@@ -74,7 +73,6 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    x_foot, 0., 0.,
                    0., alpha, 0.,
                    rope_lenght]).tolist()
-
 print "q_init: ", q_init
 
 qdot, Qdot = create_variable('Qdot', nv, ns, 'STATE', 'SX')
@@ -129,15 +127,21 @@ q_trg = np.array([-.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0,
                   0.3]).tolist()
 
-K = 7e5
-min_q = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0])
-J += cost_function(min_q, 0, ns)
+K = 6.5*1e5
+min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0])
+J += cost_function(min_qd, lift_node+1, touch_down_node)
+
+min_qd2 = lambda k: K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
+J += cost_function(min_qd2, lift_node+1, touch_down_node)
 
 min_qdot = lambda k: 1.*dot(Qdot[k][0:-1], Qdot[k][0:-1])
 J += cost_function(min_qdot, 0, ns)
 
 min_qddot = lambda k: 1.*dot(Qddot[k][0:-1], Qddot[k][0:-1])
 J += cost_function(min_qddot, 0, ns-1)
+
+min_q = lambda k: K*dot(Q[k], Q[k])
+J += cost_function(min_q, touch_down_node, ns)
 
 #min_FC = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
 #J += cost_functionSX(min_FC, 0, ns-1)
@@ -146,8 +150,8 @@ J += cost_function(min_qddot, 0, ns-1)
 # J += cost_functionSX(min_deltaFC, 1, ns-1)
 
 
-# min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
-# J += cost_functionSX(min_deltaFRope, 1, ns-1)
+#min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+#J += cost_function(min_deltaFRope, 1, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
