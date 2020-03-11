@@ -54,6 +54,7 @@ dt_init = dt_min
 t_final = ns*dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
+print ("type(Q[0]): ",type(Q[0]))
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1,  # Contact 1
@@ -167,7 +168,7 @@ G.set_constraint(g2, g_min2, g_max2)
 # INVERSE DYNAMICS CONSTRAINT
 # dd = {'rope_anchor2': FRope}
 dd = {'rope_anchor2': FRope, 'Contact1': F1, 'Contact2': F2}
-id = inverse_dynamicsSX(Q, Qdot, Qddot, ID, dd, kindyn)
+id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     -1000., -1000., -1000.,  # Contact 1
