@@ -117,11 +117,13 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
 # if type is FINAL_STATE then ns = 1
 # else ns = 0
 #
-# output: SX_var = [SX_Q_0, SX_Q_1, ..., SX_Q_size]
-#         MX_var = [MX(Q0), MX(Q1), ..., MX(Qnumber_of_nodes-1)] NOTE: if type is STATE
-def create_variable(name, size, number_of_nodes, type):
+# casadi_type can be 'SX' (default) or 'MX'
+#
+# output: SX_var = [SX_Q_0, SX_Q_1, ..., SX_Q_size] which represents the state variable for a single shooting node
+#         MX_var = [MX(Q0), MX(Q1), ..., MX(Qnumber_of_nodes-1)] when type is CONTROL and casadi_type is 'MX', which are all the variables in the in all the nodes
+def create_variable(name, size, number_of_nodes, type, casadi_type = 'SX'):
     SX_var = SX.sym('SX_'+name, size)
-    MX_var = []
+    opc_var = []
 
     ns = 0
     if type == "STATE":
@@ -131,41 +133,30 @@ def create_variable(name, size, number_of_nodes, type):
     elif type == "FINAL_STATE":
         ns = 1
 
-    for i in range(ns):
-        MX_var.append(MX.sym(name + str(i), SX_var.size1()))
+    if casadi_type is 'MX':
+        for i in range(ns):
+            opc_var.append(MX.sym(name + str(i), SX_var.size1()))
+    elif casadi_type is 'SX':
+        for i in range(ns):
+            opc_var.append(SX.sym(name + str(i), SX_var.size1()))
+    else:
+        raise Exception('casadi_type can be only SX or MX')
 
-    return SX_var, MX_var
-
-def create_variableSX(name, size, number_of_nodes, type):
-    SX_var = SX.sym('SX_'+name, size)
-    SX_var_vec = []
-
-    ns = 0
-    if type == "STATE":
-        ns = number_of_nodes
-    elif type == "CONTROL":
-        ns = number_of_nodes-1
-    elif type == "FINAL_STATE":
-        ns = 1
-
-    for i in range(ns):
-        SX_var_vec.append(SX.sym(name + str(i), SX_var.size1()))
-
-    return SX_var, SX_var_vec
+    return SX_var, opc_var
 
 # cost_function return the value of cost (functor) computed from from_node to to_node
 def cost_function(cost, from_node, to_node):
-    J = MX([0])
+    J = []
+    if type(cost(0)) is casadi.SX:
+        J = SX([0])
+    elif type(cost(0)) is casadi.MX:
+        J = MX([0])
+    else:
+        raise Exception('Cost type can be only casadi.SX or casadi.MX!')
+
     for k in range(from_node, to_node):
         J += cost(k)
     return J
-
-def cost_functionSX(cost, from_node, to_node):
-    J = SX([0])
-    for k in range(from_node, to_node):
-        J += cost(k)
-    return J
-
 
 def constraint(constraint, from_node, to_node):
     g = []
