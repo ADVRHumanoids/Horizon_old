@@ -46,14 +46,14 @@ nv = kindyn.nv()  # Velocity DoFs
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
-dt, Dt = create_variableSX('Dt', 1, ns, "CONTROL")
+dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
 dt_min = 0.01
-dt_max = 0.04
+dt_max = 0.08
 dt_init = dt_min
 
 t_final = ns*dt_min
 
-q, Q = create_variableSX("Q", nq, ns, "STATE")
+q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1,  # Contact 1
@@ -76,28 +76,28 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
 
 print "q_init: ", q_init
 
-qdot, Qdot = create_variableSX('Qdot', nv, ns, "STATE")
+qdot, Qdot = create_variable('Qdot', nv, ns, 'STATE', 'SX')
 qdot_min = (-100.*np.ones(nv)).tolist()
 qdot_max = (100.*np.ones(nv)).tolist()
 qdot_init = np.zeros(nv).tolist()
 
-qddot, Qddot = create_variableSX('Qddot', nv, ns, "CONTROL")
+qddot, Qddot = create_variable('Qddot', nv, ns, 'CONTROL', 'SX')
 qddot_min = (-100.*np.ones(nv)).tolist()
 qddot_max = (100.*np.ones(nv)).tolist()
 qddot_init = np.zeros(nv).tolist()
 qddot_init[2] = -9.8
 
-f1, F1 = create_variableSX('F1', nf, ns, "CONTROL")
+f1, F1 = create_variable('F1', nf, ns, 'CONTROL', 'SX')
 f_min1 = (-10000.*np.ones(nf)).tolist()
 f_max1 = (10000.*np.ones(nf)).tolist()
 f_init1 = np.zeros(nf).tolist()
 
-f2, F2 = create_variableSX('F2', nf, ns, "CONTROL")
+f2, F2 = create_variable('F2', nf, ns, 'CONTROL', 'SX')
 f_min2 = (-10000.*np.ones(nf)).tolist()
 f_max2 = (10000.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
-fRope, FRope = create_variableSX('FRope', nf, ns, "CONTROL")
+fRope, FRope = create_variable('FRope', nf, ns, 'CONTROL', 'SX')
 f_minRope = (-10000.*np.ones(nf)).tolist()
 f_maxRope = (10000.*np.ones(nf)).tolist()
 f_initRope = np.zeros(nf).tolist()
@@ -128,22 +128,23 @@ q_trg = np.array([-.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0,
                   0.3]).tolist()
 
-K = 500000.
+K = 7e5
 min_q = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0])
-J += cost_functionSX(min_q, 0, ns)
+J += cost_function(min_q, 0, ns)
 
-min_qdot = lambda k: 1.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
-J += cost_functionSX(min_qdot, 0, ns)
+min_qdot = lambda k: 1.*dot(Qdot[k][0:-1], Qdot[k][0:-1])
+J += cost_function(min_qdot, 0, ns)
 
-min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
-J += cost_functionSX(min_qddot_a, 0, ns-1)
+min_qddot = lambda k: 1.*dot(Qddot[k][0:-1], Qddot[k][0:-1])
+J += cost_function(min_qddot, 0, ns-1)
 
-# min_deltaF1 = lambda k: 1*dot(F1[k]-F1[k-1], F1[k]-F1[k-1])  # min Fdot
-# J += cost_functionSX(min_deltaF1, 1, ns-1)
-#
-# min_deltaF2 = lambda k: 1*dot(F2[k]-F2[k-1], F2[k]-F2[k-1])  # min Fdot
-# J += cost_functionSX(min_deltaF2, 1, ns-1)
-#
+#min_FC = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
+#J += cost_functionSX(min_FC, 0, ns-1)
+
+# min_deltaFC = lambda k: 1*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1]), (F1[k]-F1[k-1])+(F2[k]-F2[k-1])) # min Fdot
+# J += cost_functionSX(min_deltaFC, 1, ns-1)
+
+
 # min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
 # J += cost_functionSX(min_deltaFRope, 1, ns-1)
 
@@ -276,11 +277,16 @@ Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
 get_Contact1_pos = Function("get_Contact1_pos", [V], [Contact1_pos], ['V'], ['Contact1_pos'])
 Contact1_pos_hist = (get_Contact1_pos(V=w_opt)['Contact1_pos'].full().flatten()).reshape(ns, 3)
 
+Contact2_pos = FKcomputer.computeFK('Contact2', 'ee_pos', 0, ns)
+get_Contact2_pos = Function("get_Contact2_pos", [V], [Contact2_pos], ['V'], ['Contact2_pos'])
+Contact2_pos_hist = (get_Contact2_pos(V=w_opt)['Contact2_pos'].full().flatten()).reshape(ns, 3)
+
 
 logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
 logger.add('Tf', tf)
 logger.add('Contact1', Contact1_pos_hist)
+logger.add('Contact2', Contact2_pos_hist)
 
 del(logger)
 
