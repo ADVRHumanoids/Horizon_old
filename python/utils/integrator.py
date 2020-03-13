@@ -9,12 +9,15 @@ def RK4(dae, opts, casadi_type):
 
     f_RK = Function('f_RK', [x, qddot], [xdot, L])
 
+    nx = x.size1()
+    nv = qddot.size1()
+
     if casadi_type is 'MX':
-        X0_RK = MX.sym('X0_RK', x.size1())
-        U_RK = MX.sym('U_RK', qddot.size1())
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
     elif casadi_type is 'SX':
-        X0_RK = x
-        U_RK = qddot
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
     else:
         raise Exception('Input casadi_type can be only SX or MX!')
 
@@ -40,13 +43,16 @@ def RK4_time(dae, casadi_type):
 
     f_RK = Function('f_RK', [x, qddot], [xdot, L])
 
+    nx = x.size1()
+    nv = qddot.size1()
+
     if casadi_type is 'MX':
-        X0_RK = MX.sym('X0_RK', x.size1())
-        U_RK = MX.sym('U_RK', qddot.size1())
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
         DT_RK = MX.sym('DT_RK', 1)
     elif casadi_type is 'SX':
-        X0_RK = x
-        U_RK = qddot
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
         DT_RK = SX.sym('DT_RK', 1)
     else:
         raise Exception('Input casadi_type can be only SX or MX!')
@@ -73,12 +79,15 @@ def RKF45(dae, opts, casadi_type):
 
     f_RK = Function('f_RK', [x, qddot], [xdot, L])
 
+    nx = x.size1()
+    nv = qddot.size1()
+
     if casadi_type is 'MX':
-        X0_RK = MX.sym('X0_RK', x.size1())
-        U_RK = MX.sym('U_RK', qddot.size1())
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
     elif casadi_type is 'SX':
-        X0_RK = x
-        U_RK = qddot
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
     else:
         raise Exception('Input casadi_type can be only SX or MX!')
 
@@ -120,13 +129,16 @@ def RKF45_time(dae, casadi_type):
 
     f_RK = Function('f_RK', [x, qddot], [xdot, L])
 
+    nx = x.size1()
+    nv = qddot.size1()
+
     if casadi_type is 'MX':
-        X0_RK = MX.sym('X0_RK', x.size1())
-        U_RK = MX.sym('U_RK', qddot.size1())
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
         DT_RK = MX.sym('DT_RK', 1)
     elif casadi_type is 'SX':
-        X0_RK = x
-        U_RK = qddot
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
         DT_RK = SX.sym('DT_RK', 1)
     else:
         raise Exception('Input casadi_type can be only SX or MX!')
