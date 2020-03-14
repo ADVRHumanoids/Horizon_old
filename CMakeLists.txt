@@ -27,8 +27,7 @@ install(PROGRAMS
    python/constraints/contact.py
    python/constraints/final_time.py
    python/utils/resample_integrator.py
-   python/utils/integrator_SX.py
-   python/utils/integrator_MX.py
+   python/utils/integrator.py
    python/utils/replay_trajectory.py
    python/utils/inverse_dynamics.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
