@@ -10,7 +10,7 @@ import constraints as cons
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
-from utils.integrator_SX import *
+from utils.integrator import *
 from utils.kinematics import *
 
 logger = matl.MatLogger2('/tmp/rope_jump_dt_log')
@@ -107,7 +107,7 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = RKF45_SX_time(dae)
+F_integrator = RKF45_time(dae, 'SX')
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
