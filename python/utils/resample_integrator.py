@@ -1,6 +1,6 @@
 from casadi import *
 from horizon import *
-from utils.integrator_SX import *
+from utils.integrator import *
 
 def resample_integratorSX(X, U_integrator, time, dt, dae):
 
@@ -17,7 +17,7 @@ def resample_integratorSX(X, U_integrator, time, dt, dae):
             ni = int(round(ti / dt))  # number of intermediate nodes in interval
 
         opts = {'tf': dt}
-        F_integrator = RK4_SX(dae, opts)
+        F_integrator = RK4(dae, opts, 'SX')
 
         # Resample X
         n_res = (ns - 1) * ni
@@ -42,7 +42,7 @@ def resample_integratorSX(X, U_integrator, time, dt, dae):
     else:
 
         opts = {'tf': dt}
-        F_integrator = RK4_SX(dae, opts)
+        F_integrator = RK4(dae, opts, 'SX')
 
         ni = {}
         n_res = 0
