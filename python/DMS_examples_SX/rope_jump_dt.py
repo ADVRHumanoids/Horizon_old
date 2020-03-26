@@ -55,22 +55,24 @@ t_final = ns*dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
 
+foot_z_offset = 0.#0.5
+
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
-                  -0.3, -0.1, -0.1,  # Contact 1
-                  -0.3, -0.05, -0.1,  # Contact 2
+                  -0.3, -0.1, -0.1+foot_z_offset,  # Contact 1
+                  -0.3, -0.05, -0.1+foot_z_offset,  # Contact 2
                   -1.57, -1.57, -3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
-                  0.3, 0.05, 0.1,  # Contact 1
-                  0.3, 0.1, 0.1,  # Contact 2
+                  0.3, 0.05, 0.1+foot_z_offset,  # Contact 1
+                  0.3, 0.1, 0.1+foot_z_offset,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 alpha = 0.3
 rope_lenght = 0.3
 x_foot = rope_lenght * np.sin(alpha)
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                   x_foot, 0., 0.,
-                   x_foot, 0., 0.,
+                   x_foot, 0., 0.+foot_z_offset,
+                   x_foot, 0., 0.+foot_z_offset,
                    0., alpha, 0.,
                    rope_lenght]).tolist()
 print "q_init: ", q_init
@@ -115,15 +117,15 @@ V = concat_states_and_controls({"X": X, "U": U})
 v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max],
                               "u_min": [qddot_min, f_min1, f_min2, f_minRope, dt_min], "u_max": [qddot_max, f_max1, f_max2, f_maxRope, dt_max]}, ns)
 
-lift_node = 20
+lift_node = 2 #20
 touch_down_node = 60
 
 # SET UP COST FUNCTION
 J = SX([0])
 
 q_trg = np.array([-.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                  0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0+foot_z_offset,
+                  0.0, 0.0, 0.0+foot_z_offset,
                   0.0, 0.0, 0.0,
                   0.3]).tolist()
 
@@ -134,10 +136,10 @@ J += cost_function(min_qd, lift_node+1, touch_down_node)
 min_qd2 = lambda k: K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
 J += cost_function(min_qd2, lift_node+1, touch_down_node)
 
-min_qdot = lambda k: 1.*dot(Qdot[k][0:-1], Qdot[k][0:-1])
+min_qdot = lambda k: 100.*dot(Qdot[k][0:-1], Qdot[k][0:-1])
 J += cost_function(min_qdot, 0, ns)
 
-min_qddot = lambda k: 1.*dot(Qddot[k][0:-1], Qddot[k][0:-1])
+min_qddot = lambda k: 20.*dot(Qddot[k][0:-1], Qddot[k][0:-1])
 J += cost_function(min_qddot, 0, ns-1)
 
 min_q = lambda k: K*dot(Q[k], Q[k])
@@ -196,7 +198,7 @@ g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
 # WALL
-mu = 0.1
+mu = 0.5
 
 R_wall = np.zeros([3, 3])
 

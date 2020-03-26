@@ -16,7 +16,7 @@ install(DIRECTORY launch/
 
 install(DIRECTORY configs/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/configs
-  FILES_MATCHING PATTERN "*.urdf"
+  #FILES_MATCHING PATTERN "*.urdf"
 )  
 
 
