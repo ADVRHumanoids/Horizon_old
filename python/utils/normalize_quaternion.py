@@ -1,9 +1,9 @@
 from casadi import *
 
-def normalize(v):
-    return v / np.linalg.norm(v)
-
 def normalize_quaternion(q):
+
+    def normalize(v):
+        return v / np.linalg.norm(v)
 
     n_res = np.shape(q)[0]
     for k in range(int(round(n_res))):
