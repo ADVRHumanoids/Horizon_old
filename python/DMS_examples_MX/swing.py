@@ -98,7 +98,7 @@ tf = 2.0  # [s]
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
 opts = {'tf': tf/ns}
-F_integrator = integrator('F_integrator', 'rk', dae, opts)
+F_integrator = RK4(dae, opts, "MX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
