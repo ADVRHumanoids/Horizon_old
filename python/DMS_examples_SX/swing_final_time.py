@@ -10,7 +10,7 @@ import constraints as cons
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
-from utils.integrator_SX import *
+from utils.integrator import *
 
 logger = matl.MatLogger2('/tmp/swing_final_time_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -45,13 +45,13 @@ nv = kindyn.nv()  # Velocity DoFs
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
-tf, Tf = create_variableSX("Tf", 1, 1, "FINAL_STATE")
+tf, Tf = create_variable("Tf", 1, 1, "FINAL_STATE")
 dt = 0.02
 tf_min = dt*(ns-1)
 tf_max = dt*(ns-1)
 tf_init = dt*(ns-1)
 
-q, Q = create_variableSX("Q", nq, ns, "STATE")
+q, Q = create_variable("Q", nq, ns, "STATE")
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1,  # Contact 1
@@ -69,28 +69,28 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0.2, 0.,
                    0.3]).tolist()
 
-qdot, Qdot = create_variableSX('Qdot', nv, ns, "STATE")
+qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
 qdot_min = (-100.*np.ones(nv)).tolist()
 qdot_max = (100.*np.ones(nv)).tolist()
 qdot_init = np.zeros(nv).tolist()
 
-qddot, Qddot = create_variableSX('Qddot', nv, ns, "CONTROL")
+qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
 qddot_min = (-100.*np.ones(nv)).tolist()
 qddot_max = (100.*np.ones(nv)).tolist()
 qddot_init = np.zeros(nv).tolist()
 qddot_init[2] = -9.8
 
-f1, F1 = create_variableSX('F1', nf, ns, "CONTROL")
+f1, F1 = create_variable('F1', nf, ns, "CONTROL")
 f_min1 = (-10000.*np.ones(nf)).tolist()
 f_max1 = (10000.*np.ones(nf)).tolist()
 f_init1 = np.zeros(nf).tolist()
 
-f2, F2 = create_variableSX('F2', nf, ns, "CONTROL")
+f2, F2 = create_variable('F2', nf, ns, "CONTROL")
 f_min2 = (-10000.*np.ones(nf)).tolist()
 f_max2 = (10000.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
-fRope, FRope = create_variableSX('FRope', nf, ns, "CONTROL")
+fRope, FRope = create_variable('FRope', nf, ns, "CONTROL")
 f_minRope = (-10000.*np.ones(nf)).tolist()
 f_maxRope = (10000.*np.ones(nf)).tolist()
 f_initRope = np.zeros(nf).tolist()
@@ -101,7 +101,7 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = RKF45_SX_time(dae)
+F_integrator = RKF45_time(dae, "SX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
@@ -114,33 +114,33 @@ J = SX([0])
 
 K = 300000.
 min_q = lambda k: K*dot(Q[k][7:13]-q_init[7:13], Q[k][7:13]-q_init[7:13])
-J += cost_functionSX(min_q, 0, ns)
+J += cost_function(min_q, 0, ns)
 
 D = 100.
 min_qdot_legs = lambda k: D*dot(Qdot[k][6:12], Qdot[k][6:12])
-J += cost_functionSX(min_qdot_legs, 0, ns)
+J += cost_function(min_qdot_legs, 0, ns)
 min_qdot = lambda k: 1.*dot(Qdot[k][12:-1], Qdot[k][12:-1])
-J += cost_functionSX(min_qdot, 0, ns)
+J += cost_function(min_qdot, 0, ns)
 
 min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
-J += cost_functionSX(min_qddot_a, 0, ns-1)
+J += cost_function(min_qddot_a, 0, ns-1)
 
 J += 1000.*dot(Tf[0]-tf_init, Tf[0]-tf_init)
 
 # min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
-# J += cost_functionSX(min_F1, 0, ns-1)
+# J += cost_function(min_F1, 0, ns-1)
 
 # min_F2 = lambda k: 1000.*dot(F2[k], F2[k])
-# J += cost_functionSX(min_F2, 0, ns-1)
+# J += cost_function(min_F2, 0, ns-1)
 
 # min_FRope = lambda k: 1.*dot(FRope[k], FRope[k])
-# J += cost_functionSX(min_FRope, 0, ns-1)
+# J += cost_function(min_FRope, 0, ns-1)
 
 # min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
-# J += cost_functionSX(min_deltaFRope, 1, ns-1)
+# J += cost_function(min_deltaFRope, 1, ns-1)
 
 # min_Tf = lambda k: 1000.*Tf[0]
-# J += cost_functionSX(min_Tf, 0, ns-1)
+# J += cost_function(min_Tf, 0, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -160,7 +160,7 @@ G.set_constraint(g2, g_min2, g_max2)
 
 # INVERSE DYNAMICS CONSTRAINT
 dd = {'rope_anchor2': FRope}
-id = inverse_dynamicsSX(Q, Qdot, Qddot, ID, dd, kindyn)
+id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     -1000., -1000., -1000.,  # Contact 1
@@ -203,7 +203,7 @@ tf = solution_dict['Tf']
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res = resample_integratorSX(X, Qddot, tf, dt, dae)
+X_res = resample_integrator(X, Qddot, tf, dt, dae)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()

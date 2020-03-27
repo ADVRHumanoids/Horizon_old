@@ -98,7 +98,7 @@ tf = 1.0  # [s]
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
 opts = {'tf': tf/ns}
-F_integrator = integrator('F_integrator', 'rk', dae, opts)
+F_integrator = RK4(dae, opts, "SX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
@@ -106,7 +106,7 @@ V = concat_states_and_controls({"X": X, "U": U})
 v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max], "u_min": [qddot_min, f_min1, f_min2, f_minRope], "u_max": [qddot_max, f_max1, f_max2, f_maxRope]}, ns)
 
 # SET UP COST FUNCTION
-J = MX([0])
+J = SX([0])
 
 min_qdot = lambda k: 100.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
 J += cost_function(min_qdot, 0, ns)
