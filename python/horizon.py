@@ -1,12 +1,18 @@
 from casadi import *
 
-
-
-# create_bounds: creates a list of bounds, along the number of knots, for the variables given the list of bounds
-# on states x and controls u
-#
-# Output: v_min = [v_min1, v_min2, ..., v_minn]
 def create_bounds(dict, number_of_nodes):
+    """Create a single list of bounds given the bounds on states, controls and optionally final time.
+        Args:
+            dict: {"x_min": x_min, "x_max": x_max, "u_min": u_min, "u_max": u_max}, optional: "tf_min": tf_min, "tf_max": tf_max
+                For the first number_of_nodes-1 state and control bounds are set, then bounds on final time (tf_min/tf_max) are added if present,
+                finally on last node only state bounds are added.
+            number_of_nodes: total nodes of the problem
+
+        Returns:
+            vertcat(*v_min): list of all min bounds on state, controls and final time if present
+            vertcat(*v_max): list of all max bounds on state, controls and final time if present
+        """
+
     x_min = dict["x_min"]
     x_max = dict["x_max"]
     u_min = dict["u_min"]
@@ -34,6 +40,17 @@ def create_bounds(dict, number_of_nodes):
 
 
 def create_init(dict, number_of_nodes):
+    """Create a single list of initial conditions given the initial condition on states, controls and optionally final time.
+            Args:
+                dict: {"x_init": x_init, "u_init": u_init}, optional: "tf_init": tf_init
+                    For the first number_of_nodes-1 state and control initial conditions are set, then initial condition on final time (tf_init) are added if present,
+                    finally on last node only state initial conditions are added.
+                number_of_nodes: total nodes of the problem
+
+            Returns:
+                vertcat(*v_init): list of all initial conditions on state, controls and final time if present
+            """
+
     x_init = dict["x_init"]
     u_init = dict["u_init"]
     v_init = []
@@ -144,8 +161,16 @@ def create_variable(name, size, number_of_nodes, type, casadi_type = 'SX'):
 
     return SX_var, opc_var
 
-# cost_function return the value of cost (functor) computed from from_node to to_node
 def cost_function(cost, from_node, to_node):
+    """Apply a cost from an interval of nodes [from_node, to_node).
+    Args:
+        cost: a callable function which return the value of the cost for a given node k
+        from_node: starting node (included)
+        to_node: final node (excluded)
+
+    Returns:
+        J: list of values of the cost on the given nodes
+    """
     J = []
     if type(cost(0)) is casadi.SX:
         J = SX([0])
@@ -170,7 +195,7 @@ def constraint(constraint, from_node, to_node):
         g_min: list of values of the lower bounds on the given nodes
         g_max: list of values of the upper bounds on the given nodes
     """
-    
+
     g = []
     g_min = []
     g_max = []
@@ -183,20 +208,50 @@ def constraint(constraint, from_node, to_node):
     return g, g_min, g_max
 
 
-class constraint_class:
+class :
+    """Base class to implement constraints to be used in constraint(constraint, from_node, to_node).
+        Attributes:
+            gk: value of the constraint for the k node
+            g_mink: value of the min bound for the k node
+            g_maxk: value of the max bound for the k node
+        """
+
     def __init__(self):
         self.gk = []
         self.g_mink = []
         self.g_maxk = []
 
     def __call__(self, k):
+        """This method is automatically called when passed to constraint(constraint, from_node, to_node), here virtual_method is called.
+         Args:
+            k: node for which virtual_method is evaluated
+
+        Returns:
+            gk: value of the constraint for the k node
+            g_mink: value of the min bound for the k node
+            g_maxk: value of the max bound for the k node
+        """
         self.virtual_method(k)
         return self.gk, self.g_mink, self.g_maxk
 
     def getConstraint(self):
+        """Return the value of the constraint (virtual_method needs to be called first)
+        #TODO: refactor to have getConstraint(k); virtual_method(k) is called inside
+        Returns:
+            gk: value of the constraint for the k node
+            g_mink: value of the min bound for the k node
+            g_maxk: value of the max bound for the k node
+        """
         return self.gk, self.g_mink, self.g_maxk
 
     def virtual_method(self, k):
+        """Method to implement in derived class, should provide values for gk, g_mink, g_maxk
+        Args:
+            k: node for which virtual_method is evaluated
+
+        Raise:
+            NotImplementedError() if not implmented in derived class
+        """
         raise NotImplementedError()
 
 
