@@ -44,7 +44,7 @@ nv = kindyn.nv()  # Velocity DoFs
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
-q, Q = create_variable("Q", nq, ns, "STATE")
+q, Q = create_variable("Q", nq, ns, "STATE", "MX")
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1,  # Contact 1
@@ -63,28 +63,28 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0.3]).tolist()
 
 
-qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
+qdot, Qdot = create_variable('Qdot', nv, ns, "STATE", "MX")
 qdot_min = (-100.*np.ones(nv)).tolist()
 qdot_max = (100.*np.ones(nv)).tolist()
 qdot_init = np.zeros(nv).tolist()
 
-qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
+qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL", "MX")
 qddot_min = (-100.*np.ones(nv)).tolist()
 qddot_max = (100.*np.ones(nv)).tolist()
 qddot_init = np.zeros(nv).tolist()
 qddot_init[2] = -9.8
 
-f1, F1 = create_variable('F1', nf, ns, "CONTROL")
+f1, F1 = create_variable('F1', nf, ns, "CONTROL", "MX")
 f_min1 = (-10000.*np.ones(nf)).tolist()
 f_max1 = (10000.*np.ones(nf)).tolist()
 f_init1 = np.zeros(nf).tolist()
 
-f2, F2 = create_variable('F2', nf, ns, "CONTROL")
+f2, F2 = create_variable('F2', nf, ns, "CONTROL", "MX")
 f_min2 = (-10000.*np.ones(nf)).tolist()
 f_max2 = (10000.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
-fRope, FRope = create_variable('FRope', nf, ns, "CONTROL")
+fRope, FRope = create_variable('FRope', nf, ns, "CONTROL", "MX")
 f_minRope = (-10000.*np.ones(nf)).tolist()
 f_maxRope = (10000.*np.ones(nf)).tolist()
 f_initRope = np.zeros(nf).tolist()
