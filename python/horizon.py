@@ -159,6 +159,18 @@ def cost_function(cost, from_node, to_node):
     return J
 
 def constraint(constraint, from_node, to_node):
+    """Apply a constraint from an interval of nodes [from_node, to_node).
+    Args:
+        constraint: a callable function which return the value of the constraint, min and max for a given node k
+        from_node: starting node (included)
+        to_node: final node (excluded)
+
+    Returns:
+        g: list of values of the constraint on the given nodes
+        g_min: list of values of the lower bounds on the given nodes
+        g_max: list of values of the upper bounds on the given nodes
+    """
+    
     g = []
     g_min = []
     g_max = []
