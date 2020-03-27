@@ -208,7 +208,7 @@ def constraint(constraint, from_node, to_node):
     return g, g_min, g_max
 
 
-class :
+class constraint_class:
     """Base class to implement constraints to be used in constraint(constraint, from_node, to_node).
         Attributes:
             gk: value of the constraint for the k node
