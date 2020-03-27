@@ -14,6 +14,9 @@ class kinematics:
         if fk_type is 'ee_pos':
             for k in range(from_node, to_node):
                 link_pos.append(FK(q=self.Q[k])['ee_pos'])
+        elif fk_type is 'ee_rot':
+            for k in range(from_node, to_node):
+                link_pos.append(FK(q=self.Q[k])['ee_rot'])
         else:
             raise NotImplementedError()
 
