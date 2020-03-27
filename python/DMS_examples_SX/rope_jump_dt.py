@@ -13,7 +13,8 @@ from utils.replay_trajectory import *
 from utils.integrator import *
 from utils.kinematics import *
 from utils.normalize_quaternion import *
-
+from utils.rotation_matrix_to_euler import *
+from utils.plot_solution import *
 
 logger = matl.MatLogger2('/tmp/rope_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -295,14 +296,28 @@ Contact2_pos = FKcomputer.computeFK('Contact2', 'ee_pos', 0, ns)
 get_Contact2_pos = Function("get_Contact2_pos", [V], [Contact2_pos], ['V'], ['Contact2_pos'])
 Contact2_pos_hist = (get_Contact2_pos(V=w_opt)['Contact2_pos'].full().flatten()).reshape(ns, 3)
 
+Waist_pos = FKcomputer.computeFK('Waist', 'ee_pos', 0, ns)
+get_Waist_pos = Function("get_Waist_pos", [V], [Waist_pos], ['V'], ['Waist_pos'])
+Waist_pos_hist = (get_Waist_pos(V=w_opt)['Waist_pos'].full().flatten()).reshape(ns, 3)
+
+Waist_rot = FKcomputer.computeFK('Waist', 'ee_rot', 0, ns)
+get_Waist_rot = Function("get_Waist_rot", [V], [Waist_rot], ['V'], ['Waist_rot'])
+Waist_rot_hist = (get_Waist_rot(V=w_opt)['Waist_rot'].full().flatten()).reshape(ns, 3, 3)
+# CONVERSION TO EULER ANGLES
+Waist_rot_hist = rotation_matrix_to_euler(Waist_rot_hist)
+
 
 logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
 logger.add('Tf', tf)
 logger.add('Contact1', Contact1_pos_hist)
 logger.add('Contact2', Contact2_pos_hist)
+logger.add('Waist_pos', Waist_pos_hist)
+logger.add('Waist_rot', Waist_rot_hist)
 
 del(logger)
+
+plot_solution(q_hist)
 
 # REPLAY TRAJECTORY
 joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
