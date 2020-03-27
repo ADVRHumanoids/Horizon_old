@@ -3,3 +3,4 @@ import inverse_dynamics
 import replay_trajectory
 import resample_integrator
 import kinematics
+import normalize_quaternion

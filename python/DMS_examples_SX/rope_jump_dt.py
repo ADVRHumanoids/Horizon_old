@@ -12,6 +12,8 @@ from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
 from utils.integrator import *
 from utils.kinematics import *
+from utils.normalize_quaternion import *
+
 
 logger = matl.MatLogger2('/tmp/rope_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -255,7 +257,10 @@ w_opt = sol['x'].full().flatten()
 
 # RETRIEVE SOLUTION AND LOGGING
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Dt': Dt}, w_opt)
+
 q_hist = solution_dict['Q']
+q_hist = normalize_quaternion(q_hist)
+
 dt_hist = solution_dict['Dt']
 
 tf = 0.0
@@ -269,6 +274,8 @@ X_res = resample_integrator(X, Qddot, dt_hist, dt, dae)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
+# NORMALIZE QUATERNION
+q_hist_res = normalize_quaternion(q_hist_res)
 
 # GET ADDITIONAL VARIABLES
 Tau = id.compute_nodes(0, ns-1)
