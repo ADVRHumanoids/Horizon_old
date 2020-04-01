@@ -147,8 +147,8 @@ K = 6.5*1e5
 min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0])
 J += cost_function(min_qd, lift_node+1, touch_down_node)
 
-min_qd2 = lambda k: K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
-J += cost_function(min_qd2, lift_node+1, touch_down_node)
+# min_qd2 = lambda k: K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
+# J += cost_function(min_qd2, lift_node+1, touch_down_node)
 
 min_qdot = lambda k: 100.*dot(Qdot[k][0:-1], Qdot[k][0:-1])
 J += cost_function(min_qdot, 0, ns)
