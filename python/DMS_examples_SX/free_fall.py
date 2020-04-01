@@ -11,6 +11,9 @@ from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
 from utils.integrator import *
+from utils.kinematics import *
+import matplotlib.pyplot as plt
+import decimal
 
 logger = matl.MatLogger2('/tmp/free_fall_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -184,6 +187,7 @@ w_opt = sol['x'].full().flatten()
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope}, w_opt)
 q_hist = solution_dict['Q']
 
+
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
 X_res = resample_integrator(X, Qddot, tf, dt, dae)
@@ -204,6 +208,55 @@ logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
 
 del(logger)
+
+FKcomputer = kinematics(kindyn, Q)
+ContactRope_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
+get_ContactRope_pos = Function("get_ContactRope_pos", [V], [ContactRope_pos], ['V'], ['ContactRope_pos'])
+ContactRope_pos_hist = (get_ContactRope_pos(V=w_opt)['ContactRope_pos'].full().flatten()).reshape(ns, 3)
+
+
+#### PLOTS ####
+PLOT = False
+if PLOT:
+    time = np.arange(0.0, tf, tf/ns)
+
+    plt.figure(1) ### Rope anchor point
+    plt.plot(time, ContactRope_pos_hist[:,0], label='$\mathrm{x}$', linewidth=3.0)
+    plt.plot(time, ContactRope_pos_hist[:,1], label='$\mathrm{y}$', linewidth=3.0)
+    plt.plot(time, ContactRope_pos_hist[:,2], label='$\mathrm{z}$', linewidth=3.0)
+    plt.legend(loc='upper right', fancybox=True, framealpha=0.5, prop={'size':20})
+    plt.grid()
+    plt.suptitle('$\mathrm{Anchor-Point \ Position}$', size = 20)
+    plt.xlabel('$\mathrm{[sec]}$', size = 20)
+    plt.ylabel('$\mathrm{[m]}$', size = 20)
+    plt.savefig("free_fall_anchor_point_pos.pdf", format="pdf")
+
+    plt.figure(2) ### Rope lenght Vs floating base position z
+
+    plt.plot(time, q_hist[:,2], label='$\mathrm{floating-base \ z}$', linewidth=3.0, color='red')
+    plt.plot(time[29], q_hist[29,2], marker='o', markersize=7, color='red')
+    plt.plot(time[0], q_hist[0,2],  marker='o', markersize=7, color='red')
+    plt.text(time[29], q_hist[29,2]-0.2,'('+str(round(time[29],2))+','+str(round(q_hist[29,2],2))+')', horizontalalignment='right', verticalalignment='top')
+    plt.text(time[0], q_hist[0,2]-0.2,'('+str(round(time[0],2))+','+str(round(q_hist[0,2],2))+')', horizontalalignment='left', verticalalignment='top')
+
+    plt.plot(time, q_hist[:,-1], label='$\mathrm{rope \ joint}$', linewidth=3.0, color='blue')
+    plt.plot(time[29], q_hist[29,-1], marker='o', markersize=7, color='blue')
+    plt.plot(time[0], q_hist[0,-1],  marker='o', markersize=7, color='blue')
+    plt.text(time[29], q_hist[29,-1]+0.2,'('+str(round(time[29],2))+','+str(round(q_hist[29,-1],2))+')', horizontalalignment='right', verticalalignment='bottom')
+    plt.text(time[0], q_hist[0,-1]+0.2,'('+str(round(time[0],2))+','+str(round(q_hist[0,-1],2))+')', horizontalalignment='left', verticalalignment='bottom')
+
+    plt.legend(loc='upper left', fancybox=True, framealpha=0.5, prop={'size':20})
+    plt.grid()
+    plt.suptitle('$\mathrm{Rope \ Lenght \ vs \ Floating-Base \ Z \ Position}$', size = 20)
+    plt.xlabel('$\mathrm{[sec]}$', size = 20)
+    plt.ylabel('$\mathrm{[m]}$', size = 20)
+
+    plt.savefig("free_fall_rope_lenght_vs_floating_base_z_pos.pdf", format="pdf")
+
+    plt.show()
+###
+
+
 
 # REPLAY TRAJECTORY
 joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
