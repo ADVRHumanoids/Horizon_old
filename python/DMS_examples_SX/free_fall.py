@@ -15,7 +15,13 @@ from utils.kinematics import *
 import matplotlib.pyplot as plt
 import decimal
 
-logger = matl.MatLogger2('/tmp/free_fall_log')
+FREE_FALL = False
+
+logger = []
+if FREE_FALL:
+    logger = matl.MatLogger2('/tmp/free_fall_log')
+else:
+    logger = matl.MatLogger2('/tmp/rope_suspended_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
 urdf = rospy.get_param('robot_description')
@@ -50,16 +56,30 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 # CREATE VARIABLES
 q, Q = create_variable("Q", nq, ns, "STATE")
 
-q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
+q_min = []
+q_max = []
+if FREE_FALL:
+    q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1,  # Contact 1
                   -0.3, -0.05, -0.1,  # Contact 2
                   -1.57, -1.57, -3.1415,  # rope_anchor
                   0.0]).tolist()  # rope
-q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
+    q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
                   0.3, 0.05, 0.1,  # Contact 1
                   0.3, 0.1, 0.1,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
                   10.0]).tolist()  # rope
+else:
+    q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
+                      -0.3, -0.1, -0.1,  # Contact 1
+                      -0.3, -0.05, -0.1,  # Contact 2
+                      -1.57, -1.57, -3.1415,  # rope_anchor
+                      0.1]).tolist()  # rope
+    q_max = np.array([10.0, 10.0, 10.0, 1.0, 1.0, 1.0, 1.0,  # Floating base
+                      0.3, 0.05, 0.1,  # Contact 1
+                      0.3, 0.1, 0.1,  # Contact 2
+                      1.57, 1.57, 3.1415,  # rope_anchor
+                      0.1]).tolist()  # rope
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
@@ -147,17 +167,26 @@ G.set_constraint(g2, g_min2, g_max2)
 dd = {'rope_anchor2': FRope}
 id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
 
-tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
+tau_min = []
+tau_max = []
+if FREE_FALL:
+    tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     -1000., -1000., -1000.,  # Contact 1
                     -1000., -1000., -1000.,  # Contact 2
                     0., 0., 0.,  # rope_anchor
                     0.]).tolist()  # rope
+else:
+    tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
+                        -1000., -1000., -1000.,  # Contact 1
+                        -1000., -1000., -1000.,  # Contact 2
+                        0., 0., 0.,  # rope_anchor
+                        -10000.0]).tolist()  # rope
 
 tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    1000., 1000., 1000.,  # Contact 1
-                    1000., 1000., 1000.,  # Contact 2
-                    0., 0., 0.,  # rope_anchor
-                    0.0]).tolist()  # rope
+                        1000., 1000., 1000.,  # Contact 1
+                        1000., 1000., 1000.,  # Contact 2
+                        0., 0., 0.,  # rope_anchor
+                        0.0]).tolist()  # rope
 
 torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
@@ -216,42 +245,69 @@ ContactRope_pos_hist = (get_ContactRope_pos(V=w_opt)['ContactRope_pos'].full().f
 
 
 #### PLOTS ####
-PLOT = False
+PLOT = True
 if PLOT:
     time = np.arange(0.0, tf, tf/ns)
 
-    plt.figure(1) ### Rope anchor point
-    plt.plot(time, ContactRope_pos_hist[:,0], label='$\mathrm{x}$', linewidth=3.0)
-    plt.plot(time, ContactRope_pos_hist[:,1], label='$\mathrm{y}$', linewidth=3.0)
-    plt.plot(time, ContactRope_pos_hist[:,2], label='$\mathrm{z}$', linewidth=3.0)
-    plt.legend(loc='upper right', fancybox=True, framealpha=0.5, prop={'size':20})
-    plt.grid()
-    plt.suptitle('$\mathrm{Anchor-Point \ Position}$', size = 20)
-    plt.xlabel('$\mathrm{[sec]}$', size = 20)
-    plt.ylabel('$\mathrm{[m]}$', size = 20)
-    plt.savefig("free_fall_anchor_point_pos.pdf", format="pdf")
+    if FREE_FALL:
+        plt.figure(1) ### Rope anchor point
+        plt.plot(time, ContactRope_pos_hist[:,0], label='$\mathrm{x}$', linewidth=3.0)
+        plt.plot(time, ContactRope_pos_hist[:,1], label='$\mathrm{y}$', linewidth=3.0)
+        plt.plot(time, ContactRope_pos_hist[:,2], label='$\mathrm{z}$', linewidth=3.0)
+        plt.legend(loc='upper right', fancybox=True, framealpha=0.5, prop={'size':20})
+        plt.grid()
+        plt.suptitle('$\mathrm{Anchor-Point \ Position}$', size = 20)
+        plt.xlabel('$\mathrm{[sec]}$', size = 20)
+        plt.ylabel('$\mathrm{[m]}$', size = 20)
+        plt.savefig("free_fall_anchor_point_pos.pdf", format="pdf")
 
-    plt.figure(2) ### Rope lenght Vs floating base position z
+        plt.figure(2) ### Rope lenght Vs floating base position z
 
-    plt.plot(time, q_hist[:,2], label='$\mathrm{floating-base \ z}$', linewidth=3.0, color='red')
-    plt.plot(time[29], q_hist[29,2], marker='o', markersize=7, color='red')
-    plt.plot(time[0], q_hist[0,2],  marker='o', markersize=7, color='red')
-    plt.text(time[29], q_hist[29,2]-0.2,'('+str(round(time[29],2))+','+str(round(q_hist[29,2],2))+')', horizontalalignment='right', verticalalignment='top')
-    plt.text(time[0], q_hist[0,2]-0.2,'('+str(round(time[0],2))+','+str(round(q_hist[0,2],2))+')', horizontalalignment='left', verticalalignment='top')
+        plt.plot(time, q_hist[:,2], label='$\mathrm{floating-base \ z}$', linewidth=3.0, color='red')
+        plt.plot(time[29], q_hist[29,2], marker='o', markersize=7, color='red')
+        plt.plot(time[0], q_hist[0,2],  marker='o', markersize=7, color='red')
+        plt.text(time[29], q_hist[29,2]-0.2,'('+str(round(time[29],2))+','+str(round(q_hist[29,2],2))+')', horizontalalignment='right', verticalalignment='top')
+        plt.text(time[0], q_hist[0,2]-0.2,'('+str(round(time[0],2))+','+str(round(q_hist[0,2],2))+')', horizontalalignment='left', verticalalignment='top')
 
-    plt.plot(time, q_hist[:,-1], label='$\mathrm{rope \ joint}$', linewidth=3.0, color='blue')
-    plt.plot(time[29], q_hist[29,-1], marker='o', markersize=7, color='blue')
-    plt.plot(time[0], q_hist[0,-1],  marker='o', markersize=7, color='blue')
-    plt.text(time[29], q_hist[29,-1]+0.2,'('+str(round(time[29],2))+','+str(round(q_hist[29,-1],2))+')', horizontalalignment='right', verticalalignment='bottom')
-    plt.text(time[0], q_hist[0,-1]+0.2,'('+str(round(time[0],2))+','+str(round(q_hist[0,-1],2))+')', horizontalalignment='left', verticalalignment='bottom')
+        plt.plot(time, q_hist[:,-1], label='$\mathrm{rope \ joint}$', linewidth=3.0, color='blue')
+        plt.plot(time[29], q_hist[29,-1], marker='o', markersize=7, color='blue')
+        plt.plot(time[0], q_hist[0,-1],  marker='o', markersize=7, color='blue')
+        plt.text(time[29], q_hist[29,-1]+0.2,'('+str(round(time[29],2))+','+str(round(q_hist[29,-1],2))+')', horizontalalignment='right', verticalalignment='bottom')
+        plt.text(time[0], q_hist[0,-1]+0.2,'('+str(round(time[0],2))+','+str(round(q_hist[0,-1],2))+')', horizontalalignment='left', verticalalignment='bottom')
 
-    plt.legend(loc='upper left', fancybox=True, framealpha=0.5, prop={'size':20})
-    plt.grid()
-    plt.suptitle('$\mathrm{Rope \ Lenght \ vs \ Floating-Base \ Z \ Position}$', size = 20)
-    plt.xlabel('$\mathrm{[sec]}$', size = 20)
-    plt.ylabel('$\mathrm{[m]}$', size = 20)
+        plt.legend(loc='upper left', fancybox=True, framealpha=0.5, prop={'size':20})
+        plt.grid()
+        plt.suptitle('$\mathrm{Rope \ Lenght \ vs \ Floating-Base \ Z \ Position}$', size = 20)
+        plt.xlabel('$\mathrm{[sec]}$', size = 20)
+        plt.ylabel('$\mathrm{[m]}$', size = 20)
 
-    plt.savefig("free_fall_rope_lenght_vs_floating_base_z_pos.pdf", format="pdf")
+        plt.savefig("free_fall_rope_lenght_vs_floating_base_z_pos.pdf", format="pdf")
+    else:
+        plt.figure(1,figsize=(10, 8))  ### Rope anchor point
+        plt.suptitle('$\mathrm{Rope \ Joint}$', size=20)
+        s1 = plt.subplot(211)
+        s1.set_title('$\mathrm{Position}$', size=20)
+        axes = plt.gca()
+        axes.set_xlim([0, 1])
+        axes.set_ylim([0, 0.2])
+        axes.set_aspect(1.5)
+        plt.plot(time, q_hist[:, -1], linewidth=3.0)
+        plt.grid()
+        plt.xlabel('$\mathrm{[sec]}$', size=20)
+        plt.ylabel('$\mathrm{[m]}$', size=20)
+
+        s2 = plt.subplot(212)
+        s2.set_title('$\mathrm{Force}$', size=20)
+        axes = plt.gca()
+        axes.set_xlim([0, 1])
+        axes.set_ylim([-598.1, -597.9])
+        axes.set_aspect(1.5)
+        axes.ticklabel_format(useOffset=False)
+        plt.plot(time[0:29], np.around(tau_hist[:, -1]), linewidth=3.0)
+        plt.grid()
+        plt.xlabel('$\mathrm{[sec]}$', size=20)
+        plt.ylabel('$\mathrm{[N]}$', size=20)
+        plt.savefig("rope_suspended_rope_joint.pdf", format="pdf")
 
     plt.show()
 ###
