@@ -46,8 +46,8 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, "CONTROL")
-dt_min = 0.02
-dt_max = 0.03
+dt_min = 0.01
+dt_max = 0.01
 dt_init = dt_min
 
 t_final = ns*dt_min
@@ -55,13 +55,13 @@ t_final = ns*dt_min
 q, Q = create_variable("Q", nq, ns, "STATE")
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
-                  -0.3, -0.1, -0.1,  # Contact 1
-                  -0.3, -0.05, -0.1,  # Contact 2
+                  0., 0., 0.,  # Contact 1
+                  0., -0.,0.,  # Contact 2
                   -1.57, -1.57, -3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
-                  0.3, 0.05, 0.1,  # Contact 1
-                  0.3, 0.1, 0.1,  # Contact 2
+                  0., 0., 0.,  # Contact 1
+                  0., 0., 0.,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
@@ -71,24 +71,24 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0.3]).tolist()
 
 qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
-qdot_min = (-100.*np.ones(nv)).tolist()
-qdot_max = (100.*np.ones(nv)).tolist()
+qdot_min = (-1000.*np.ones(nv)).tolist()
+qdot_max = (1000.*np.ones(nv)).tolist()
 qdot_init = np.zeros(nv).tolist()
 
 qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
-qddot_min = (-100.*np.ones(nv)).tolist()
-qddot_max = (100.*np.ones(nv)).tolist()
+qddot_min = (-1000.*np.ones(nv)).tolist()
+qddot_max = (1000.*np.ones(nv)).tolist()
 qddot_init = np.zeros(nv).tolist()
 qddot_init[2] = -9.8
 
 f1, F1 = create_variable('F1', nf, ns, "CONTROL")
-f_min1 = (-10000.*np.ones(nf)).tolist()
-f_max1 = (10000.*np.ones(nf)).tolist()
+f_min1 = (0.*np.ones(nf)).tolist()
+f_max1 = (0.*np.ones(nf)).tolist()
 f_init1 = np.zeros(nf).tolist()
 
 f2, F2 = create_variable('F2', nf, ns, "CONTROL")
-f_min2 = (-10000.*np.ones(nf)).tolist()
-f_max2 = (10000.*np.ones(nf)).tolist()
+f_min2 = (0.*np.ones(nf)).tolist()
+f_max2 = (0.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
 fRope, FRope = create_variable('FRope', nf, ns, "CONTROL")
@@ -102,7 +102,7 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = RKF45_time(dae, "SX")
+F_integrator = RK4_time(dae, "SX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
@@ -120,22 +120,30 @@ q_rest = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0.3]).tolist()
 
 
-K = 30000.
-min_q = lambda k: K*dot(Q[k][7:-1]-q_rest[7:-1], Q[k][7:-1]-q_rest[7:-1])
-J += cost_function(min_q, 0, ns)
+#K = 30000.
+#min_q = lambda k: K*dot(Q[k][7:-1]-q_rest[7:-1], Q[k][7:-1]-q_rest[7:-1])
+#J += cost_function(min_q, 0, ns)
 
-D = 1.
+#D = 1.
 # min_qdot =  lambda k: D*dot(Qdot[k], Qdot[k])
 # J += cost_function(min_qdot, 0, ns)
 
 # min_qdot_legs = lambda k: D*dot(Qdot[k][6:12], Qdot[k][6:12])
 # J += cost_function(min_qdot_legs, 0, ns)
 #
-min_qdot = lambda k: 1.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
-J += cost_function(min_qdot, 0, ns)
 
-min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
-J += cost_function(min_qddot_a, 0, ns-1)
+min_X = lambda k: 1.*dot(X[k], X[k])
+#J += cost_function(min_X, 0, ns)
+
+min_U = lambda k: 1.*dot(U[k], U[k])
+#J += cost_function(min_U, 0, ns-1)
+
+
+#min_qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
+#J += cost_function(min_qdot, 0, ns)
+
+#min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
+#J += cost_function(min_qddot_a, 0, ns-1)
 
 
 # min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
@@ -147,8 +155,8 @@ J += cost_function(min_qddot_a, 0, ns-1)
 # min_FRope = lambda k: 1.*dot(FRope[k], FRope[k])
 # J += cost_function(min_FRope, 0, ns-1)
 
-min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
-J += cost_function(min_deltaFRope, 1, ns-1)
+#min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+#J += cost_function(min_deltaFRope, 1, ns-1)
 
 # min_deltaDt = lambda k: 1.*(Dt[k]-Dt[k-1])
 # J += cost_function(min_deltaDt, 1, ns-1)
@@ -209,7 +217,7 @@ G.set_constraint(g5, g_min5, g_max5)
 
 opts = {'ipopt.tol': 1e-3,
         'ipopt.constr_viol_tol': 1e-3,
-        'ipopt.max_iter': 3000,
+        'ipopt.max_iter': 4000,
         'ipopt.linear_solver': 'ma57'}
 
 g, g_min, g_max = G.get_constraints()
