@@ -8,6 +8,9 @@
         <param name="publish_frequency" type="double" value="250.0" />
     </node>
 
+    <node pkg="Horizon" type="inv_pendulum.py" name="inv_pendulum" output="screen" >
+    </node>
+
 
 
 </launch>
