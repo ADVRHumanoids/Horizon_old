@@ -1,0 +1,5 @@
+install(DIRECTORY launch/
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/examples/launch)
+
+install(DIRECTORY urdf/
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/examples/urdf)

@@ -32,3 +32,5 @@ install(PROGRAMS
    python/utils/inverse_dynamics.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+add_subdirectory(examples)
