@@ -5,5 +5,5 @@ import resample_integrator
 import kinematics
 import normalize_quaternion
 import normalize_quaternion
-import rotation_matrix_to_euler
+import conversions_to_euler
 import plot_solution
