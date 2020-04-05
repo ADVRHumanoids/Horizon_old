@@ -1,5 +1,6 @@
 from casadi import *
 import math
+from scipy.spatial.transform import Rotation as Rot
 
 
 def rotation_matrix_to_euler(R):
@@ -22,5 +23,14 @@ def rotation_matrix_to_euler(R):
     euler = np.ones((n_res, 3))
     for k in range(int(round(n_res))):
         euler[k] = rotationMatrixToEulerAngles(R[k])
+
+    return euler
+
+def quaternion_to_euler(quat):
+    n_res = np.shape(quat)[0]
+    euler = np.ones((n_res, 3))
+    for k in range(int(round(n_res))):
+        r = Rot.from_quat(quat[k])
+        euler[k] = r.as_euler('xyz')
 
     return euler
