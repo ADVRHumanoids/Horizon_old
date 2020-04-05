@@ -13,7 +13,7 @@ from utils.replay_trajectory import *
 from utils.integrator import *
 from utils.kinematics import *
 from utils.normalize_quaternion import *
-from utils.rotation_matrix_to_euler import *
+from utils.conversions_to_euler import *
 
 logger = matl.MatLogger2('/tmp/rope_vertical_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)

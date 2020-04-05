@@ -13,8 +13,7 @@ from utils.replay_trajectory import *
 from utils.integrator import *
 from utils.kinematics import *
 from utils.normalize_quaternion import *
-from utils.rotation_matrix_to_euler import *
-from utils.plot_solution import *
+from utils.conversions_to_euler import *
 
 logger = matl.MatLogger2('/tmp/rope_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -316,8 +315,6 @@ logger.add('Waist_pos', Waist_pos_hist)
 logger.add('Waist_rot', Waist_rot_hist)
 
 del(logger)
-
-plot_solution(q_hist)
 
 # REPLAY TRAJECTORY
 joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
