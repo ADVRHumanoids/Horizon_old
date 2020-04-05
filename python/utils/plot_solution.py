@@ -1,17 +1,7 @@
-from casadi import *
 import matplotlib.pyplot as plt
-from scipy.spatial.transform import Rotation as Rot
+from utils.conversions_to_euler import *
 
 def plot_solution(q):
-
-    def quaternion_to_euler(quat):
-        n_res = np.shape(quat)[0]
-        euler = np.ones((n_res, 3))
-        for k in range(int(round(n_res))):
-            r = Rot.from_quat(quat[k])
-            euler[k] = r.as_euler('xyz')
-
-        return euler
 
     plt.subplot(211)
     plt.plot(q[:, 0:3])
@@ -25,3 +15,4 @@ def plot_solution(q):
     plt.grid()
     plt.suptitle('$\mathrm{Floating Base}$')
     plt.show()
+    plt.savefig('line_plot.pdf')  
