@@ -11,7 +11,7 @@ class kinematics:
 
     def computeFK(self, link_name, fk_type, from_node, to_node):
         FK = Function.deserialize(self.kindyn.fk(link_name))
-        # FK_vel = Function.deserialize(self.kindyn.frameVelocity(link_name))
+        FK_vel = Function.deserialize(self.kindyn.frameVelocity(link_name))
         # FK_acc = Function.deserialize(self.kindyn.frameAcceleration(link_name))
         Jac = Function.deserialize(self.kindyn.jacobian(link_name))
 
@@ -24,16 +24,10 @@ class kinematics:
                 link_fk.append(FK(q=self.Q[k])['ee_rot'])
         elif fk_type is 'ee_vel_linear':
             for k in range(from_node, to_node):
-                Jac_k = Jac(q=self.Q[k])['J']
-                twist_k = mtimes(Jac_k, self.Qdot[k])
-                link_fk.append(twist_k[0:3])
-                # link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_linear'])
+                link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_linear'])
         elif fk_type is 'ee_vel_angular':
             for k in range(from_node, to_node):
-                Jac_k = Jac(q=self.Q[k])['J']
-                twist_k = mtimes(Jac_k, self.Qdot[k])
-                link_fk.append(twist_k[3:6])
-                # link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_angular'])
+                link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_angular'])
         elif fk_type is 'ee_acc_linear':
             for k in range(from_node, to_node):
                 Jac_k = Jac(q=self.Q[k])['J']
