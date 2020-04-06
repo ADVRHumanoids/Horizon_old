@@ -79,7 +79,7 @@ qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
 qddot_min = (-1000.*np.ones(nv)).tolist()
 qddot_max = (1000.*np.ones(nv)).tolist()
 qddot_init = np.zeros(nv).tolist()
-qddot_init[2] = -9.8
+
 
 f1, F1 = create_variable('F1', nf, ns, "CONTROL")
 f_min1 = (0.*np.ones(nf)).tolist()
