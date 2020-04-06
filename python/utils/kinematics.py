@@ -11,18 +11,32 @@ class kinematics:
 
     def computeFK(self, link_name, fk_type, from_node, to_node):
         FK = Function.deserialize(self.kindyn.fk(link_name))
+        FK_vel = Function.deserialize(self.kindyn.frameVelocity(link_name))
+        FK_acc = Function.deserialize(self.kindyn.frameAcceleration(link_name))
 
-        link_pos = []
+        link_fk = []
         if fk_type is 'ee_pos':
             for k in range(from_node, to_node):
-                link_pos.append(FK(q=self.Q[k])['ee_pos'])
+                link_fk.append(FK(q=self.Q[k])['ee_pos'])
         elif fk_type is 'ee_rot':
             for k in range(from_node, to_node):
-                link_pos.append(FK(q=self.Q[k])['ee_rot'])
+                link_fk.append(FK(q=self.Q[k])['ee_rot'])
+        elif fk_type is 'ee_vel_linear':
+            for k in range(from_node, to_node):
+                link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_linear'])
+        elif fk_type is 'ee_vel_angular':
+            for k in range(from_node, to_node):
+                link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_angular'])
+        elif fk_type is 'ee_acc_linear':
+            for k in range(from_node, to_node):
+                link_fk.append(FK_acc(q=self.Q[k], qdot=self.Qdot[k], qddot=self.Qddot[k])['ee_acc_linear'])
+        elif fk_type is 'ee_acc_angular':
+            for k in range(from_node, to_node):
+                link_fk.append(FK_acc(q=self.Q[k], qdot=self.Qdot[k], qddot=self.Qddot[k])['ee_acc_angular'])
         else:
             raise NotImplementedError()
 
-        return vertcat(*link_pos)
+        return vertcat(*link_fk)
 
     def computeCoM(self, fk_type, from_node, to_node):
         FK = Function.deserialize(self.kindyn.centerOfMass())

@@ -234,6 +234,14 @@ MasterPoint_rot_hist = (get_MasterPoint_rot(V=w_opt)['MasterPoint_rot'].full().f
 # CONVERSION TO EULER ANGLES
 MasterPoint_rot_hist = rotation_matrix_to_euler(MasterPoint_rot_hist)
 
+MasterPoint_vel_linear = FKcomputer.computeFK('rope_anchor1_3', 'ee_vel_linear', 0, ns)
+get_MasterPoint_vel_linear = Function("get_MasterPoint_vel_linear", [V], [MasterPoint_vel_linear], ['V'], ['MasterPoint_vel_linear'])
+MasterPoint_vel_linear_hist = (get_MasterPoint_vel_linear(V=w_opt)['MasterPoint_vel_linear'].full().flatten()).reshape(ns, 3)
+
+MasterPoint_acc_linear = FKcomputer.computeFK('rope_anchor1_3', 'ee_acc_linear', 0, ns-1)
+get_MasterPoint_acc_linear = Function("get_MasterPoint_acc_linear", [V], [MasterPoint_acc_linear], ['V'], ['MasterPoint_acc_linear'])
+MasterPoint_acc_linear_hist = (get_MasterPoint_acc_linear(V=w_opt)['MasterPoint_acc_linear'].full().flatten()).reshape(ns-1, 3)
+
 AnchorPoint_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
 get_AnchorPoint_pos = Function("get_AnchorPoint_pos", [V], [AnchorPoint_pos], ['V'], ['AnchorPoint_pos'])
 AnchorPoint_pos_hist = (get_AnchorPoint_pos(V=w_opt)['AnchorPoint_pos'].full().flatten()).reshape(ns, 3)
@@ -261,6 +269,8 @@ logger.add('fb_pos', q_hist[:, 0:3])
 logger.add('fb_rot', quaternion_to_euler(q_hist[:, 3:7]))
 logger.add('MasterPoint', MasterPoint_pos_hist)
 logger.add('MasterPoint_rot', MasterPoint_rot_hist)
+logger.add('MasterPoint_vel', MasterPoint_vel_linear_hist)
+logger.add('MasterPoint_acc', MasterPoint_acc_linear_hist)
 logger.add('AnchorPoint', AnchorPoint_pos_hist)
 logger.add('CoM_pos', CoM_pos_hist)
 logger.add('CoM_vel', CoM_vel_hist)
