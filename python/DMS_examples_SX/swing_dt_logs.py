@@ -228,6 +228,11 @@ MasterPoint_pos = FKcomputer.computeFK('rope_anchor1_3', 'ee_pos', 0, ns)
 get_MasterPoint_pos = Function("get_MasterPoint_pos", [V], [MasterPoint_pos], ['V'], ['MasterPoint_pos'])
 MasterPoint_pos_hist = (get_MasterPoint_pos(V=w_opt)['MasterPoint_pos'].full().flatten()).reshape(ns, 3)
 
+BaseLink_pos = FKcomputer.computeFK('base_link', 'ee_pos', 0, ns)
+get_BaseLink_pos = Function("get_BaseLink_pos", [V], [BaseLink_pos], ['V'], ['BaseLink_pos'])
+BaseLink_pos_hist = (get_BaseLink_pos(V=w_opt)['BaseLink_pos'].full().flatten()).reshape(ns, 3)
+
+
 MasterPoint_rot = FKcomputer.computeFK('rope_anchor1_3', 'ee_rot', 0, ns)
 get_MasterPoint_rot = Function("get_MasterPoint_rot", [V], [MasterPoint_rot], ['V'], ['MasterPoint_rot'])
 MasterPoint_rot_hist = (get_MasterPoint_rot(V=w_opt)['MasterPoint_rot'].full().flatten()).reshape(ns, 3, 3)
@@ -237,6 +242,10 @@ MasterPoint_rot_hist = rotation_matrix_to_euler(MasterPoint_rot_hist)
 MasterPoint_vel_linear = FKcomputer.computeFK('rope_anchor1_3', 'ee_vel_linear', 0, ns)
 get_MasterPoint_vel_linear = Function("get_MasterPoint_vel_linear", [V], [MasterPoint_vel_linear], ['V'], ['MasterPoint_vel_linear'])
 MasterPoint_vel_linear_hist = (get_MasterPoint_vel_linear(V=w_opt)['MasterPoint_vel_linear'].full().flatten()).reshape(ns, 3)
+
+BaseLink_vel_linear = FKcomputer.computeFK('base_link', 'ee_vel_linear', 0, ns)
+get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
+BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linear'].full().flatten()).reshape(ns, 3)
 
 MasterPoint_acc_linear = FKcomputer.computeFK('rope_anchor1_3', 'ee_acc_linear', 0, ns-1)
 get_MasterPoint_acc_linear = Function("get_MasterPoint_acc_linear", [V], [MasterPoint_acc_linear], ['V'], ['MasterPoint_acc_linear'])
@@ -258,6 +267,10 @@ CoM_acc = FKcomputer.computeCoM('acom', 0, ns-1)
 get_CoM_acc = Function("get_CoM_acc", [V], [CoM_acc], ['V'], ['CoM_acc'])
 CoM_acc_hist = (get_CoM_acc(V=w_opt)['CoM_acc'].full().flatten()).reshape(ns-1, 3)
 
+FloatingBase_J = FKcomputer.computeFK('base_link','ee_jacobian', 0, ns)
+get_FloatingBase_J = Function("get_FloatingBase_J", [V], [FloatingBase_J], ['V'], ['FloatingBase_J'])
+FloatingBase_J_hist = (get_FloatingBase_J(V=w_opt)['FloatingBase_J'].full().flatten()).reshape(ns*6, nv)
+
 logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
 logger.add('Tf', tf)
@@ -275,6 +288,9 @@ logger.add('AnchorPoint', AnchorPoint_pos_hist)
 logger.add('CoM_pos', CoM_pos_hist)
 logger.add('CoM_vel', CoM_vel_hist)
 logger.add('CoM_acc', CoM_acc_hist)
+logger.add('BaseLink', BaseLink_pos_hist)
+logger.add('BaseLink_vel', BaseLink_vel_linear_hist)
+logger.add('FloatingBase_J', FloatingBase_J_hist)
 
 del(logger)
 
