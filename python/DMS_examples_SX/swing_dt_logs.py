@@ -220,9 +220,6 @@ FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
 # Waist_rot_hist = rotation_matrix_to_euler(Waist_rot_hist)
 #
 #
-# BaseLink_pos = FKcomputer.computeFK('base_link', 'ee_pos', 0, ns)
-# get_BaseLink_pos = Function("get_BaseLink_pos", [V], [BaseLink_pos], ['V'], ['BaseLink_pos'])
-# BaseLink_pos_hist = (get_BaseLink_pos(V=w_opt)['BaseLink_pos'].full().flatten()).reshape(ns, 3)
 
 MasterPoint_pos = FKcomputer.computeFK('rope_anchor1_3', 'ee_pos', 0, ns)
 get_MasterPoint_pos = Function("get_MasterPoint_pos", [V], [MasterPoint_pos], ['V'], ['MasterPoint_pos'])
@@ -241,6 +238,10 @@ MasterPoint_vel_linear_hist = (get_MasterPoint_vel_linear(V=w_opt)['MasterPoint_
 MasterPoint_vel_angular = FKcomputer.computeFK('rope_anchor1_3', 'ee_vel_angular', 0, ns)
 get_MasterPoint_vel_angular = Function("get_MasterPoint_vel_angular", [V], [MasterPoint_vel_angular], ['V'], ['MasterPoint_vel_angular'])
 MasterPoint_vel_angular_hist = (get_MasterPoint_vel_angular(V=w_opt)['MasterPoint_vel_angular'].full().flatten()).reshape(ns, 3)
+
+BaseLink_pos = FKcomputer.computeFK('base_link', 'ee_pos', 0, ns)
+get_BaseLink_pos = Function("get_BaseLink_pos", [V], [BaseLink_pos], ['V'], ['BaseLink_pos'])
+BaseLink_pos_hist = (get_BaseLink_pos(V=w_opt)['BaseLink_pos'].full().flatten()).reshape(ns, 3)
 
 BaseLink_vel_linear = FKcomputer.computeFK('base_link', 'ee_vel_linear', 0, ns)
 get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
@@ -296,6 +297,7 @@ logger.add('MasterPoint_vel_ang', MasterPoint_vel_angular_hist)
 # logger.add('CoM_vel', CoM_vel_hist)
 # logger.add('CoM_acc', CoM_acc_hist)
 # logger.add('BaseLink', BaseLink_pos_hist)
+logger.add('BaseLink', BaseLink_pos_hist)
 logger.add('BaseLink_vel_lin', BaseLink_vel_linear_hist)
 logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
 #logger.add('FloatingBase_J', FloatingBase_J_hist)
