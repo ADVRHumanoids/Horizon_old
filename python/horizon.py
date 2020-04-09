@@ -106,6 +106,7 @@ def create_state_and_control(VX, VU):
     U = concat(VU, ns)
     return X, U
 
+
 # dynamic_model_with_floating_base: gets in input a q of size [n, 1] and a qdot of size [n-1, 1]
 # (notice that the first 7 elements of q are postion and orientation with quaternion)
 # and return the dynamic model x, xdot considering the integration of the quaterion for the floating base orientation
@@ -119,8 +120,14 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
     S[2, 0] = -q[4]
     S[2, 1] = q[3]
 
-    # Quaternion Integration
-    tmp1 = casadi.mtimes(0.5 * (q[6] * SX.eye(3) - S), qdot[3:6])
+    # Quaternion Derivative (Propagation)
+    R = SX.zeros(3,3)
+    qi = q[3]; qj = q[4]; qk = q[5]; qr = q[6]
+    R[0,0] = 1. - 2.*(qj*qj + qk*qk);   R[0,1] =  2.*(qi*qj - qk*qr);       R[0,2] = 2.*(qi*qk + qj*qr)
+    R[1,0] = 2.*(qi*qj + qk*qr);        R[1,1] = 1. - 2.*(qi*qi + qk*qk);   R[1,2] = 2.*(qj*qk - qi*qr)
+    R[2,0] = 2.*(qi*qk - qj*qr);        R[2,1] = 2.*(qj*qk + qi*qr);    R[2,2] = 1. - 2.*(qi*qi + qj*qj)
+
+    tmp1 = casadi.mtimes(R, casadi.mtimes(0.5 * (q[6] * SX.eye(3) - S), qdot[3:6]))
     tmp2 = -0.5 * casadi.mtimes(q[3:6].T, qdot[3:6])
 
     x = vertcat(q, qdot)
@@ -280,7 +287,15 @@ class multiple_shooting(constraint_class):
         self.g_mink = [0] * self.dict['x0'][k + 1].size1()
         self.g_maxk = [0] * self.dict['x0'][k + 1].size1()
 
+class unit_norm_quaternion(constraint_class):
+    def __init__(self, quaternion):
+        self.quaternion = quaternion
 
+    def virtual_method(self, k):
+        print self.quaternion[k]
+        self.gk = [norm_2(self.quaternion[k])]
+        self.g_mink = [1.]
+        self.g_maxk = [1.]
 
 class constraint_handler():
     def __init__(self):
