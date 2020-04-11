@@ -2,16 +2,15 @@
 
 import sys
 from os import path
-sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
-import horizon
+from horizon import horizon
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
 import constraints as cons
-from utils.resample_integrator import *
-from utils.inverse_dynamics import *
-from utils.replay_trajectory import *
-from utils.integrator import *
-from utils.kinematics import *
+from horizon.utils.resample_integrator import *
+from horizon.utils.inverse_dynamics import *
+from horizon.utils.replay_trajectory import *
+from horizon.utils.integrator import *
+from horizon.utils.kinematics import *
 import matplotlib.pyplot as plt
 import decimal
 

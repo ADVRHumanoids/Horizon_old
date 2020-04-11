@@ -19,6 +19,9 @@ install(DIRECTORY configs/
   #FILES_MATCHING PATTERN "*.urdf"
 )  
 
+install(DIRECTORY python/
+    DESTINATION ${CATKIN_PACKAGE_PYTHON_DESTINATION}
+    )
 
 install(PROGRAMS
    python/horizon.py

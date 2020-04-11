@@ -1,3 +1,4 @@
+from horizon.utils import integrator
 from casadi import *
 
 def create_bounds(dict, number_of_nodes):

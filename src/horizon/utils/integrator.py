@@ -1,5 +1,5 @@
 from casadi import *
-from horizon import *
+# from horizon import *
 
 def RK4(dae, opts, casadi_type):
     x = dae['x']
