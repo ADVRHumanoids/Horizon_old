@@ -82,6 +82,8 @@ class IterativeLQR:
         self._lin_dynamics = [self.LinearDynamics(self._nx, self._nu) for _ in range(self._N)]
         self._inter_quad_cost = [self.QuadraticCost(self._nx, self._nu) for _ in range(self._N)]
         self._final_quad_cost = self.QuadraticCost(self._nx, 0)
+        self._cost_to_go = [self.QuadraticCost(self._nx, self._nu) for _ in range(self._N)]
+        self._value_function = [self.QuadraticCost(self._nx, self._nu) for _ in range(self._N)]
         self._diff_inter_cost = diff_intermediate_cost
         self._final_cost = final_cost
         self._final_constraint = final_constraint
@@ -238,8 +240,6 @@ class IterativeLQR:
             Fxx = self._lin_dynamics[i].Fxx.reshape((nx, nx, nx))
             Fuu = self._lin_dynamics[i].Fuu.reshape((nx, nu, nu))
             Fux = self._lin_dynamics[i].Fux.reshape((nx, nu, nx))
-            eye_nx = np.eye(nx)
-            eye_nu = np.eye(nu)
 
             # constraint handling
             constrained = self._constraint_to_go is not None and self._constraint_to_go.g.size > 0
@@ -334,6 +334,18 @@ class IterativeLQR:
 
 
             # nullspace gain and feedforward computation
+            lam_Huu = np.linalg.eigvalsh(R)
+            cond_max = 1000
+            lam_min = lam_Huu.min()
+            lam_max = lam_Huu.max()
+
+            if lam_min < 0:
+                print(lam_Huu)
+                eps = (lam_max + abs(lam_min))/cond_max + abs(lam_min)
+                Huu += np.eye(nu) * eps
+                lam_min = 0
+                lam_Huu += lam_min
+
             l_Lz = -np.linalg.solve(Huu, np.hstack((hu.reshape((hu.size, 1)), Hux)))
             lz = l_Lz[:, 0]
             Lz = l_Lz[:, 1:]

@@ -67,7 +67,7 @@ def barrier(x):
     
 
 l = cs.sumsqr(u)  # intermediate cost
-lf = 0  #1000*cs.sumsqr(x - xf)  # final cost
+lf = 1000*cs.sumsqr(x - xf)  # final cost
 gf = x - xf
 
 
@@ -107,61 +107,64 @@ solver = ilqr.IterativeLQR(xdot=Xdot,
                            N=N,
                            diff_intermediate_cost=L,
                            final_cost=Lf,
-                           final_constraint=Gf)
+                           final_constraint=None)
 
 solver.setInitialState(x0)
 np.random.seed(11311)
+# solver._use_second_order_dynamics = True
 solver.randomizeInitialGuess()
-solver.solve(20)
-solver._use_second_order_dynamics = True
-solver.solve(niter)
+solver.solve(30)
 
-import matplotlib.pyplot as plt
+if True:
 
-plt.figure(figsize=[12, 5])
-xtrj = np.column_stack(solver._state_trj)
-lines = plt.plot(xtrj[0,:], xtrj[1,:], 's-')
-circle = plt.Circle(obs_center, radius=obs_r, fc='r')
-# plt.gca().add_patch(circle)
-plt.title('XY trajectory')
-plt.xlabel('x')
-plt.ylabel('y')
-plt.grid()
-# plt.legend(lines, ['x', 'y', r'$\theta$'])
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=[12, 5])
+    xtrj = np.column_stack(solver._state_trj)
+    lines = plt.plot(xtrj[0,:], xtrj[1,:], 's-')
+    circle = plt.Circle(obs_center, radius=obs_r, fc='r')
+    # plt.gca().add_patch(circle)
+    plt.title('XY trajectory')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.grid()
+    # plt.legend(lines, ['x', 'y', r'$\theta$'])
 
 
-# In[23]:
-plt.figure(figsize=[12, 5])
-plt.plot(solver._defect_norm, label='defect')
-plt.plot(solver._dx_norm, label='dx')
-plt.plot(solver._du_norm, label='du')
-plt.title('Increments')
-plt.xlabel('Iteration')
-plt.semilogy()
-plt.grid()
-plt.legend()
+    # In[23]:
+    plt.figure(figsize=[12, 5])
+    plt.plot(solver._dcost, label='cost')
+    # plt.plot(solver._dx_norm, label='dx')
+    # plt.plot(solver._du_norm, label='du')
+    plt.title('Increments')
+    plt.xlabel('Iteration')
+    plt.semilogy()
+    plt.grid()
+    plt.legend()
 
-plt.figure(figsize=[12, 5])
-lines = plt.plot(solver._state_trj)
-plt.title('State trajectory')
-plt.xlabel('Time')
-plt.ylabel('State')
-plt.grid()
-plt.legend(lines, ['x', 'y', r'$\theta$'])
+    plt.figure(figsize=[12, 5])
+    lines = plt.plot(solver._state_trj)
+    plt.title('State trajectory')
+    plt.xlabel('Time')
+    plt.ylabel('State')
+    plt.grid()
+    plt.legend(lines, ['x', 'y', r'$\theta$'])
 
-plt.figure(figsize=[12, 5])
-lines = plt.plot(solver._ctrl_trj)
-plt.title('Control trajectory')
-plt.xlabel('Time')
-plt.ylabel('Control')
-plt.grid()
-plt.legend(lines, ['v', r'$\dot{\theta}$'])
+    plt.figure(figsize=[12, 5])
+    lines = plt.plot(solver._ctrl_trj)
+    plt.title('Control trajectory')
+    plt.xlabel('Time')
+    plt.ylabel('Control')
+    plt.grid()
+    plt.legend(lines, ['v', r'$\dot{\theta}$'])
 
-plt.figure(figsize=[12, 5])
-lines = plt.plot(solver._defect)
-plt.title('Dynamics error')
-plt.xlabel('Time')
-plt.ylabel('State defect')
-plt.grid()
-plt.legend(lines, ['x', 'y', r'$\theta$'])
+    plt.figure(figsize=[12, 5])
+    lines = plt.plot(solver._defect)
+    plt.title('Dynamics error')
+    plt.xlabel('Time')
+    plt.ylabel('State defect')
+    plt.grid()
+    plt.legend(lines, ['x', 'y', r'$\theta$'])
 
+print(solver._dcost)
+print(solver._alpha)
