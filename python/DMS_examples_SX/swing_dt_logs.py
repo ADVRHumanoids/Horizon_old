@@ -29,9 +29,6 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 # Inverse Dynamics
 ID = Function.deserialize(kindyn.rnea())
 
-# Jacobians
-Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
-Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # OPTIMIZATION PARAMETERS
 ns = 70  # number of shooting nodes
@@ -81,7 +78,7 @@ qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
 qddot_min = (-1000.*np.ones(nv)).tolist()
 qddot_max = (1000.*np.ones(nv)).tolist()
 qddot_init = np.zeros(nv).tolist()
-qddot_init[2] = -9.8
+
 
 f1, F1 = create_variable('F1', nf, ns, "CONTROL")
 f_min1 = (0.*np.ones(nf)).tolist()
@@ -115,11 +112,11 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_X = lambda k: 100.*dot(Qdot[k], Qdot[k])
-J += cost_function(min_X, 0, ns)
+min_X = lambda k: 1000.*dot(Qdot[k], Qdot[k])
+#J += cost_function(min_X, 0, ns)
 
-min_U = lambda k: 1.*dot(U[k], U[k])
-J += cost_function(min_U, 0, ns-1)
+min_U = lambda k: 1000.*dot(U[k], U[k])
+#J += cost_function(min_U, 0, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -151,7 +148,7 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     1000., 1000., 1000.,  # Contact 1
                     1000., 1000., 1000.,  # Contact 2
                     0., 0., 0.,  # rope_anchor
-                    0.0]).tolist()  # rope
+                    0.]).tolist()  # rope
 
 torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
@@ -231,11 +228,11 @@ MasterPoint_rot_hist = (get_MasterPoint_rot(V=w_opt)['MasterPoint_rot'].full().f
 # # CONVERSION TO EULER ANGLES
 MasterPoint_rot_hist = rotation_matrix_to_euler(MasterPoint_rot_hist)
 
-MasterPoint_vel_linear = FKcomputer.computeFK('rope_anchor1_3', 'ee_vel_linear', 0, ns)
+MasterPoint_vel_linear = FKcomputer.computeDiffFK('rope_anchor1_3', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
 get_MasterPoint_vel_linear = Function("get_MasterPoint_vel_linear", [V], [MasterPoint_vel_linear], ['V'], ['MasterPoint_vel_linear'])
 MasterPoint_vel_linear_hist = (get_MasterPoint_vel_linear(V=w_opt)['MasterPoint_vel_linear'].full().flatten()).reshape(ns, 3)
 
-MasterPoint_vel_angular = FKcomputer.computeFK('rope_anchor1_3', 'ee_vel_angular', 0, ns)
+MasterPoint_vel_angular = FKcomputer.computeDiffFK('rope_anchor1_3', 'ee_vel_angular', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
 get_MasterPoint_vel_angular = Function("get_MasterPoint_vel_angular", [V], [MasterPoint_vel_angular], ['V'], ['MasterPoint_vel_angular'])
 MasterPoint_vel_angular_hist = (get_MasterPoint_vel_angular(V=w_opt)['MasterPoint_vel_angular'].full().flatten()).reshape(ns, 3)
 
@@ -243,11 +240,11 @@ BaseLink_pos = FKcomputer.computeFK('base_link', 'ee_pos', 0, ns)
 get_BaseLink_pos = Function("get_BaseLink_pos", [V], [BaseLink_pos], ['V'], ['BaseLink_pos'])
 BaseLink_pos_hist = (get_BaseLink_pos(V=w_opt)['BaseLink_pos'].full().flatten()).reshape(ns, 3)
 
-BaseLink_vel_linear = FKcomputer.computeFK('base_link', 'ee_vel_linear', 0, ns)
+BaseLink_vel_linear = FKcomputer.computeDiffFK('base_link', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
 get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
 BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linear'].full().flatten()).reshape(ns, 3)
 
-BaseLink_vel_angular = FKcomputer.computeFK('base_link', 'ee_vel_angular', 0, ns)
+BaseLink_vel_angular = FKcomputer.computeDiffFK('base_link', 'ee_vel_angular', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
 get_BaseLink_vel_angular = Function("get_BaseLink_vel_angular", [V], [BaseLink_vel_angular], ['V'], ['BaseLink_vel_angular'])
 BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_angular'].full().flatten()).reshape(ns, 3)
 
