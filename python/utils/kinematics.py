@@ -9,11 +9,37 @@ class kinematics:
         self.Qdot = Qdot
         self.Qddot = Qddot
 
+    def computeDiffFK(self, link_name, fk_type, ref, from_node, to_node):
+        FK_vel = Function.deserialize(self.kindyn.frameVelocity(link_name, ref))
+        # FK_acc = Function.deserialize(self.kindyn.frameAcceleration(link_name))
+        Jac = Function.deserialize(self.kindyn.jacobian(link_name, ref))
+
+        link_fk = []
+        if fk_type is 'ee_vel_linear':
+            for k in range(from_node, to_node):
+                link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_linear'])
+        elif fk_type is 'ee_vel_angular':
+            for k in range(from_node, to_node):
+                link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_angular'])
+        # elif fk_type is 'ee_acc_linear':
+        #    for k in range(from_node, to_node):
+        #        link_fk.append(FK_acc(q=self.Q[k], qdot=self.Qdot[k], qddot=self.Qddot[k])['ee_acc_linear'])
+        # elif fk_type is 'ee_acc_angular':
+        #    for k in range(from_node, to_node):
+        #        link_fk.append(FK_acc(q=self.Q[k], qdot=self.Qdot[k], qddot=self.Qddot[k])['ee_acc_angular'])
+        elif fk_type is 'ee_jacobian':
+            for k in range(from_node, to_node):
+                link_fk.append(Jac(q=self.Q[k])['J'])
+        else:
+            raise NotImplementedError()
+
+        return vertcat(*link_fk)
+
+
+
+
     def computeFK(self, link_name, fk_type, from_node, to_node):
         FK = Function.deserialize(self.kindyn.fk(link_name))
-        FK_vel = Function.deserialize(self.kindyn.frameVelocity(link_name))
-        #FK_acc = Function.deserialize(self.kindyn.frameAcceleration(link_name))
-        Jac = Function.deserialize(self.kindyn.jacobian(link_name))
 
         link_fk = []
         if fk_type is 'ee_pos':
@@ -22,21 +48,6 @@ class kinematics:
         elif fk_type is 'ee_rot':
             for k in range(from_node, to_node):
                 link_fk.append(FK(q=self.Q[k])['ee_rot'])
-        elif fk_type is 'ee_vel_linear':
-            for k in range(from_node, to_node):
-                link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_linear'])
-        elif fk_type is 'ee_vel_angular':
-            for k in range(from_node, to_node):
-                link_fk.append(FK_vel(q=self.Q[k], qdot=self.Qdot[k])['ee_vel_angular'])
-        #elif fk_type is 'ee_acc_linear':
-        #    for k in range(from_node, to_node):
-        #        link_fk.append(FK_acc(q=self.Q[k], qdot=self.Qdot[k], qddot=self.Qddot[k])['ee_acc_linear'])
-        #elif fk_type is 'ee_acc_angular':
-        #    for k in range(from_node, to_node):
-        #        link_fk.append(FK_acc(q=self.Q[k], qdot=self.Qdot[k], qddot=self.Qddot[k])['ee_acc_angular'])
-        elif fk_type is 'ee_jacobian':
-            for k in range(from_node, to_node):
-                link_fk.append(Jac(q=self.Q[k])['J'])
         else:
             raise NotImplementedError()
 
