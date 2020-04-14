@@ -110,6 +110,7 @@ def create_state_and_control(VX, VU):
 # dynamic_model_with_floating_base: gets in input a q of size [n, 1] and a qdot of size [n-1, 1]
 # (notice that the first 7 elements of q are postion and orientation with quaternion)
 # and return the dynamic model x, xdot considering the integration of the quaterion for the floating base orientation
+# NOTE: WORKING USING LOCAL QDOT AND QDDOT!
 def dynamic_model_with_floating_base(q, qdot, qddot):
 
     def skew(q):
@@ -127,10 +128,7 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
 
     def toRot(q):
         R = SX.zeros(3, 3)
-        qi = q[0];
-        qj = q[1];
-        qk = q[2];
-        qr = q[3]
+        qi = q[0]; qj = q[1]; qk = q[2]; qr = q[3]
         R[0, 0] = 1. - 2. * (qj * qj + qk * qk);
         R[0, 1] = 2. * (qi * qj - qk * qr);
         R[0, 2] = 2. * (qi * qk + qj * qr)
@@ -151,10 +149,12 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
 
     qw = SX.zeros(4,1)
     qw[0:3] = 0.5*qdot[3:6]
-    quaterniondot = quaterion_product(qw, q[3:7])
+    quaterniondot = quaterion_product(q[3:7], qw)
+
+    R = toRot(q[3:7])
 
     x = vertcat(q, qdot)
-    xdot = vertcat(qdot[0:3], vertcat(*quaterniondot), qdot[6:qdot.shape[0]], qddot)
+    xdot = vertcat(mtimes(R, qdot[0:3]), vertcat(*quaterniondot), qdot[6:qdot.shape[0]], qddot[0:3], qddot[3:6], qddot[6:qdot.shape[0]])
 
     return x, xdot
 
