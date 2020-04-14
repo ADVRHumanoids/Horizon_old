@@ -15,7 +15,7 @@ from utils.kinematics import *
 import matplotlib.pyplot as plt
 import decimal
 
-FREE_FALL = False
+FREE_FALL = True
 
 logger = []
 if FREE_FALL:
@@ -238,7 +238,7 @@ logger.add('Tau', tau_hist)
 
 del(logger)
 
-FKcomputer = kinematics(kindyn, Q)
+FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
 ContactRope_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
 get_ContactRope_pos = Function("get_ContactRope_pos", [V], [ContactRope_pos], ['V'], ['ContactRope_pos'])
 ContactRope_pos_hist = (get_ContactRope_pos(V=w_opt)['ContactRope_pos'].full().flatten()).reshape(ns, 3)
