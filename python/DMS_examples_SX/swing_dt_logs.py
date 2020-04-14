@@ -115,11 +115,11 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_X = lambda k: 1.*dot(X[k], X[k])
-#J += cost_function(min_X, 0, ns)
+min_X = lambda k: 100.*dot(Qdot[k], Qdot[k])
+J += cost_function(min_X, 0, ns)
 
 min_U = lambda k: 1.*dot(U[k], U[k])
-#J += cost_function(min_U, 0, ns-1)
+J += cost_function(min_U, 0, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
