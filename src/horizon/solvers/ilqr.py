@@ -1,6 +1,7 @@
 import casadi as cs
 import numpy as np
 from horizon.utils import integrator
+from typing import List
 
 class IterativeLQR:
     """
@@ -107,6 +108,7 @@ class IterativeLQR:
         self._defect_norm = []
         self._du_norm = []
         self._dx_norm = []
+        self._dcost = []
 
         self._use_second_order_dynamics = False
         self._use_single_shooting_state_update = False
@@ -186,7 +188,6 @@ class IterativeLQR:
 
             hode_value = self._hessian_F(x0=self._state_trj[i],
                                          p=self._ctrl_trj[i])
-
 
             self._inter_quad_cost[i].qu = jode_value['DqfDp'].toarray().flatten()
             self._inter_quad_cost[i].qx = jode_value['DqfDx0'].toarray().flatten()
@@ -334,10 +335,13 @@ class IterativeLQR:
 
 
             # nullspace gain and feedforward computation
-            lam_Huu = np.linalg.eigvalsh(R)
-            cond_max = 1000
-            lam_min = lam_Huu.min()
-            lam_max = lam_Huu.max()
+            lam_min = 0
+
+            if Huu.size > 0:
+                lam_Huu = np.linalg.eigvalsh(R)
+                cond_max = 1000
+                lam_min = lam_Huu.min()
+                lam_max = lam_Huu.max()
 
             if lam_min < 0:
                 print(lam_Huu)
@@ -369,6 +373,14 @@ class IterativeLQR:
             # save defect (for original dynamics)
             d = x_integrated - xnext
             self._defect[i] = d.copy()
+
+    class PropagateResult:
+        def __init__(self):
+            self.state_trj = []
+            self.ctrl_trj = []
+            self.dx_norm = 0.0
+            self.du_norm = 0.0
+            self.cost = 0.0
 
     def _forward_pass(self):
         """
@@ -412,10 +424,63 @@ class IterativeLQR:
         self._defect_norm.append(defect_norm)
         self._du_norm.append(du_norm)
         self._dx_norm.append(dx_norm)
+        self._dcost.append(self._eval_cost(self._state_trj, self._ctrl_trj))
 
+    def _propagate(self, xtrj: List[np.array], utrj: List[np.array], alpha=1):
+
+        N = len(utrj)
+        ret = self.PropagateResult()
+
+        ret.state_trj = xtrj.copy()
+        ret.ctrl_trj = utrj.copy()
+
+        for i in range(N):
+
+            xnext = xtrj[i+1]
+            xi = xtrj[i]
+            xi_upd = ret.state_trj[i]
+            ui = utrj[i]
+            d = self._defect[i]
+            A = self._lin_dynamics[i].A
+            B = self._lin_dynamics[i].B
+            L = self._fb_gain[i]
+            l = alpha * self._ff_u[i]
+            dx = np.atleast_1d(xi_upd - xi)
+
+            ui_upd = ui + l + L@dx
+
+            if self._use_single_shooting_state_update:
+                xnext_upd = self._F(x0=xi_upd, p=ui_upd)['xf'].toarray().flatten()
+            else:
+                xnext_upd = xnext + (A + B@L)@dx + B@l + d
+
+            ret.state_trj[i+1] = xnext_upd.copy()
+            ret.ctrl_trj[i] = ui_upd.copy()
+            ret.dx_norm += np.linalg.norm(dx, ord=1)
+            ret.du_norm += np.linalg.norm(ui_upd - ui, ord=1)
+
+        ret.cost = self._eval_cost(ret.state_trj, ret.ctrl_trj)
+
+        return ret
+
+
+    def _eval_cost(self, x_trj, u_trj):
+
+        cost = 0.0
+
+        for i in range(len(u_trj)):
+
+            cost += self._F(x0=x_trj[i], p=u_trj[i])['qf'].__float__()
+
+        cost += self._final_cost(x=x_trj[-1])['l'].__float__()
+
+        return cost
 
 
     def solve(self, niter: int):
+
+        if len(self._dcost) == 0:
+            self._dcost.append(self._eval_cost(self._state_trj, self._ctrl_trj))
 
         for _ in range(niter):
 
@@ -431,6 +496,11 @@ class IterativeLQR:
 
         self._state_trj[1:] = [np.random.randn(self._nx) for _ in range(self._N)]
         self._ctrl_trj  = [np.random.randn(self._nu) for _ in range(self._N)]
+
+        if self._use_single_shooting_state_update:
+            for i in range(self._N):
+                self._state_trj[i+1] = self._F(x0=self._state_trj[i], p=self._ctrl_trj[i])['xf'].toarray().flatten()
+
 
 
 

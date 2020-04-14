@@ -52,7 +52,7 @@ xdot = cs.vertcat( u[0] * cs.cos(x[2]),
 
 N = 50  # number of nodes
 dt = 0.1  # discretizaton step
-niter = 5  # ilqr iterations
+niter = 50  # ilqr iterations
 x0 = np.array([0, 0, 0])  # initial state (falling)
 xf = np.array([0, 1, 0])  # desired final state (upright)
 
@@ -67,7 +67,7 @@ def barrier(x):
     
 
 l = cs.sumsqr(u)  # intermediate cost
-lf = 1000*cs.sumsqr(x - xf)  # final cost
+lf = 100*cs.sumsqr(x - xf)  # final cost
 gf = x - xf
 
 
@@ -111,11 +111,13 @@ solver = ilqr.IterativeLQR(xdot=Xdot,
 
 solver.setInitialState(x0)
 np.random.seed(11311)
+solver._use_single_shooting_state_update = True
 # solver._use_second_order_dynamics = True
 solver.randomizeInitialGuess()
-solver.solve(30)
+solver.solve(0)
 
-if True:
+
+if False:
 
     import matplotlib.pyplot as plt
 
@@ -134,8 +136,8 @@ if True:
     # In[23]:
     plt.figure(figsize=[12, 5])
     plt.plot(solver._dcost, label='cost')
-    # plt.plot(solver._dx_norm, label='dx')
-    # plt.plot(solver._du_norm, label='du')
+    plt.plot(solver._dx_norm, label='dx')
+    plt.plot(solver._du_norm, label='du')
     plt.title('Increments')
     plt.xlabel('Iteration')
     plt.semilogy()
@@ -167,4 +169,10 @@ if True:
     plt.legend(lines, ['x', 'y', r'$\theta$'])
 
 print(solver._dcost)
-print(solver._alpha)
+
+cost_est = 0.0
+
+for i in range(len(solver._ctrl_trj)):
+    cost_est += dt* np.linalg.norm(solver._ctrl_trj[i])**2
+
+cost_est += Lf(x=solver._state_trj[-1])['l'].__float__()
