@@ -111,25 +111,50 @@ def create_state_and_control(VX, VU):
 # (notice that the first 7 elements of q are postion and orientation with quaternion)
 # and return the dynamic model x, xdot considering the integration of the quaterion for the floating base orientation
 def dynamic_model_with_floating_base(q, qdot, qddot):
-    # Model equations
-    S = SX.zeros(3, 3)
-    S[0, 1] = -q[5];    S[0, 2] =  q[4]
-    S[1, 0] =  q[5];    S[1, 2] = -q[3]
-    S[2, 0] = -q[4];    S[2, 1] =  q[3]
+
+    def skew(q):
+        S = SX.zeros(3, 3)
+        S[0, 1] = -q[2]; S[0, 2] = q[1]
+        S[1, 0] = q[2];  S[1, 2] = -q[0]
+        S[2, 0] = -q[1]; S[2, 1] = q[0]
+        return S
+
+    def quaterion_product(q, p):
+        q0 = q[3]
+        p0 = p[3]
+
+        return [q0*p[0:3] + p0*q[0:3] + mtimes(skew(q[0:3]), p[0:3]), q0*p0 - mtimes(q[0:3].T, p[0:3])]
+
+    def toRot(q):
+        R = SX.zeros(3, 3)
+        qi = q[0];
+        qj = q[1];
+        qk = q[2];
+        qr = q[3]
+        R[0, 0] = 1. - 2. * (qj * qj + qk * qk);
+        R[0, 1] = 2. * (qi * qj - qk * qr);
+        R[0, 2] = 2. * (qi * qk + qj * qr)
+        R[1, 0] = 2. * (qi * qj + qk * qr);
+        R[1, 1] = 1. - 2. * (qi * qi + qk * qk);
+        R[1, 2] = 2. * (qj * qk - qi * qr)
+        R[2, 0] = 2. * (qi * qk - qj * qr);
+        R[2, 1] = 2. * (qj * qk + qi * qr);
+        R[2, 2] = 1. - 2. * (qi * qi + qj * qj)
+
+        return R
+
 
     # Quaternion Derivative (Propagation)
-    R = SX.zeros(3,3)
-    qi = q[3]; qj = q[4]; qk = q[5]; qr = q[6]
-    R[0,0] = 1. - 2.*(qj*qj + qk*qk);   R[0,1] = 2.*(qi*qj - qk*qr);       R[0,2] = 2.*(qi*qk + qj*qr)
-    R[1,0] = 2.*(qi*qj + qk*qr);        R[1,1] = 1. - 2.*(qi*qi + qk*qk);  R[1,2] = 2.*(qj*qk - qi*qr)
-    R[2,0] = 2.*(qi*qk - qj*qr);        R[2,1] = 2.*(qj*qk + qi*qr);       R[2,2] = 1. - 2.*(qi*qi + qj*qj)
-
-    tmp1 = casadi.mtimes(R, casadi.mtimes(0.5 * (q[6] * SX.eye(3) - S), qdot[3:6]))
     #tmp1 = casadi.mtimes(0.5 * (q[6] * SX.eye(3) - S), qdot[3:6])
-    tmp2 = -0.5 * casadi.mtimes(q[3:6].T, qdot[3:6])
+    #tmp2 = -0.5 * casadi.mtimes(q[3:6].T, qdot[3:6])
+
+
+    qw = SX.zeros(4,1)
+    qw[0:3] = 0.5*qdot[3:6]
+    quaterniondot = quaterion_product(qw, q[3:7])
 
     x = vertcat(q, qdot)
-    xdot = vertcat(qdot[0:3], tmp1, tmp2, qdot[6:qdot.shape[0]], qddot)
+    xdot = vertcat(qdot[0:3], vertcat(*quaterniondot), qdot[6:qdot.shape[0]], qddot)
 
     return x, xdot
 
