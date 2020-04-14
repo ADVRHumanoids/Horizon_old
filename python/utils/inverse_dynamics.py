@@ -2,6 +2,7 @@ from casadi import *
 from horizon import *
 
 
+
 class inverse_dynamics:
     def __init__(self, Q, Qdot, Qddot, ID, dict, kindyn):
         self.Q = Q
@@ -25,7 +26,7 @@ class inverse_dynamics:
             raise Exception('Input type can be only casadi.SX or casadi.MX!')
 
         for key in self.dict:
-            Jac = Function.deserialize(self.kindyn.jacobian(key))
+            Jac = Function.deserialize(self.kindyn.jacobian(key, self.kindyn.LOCAL))
             Jac_k = Jac(q=self.Q[k])['J']
             Force_k = self.dict[key][k]
             JtF = mtimes(Jac_k.T, vertcat(Force_k, zeros))
