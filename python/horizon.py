@@ -154,7 +154,7 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
     R = toRot(q[3:7])
 
     x = vertcat(q, qdot)
-    xdot = vertcat(mtimes(R, qdot[0:3]), vertcat(*quaterniondot), qdot[6:qdot.shape[0]], qddot[0:3], qddot[3:6], qddot[6:qdot.shape[0]])
+    xdot = vertcat(mtimes(R, qdot[0:3]), vertcat(*quaterniondot), qdot[6:qdot.shape[0]], qddot)
 
     return x, xdot
 
