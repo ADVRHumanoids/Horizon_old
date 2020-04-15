@@ -1,6 +1,35 @@
 from casadi import *
 from horizon import *
 
+from python.horizon import constraint_class
+
+
+class ConstEnergy(constraint_class):
+    def __init__(self, kindyn, Q, Qdot):
+        self.kindyn = kindyn
+        self.Q = Q
+        self.Qdot = Qdot
+
+        KE = Function.deserialize(self.kindyn.kineticEnergy())
+        PE = Function.deserialize(self.kindyn.potentialEnergy())
+
+        KE0 = KE(q=self.Q[0], v=self.Qdot[0])['DT']
+        PE0 = PE(q=self.Q[0])['DU']
+
+        self.TE0 = KE0 + PE0
+
+    def virtual_method(self, k):
+        KE = Function.deserialize(self.kindyn.kineticEnergy())
+        PE = Function.deserialize(self.kindyn.potentialEnergy())
+
+        KEk = KE(q=self.Q[k], v=self.Qdot[k])['DT']
+        PEk = PE(q=self.Q[k])['DU']
+
+        TEk = KEk + PEk
+
+        self.gk = [TEk - self.TE0]
+        self.g_mink = [0]
+        self.g_maxk = [0]
 
 class kinematics:
     def __init__(self, kindyn, Q, Qdot, Qddot):
@@ -8,6 +37,20 @@ class kinematics:
         self.Q = Q
         self.Qdot = Qdot
         self.Qddot = Qddot
+
+    def computeKineticEnergy(self, from_node, to_node):
+        KineticEnergy = Function.deserialize(self.kindyn.kineticEnergy())
+        DT = []
+        for k in range(from_node, to_node):
+            DT.append(KineticEnergy(q=self.Q[k], v=self.Qdot[k])['DT'])
+        return vertcat(*DT)
+
+    def computePotentialEnergy(self, from_node, to_node):
+        PotentialEnergy = Function.deserialize(self.kindyn.potentialEnergy())
+        DU = []
+        for k in range(from_node, to_node):
+            DU.append(PotentialEnergy(q=self.Q[k])['DU'])
+        return vertcat(*DU)
 
     def computeDiffFK(self, link_name, fk_type, ref, from_node, to_node):
         FK_vel = Function.deserialize(self.kindyn.frameVelocity(link_name, ref))
