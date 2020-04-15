@@ -68,6 +68,7 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    0., 0., 0.,
                    0., 0., 0.,
                    0., 1., 0.,
+                   #0., 0.1745, 0.,
                    0.3]).tolist()
 
 qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
@@ -113,10 +114,10 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_X = lambda k: 1000.*dot(Qdot[k], Qdot[k])
-#J += cost_function(min_X, 0, ns)
+min_X = lambda k: 1.*dot(Qdot[k], Qdot[k])
+J += cost_function(min_X, 0, ns)
 
-min_U = lambda k: 1000.*dot(U[k], U[k])
+min_U = lambda k: 1.*dot(Qddot[k], Qddot[k])
 #J += cost_function(min_U, 0, ns-1)
 
 # CONSTRAINTS
@@ -164,8 +165,13 @@ G.set_constraint(g5, g_min5, g_max5)
 # g6, g_min6, g_max6 = cons.final_time.final_time(Dt, t_final)
 # G.set_constraint(g6, g_min6, g_max6)
 
-opts = {'ipopt.tol': 1e-3,
-        'ipopt.constr_viol_tol': 1e-3,
+## CONST ENERGY
+CE = ConstEnergy(kindyn, Q, Qdot)
+g6, g_min6, g_max6 = constraint(CE, 0, ns)
+G.set_constraint(g6, g_min6, g_max6)
+
+opts = {'ipopt.tol': 1e0,
+        'ipopt.constr_viol_tol': 1e0,
         'ipopt.max_iter': 4000,
         'ipopt.linear_solver': 'ma57'}
 
@@ -257,9 +263,9 @@ BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_ang
 # get_MasterPoint_acc_linear = Function("get_MasterPoint_acc_linear", [V], [MasterPoint_acc_linear], ['V'], ['MasterPoint_acc_linear'])
 # MasterPoint_acc_linear_hist = (get_MasterPoint_acc_linear(V=w_opt)['MasterPoint_acc_linear'].full().flatten()).reshape(ns-1, 3)
 #
-# AnchorPoint_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
-# get_AnchorPoint_pos = Function("get_AnchorPoint_pos", [V], [AnchorPoint_pos], ['V'], ['AnchorPoint_pos'])
-# AnchorPoint_pos_hist = (get_AnchorPoint_pos(V=w_opt)['AnchorPoint_pos'].full().flatten()).reshape(ns, 3)
+AnchorPoint_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
+get_AnchorPoint_pos = Function("get_AnchorPoint_pos", [V], [AnchorPoint_pos], ['V'], ['AnchorPoint_pos'])
+AnchorPoint_pos_hist = (get_AnchorPoint_pos(V=w_opt)['AnchorPoint_pos'].full().flatten()).reshape(ns, 3)
 
 CoM_pos = FKcomputer.computeCoM('com', 0, ns)
 get_CoM_pos = Function("get_CoM_pos", [V], [CoM_pos], ['V'], ['CoM_pos'])
@@ -273,8 +279,13 @@ CoM_acc = FKcomputer.computeCoM('acom', 0, ns-1)
 get_CoM_acc = Function("get_CoM_acc", [V], [CoM_acc], ['V'], ['CoM_acc'])
 CoM_acc_hist = (get_CoM_acc(V=w_opt)['CoM_acc'].full().flatten()).reshape(ns-1, 3)
 
+KE = FKcomputer.computeKineticEnergy(0, ns)
+get_KE = Function("get_KE", [V], [KE], ['V'], ['KE'])
+KE_hist = (get_KE(V=w_opt)['KE'].full().flatten()).reshape(ns, 1)
 
-
+PE = FKcomputer.computePotentialEnergy(0, ns)
+get_PE = Function("get_PE", [V], [PE], ['V'], ['PE'])
+PE_hist = (get_PE(V=w_opt)['PE'].full().flatten()).reshape(ns, 1)
 
 logger.add('Tau', tau_hist)
 logger.add('Tf', tf)
@@ -290,7 +301,7 @@ logger.add('MasterPoint_rot', MasterPoint_rot_hist)
 logger.add('MasterPoint_vel_lin', MasterPoint_vel_linear_hist)
 logger.add('MasterPoint_vel_ang', MasterPoint_vel_angular_hist)
 # logger.add('MasterPoint_acc', MasterPoint_acc_linear_hist)
-# logger.add('AnchorPoint', AnchorPoint_pos_hist)
+logger.add('AnchorPoint', AnchorPoint_pos_hist)
 logger.add('CoM_pos', CoM_pos_hist)
 logger.add('CoM_vel', CoM_vel_hist)
 logger.add('CoM_acc', CoM_acc_hist)
@@ -314,37 +325,57 @@ logger.add('Q_res', q_hist_res)
 del(logger)
 
 # DOUBLE PENDULUM ANALYSIS
-theta1 = MasterPoint_rot_hist[0:ns-1, 1]
-T1 = tau_hist[:, -1]
+# theta1 = MasterPoint_rot_hist[0:ns-1, 1]
+# T1 = tau_hist[:, -1]
+#
+# ddot_x1 = np.diff(MasterPoint_vel_linear_hist[:, 0])/dt_min
+# ddot_z1 = np.diff(MasterPoint_vel_linear_hist[:, 2])/dt_min
+#
+#
+# ddot_x2 = CoM_acc_hist[:, 0]
+# ddot_z2 = CoM_acc_hist[:, 2]
+#
+# m1 = 1.0
+# m2 = 60.
+# g = 9.81
+#
+# e_x = m1*ddot_x1 + m2*ddot_x2 + T1*sin(theta1)
+# e_z = m1*ddot_z1 + m2*ddot_z2 + T1*cos(theta1) + (m1 + m2)*g
 
-ddot_x1 = np.diff(MasterPoint_vel_linear_hist[:, 0])/dt_min
-ddot_z1 = np.diff(MasterPoint_vel_linear_hist[:, 2])/dt_min
 
-ddot_x2 = CoM_acc_hist[:, 0]
-ddot_z2 = CoM_acc_hist[:, 2]
-
-m1 = 1
-m2 = 61
-g = 9.81
-
-e_x = m1*ddot_x1 + m2*ddot_x2 + T1*sin(theta1)
-e_z = m1*ddot_z1 + m2*ddot_z2 + T1*cos(theta1) + m2*g
 
 #### PLOTS ####
 PLOT = True
 if PLOT:
     time = np.arange(0.0, tf, tf/ns)
-
-    plt.plot(time[0:ns-1], e_x, label='$\mathrm{x}$', linewidth=3.0, color='red')
-    plt.plot(time[0:ns-1], e_z, label='$\mathrm{z}$', linewidth=3.0, color='blue')
-
-    plt.legend(loc='upper right', fancybox=True, framealpha=0.5, prop={'size':20})
-    plt.grid()
-    plt.suptitle('$\mathrm{Double \ pendulum \ model \ error}$', size = 20)
-    plt.xlabel('$\mathrm{[sec]}$', size = 20)
-    plt.ylabel('$\mathrm{[N]}$', size = 20)
+    #
+    # plt.plot(time[0:ns-1], e_x, label='$\mathrm{x}$', linewidth=3.0, color='red')
+    # plt.plot(time[0:ns-1], e_z, label='$\mathrm{z}$', linewidth=3.0, color='blue')
+    #
+    # plt.legend(loc='upper right', fancybox=True, framealpha=0.5, prop={'size':20})
+    # plt.grid()
+    # plt.suptitle('$\mathrm{Double \ pendulum \ model \ error}$', size = 20)
+    # plt.xlabel('$\mathrm{[sec]}$', size = 20)
+    # plt.ylabel('$\mathrm{[N]}$', size = 20)
 
     # plt.savefig("double_pendulum_error.pdf", format="pdf")
+
+    total_energy = KE_hist + PE_hist
+    plt.figure(1)
+    plt.plot(total_energy)
+    plt.suptitle('$\mathrm{Total \ Energy}$', size=20)
+
+    plt.figure(2)
+    plt.plot(KE_hist)
+    plt.suptitle('$\mathrm{Kinetic \ Energy}$', size=20)
+
+    plt.figure(3)
+    plt.plot(PE_hist)
+    plt.suptitle('$\mathrm{Potential \ Energy}$', size=20)
+
+    plt.figure(4)
+    plt.plot(CoM_pos_hist)
+    plt.suptitle('$\mathrm{CoM}$', size=20)
 
     plt.show()
 ###
