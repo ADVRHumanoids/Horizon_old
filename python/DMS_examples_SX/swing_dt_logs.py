@@ -13,6 +13,7 @@ from utils.replay_trajectory import *
 from utils.integrator import *
 from utils.kinematics import *
 from utils.conversions_to_euler import *
+import matplotlib.pyplot as plt
 
 logger = matl.MatLogger2('/tmp/swing_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -225,7 +226,7 @@ MasterPoint_pos_hist = (get_MasterPoint_pos(V=w_opt)['MasterPoint_pos'].full().f
 MasterPoint_rot = FKcomputer.computeFK('rope_anchor1_3', 'ee_rot', 0, ns)
 get_MasterPoint_rot = Function("get_MasterPoint_rot", [V], [MasterPoint_rot], ['V'], ['MasterPoint_rot'])
 MasterPoint_rot_hist = (get_MasterPoint_rot(V=w_opt)['MasterPoint_rot'].full().flatten()).reshape(ns, 3, 3)
-# # CONVERSION TO EULER ANGLES
+# CONVERSION TO EULER ANGLES
 MasterPoint_rot_hist = rotation_matrix_to_euler(MasterPoint_rot_hist)
 
 MasterPoint_vel_linear = FKcomputer.computeDiffFK('rope_anchor1_3', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
@@ -259,19 +260,19 @@ BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_ang
 # AnchorPoint_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
 # get_AnchorPoint_pos = Function("get_AnchorPoint_pos", [V], [AnchorPoint_pos], ['V'], ['AnchorPoint_pos'])
 # AnchorPoint_pos_hist = (get_AnchorPoint_pos(V=w_opt)['AnchorPoint_pos'].full().flatten()).reshape(ns, 3)
-#
-# CoM_pos = FKcomputer.computeCoM('com', 0, ns)
-# get_CoM_pos = Function("get_CoM_pos", [V], [CoM_pos], ['V'], ['CoM_pos'])
-# CoM_pos_hist = (get_CoM_pos(V=w_opt)['CoM_pos'].full().flatten()).reshape(ns, 3)
-#
-# CoM_vel = FKcomputer.computeCoM('vcom', 0, ns)
-# get_CoM_vel = Function("get_CoM_vel", [V], [CoM_vel], ['V'], ['CoM_vel'])
-# CoM_vel_hist = (get_CoM_vel(V=w_opt)['CoM_vel'].full().flatten()).reshape(ns, 3)
-#
-# CoM_acc = FKcomputer.computeCoM('acom', 0, ns-1)
-# get_CoM_acc = Function("get_CoM_acc", [V], [CoM_acc], ['V'], ['CoM_acc'])
-# CoM_acc_hist = (get_CoM_acc(V=w_opt)['CoM_acc'].full().flatten()).reshape(ns-1, 3)
-#
+
+CoM_pos = FKcomputer.computeCoM('com', 0, ns)
+get_CoM_pos = Function("get_CoM_pos", [V], [CoM_pos], ['V'], ['CoM_pos'])
+CoM_pos_hist = (get_CoM_pos(V=w_opt)['CoM_pos'].full().flatten()).reshape(ns, 3)
+
+CoM_vel = FKcomputer.computeCoM('vcom', 0, ns)
+get_CoM_vel = Function("get_CoM_vel", [V], [CoM_vel], ['V'], ['CoM_vel'])
+CoM_vel_hist = (get_CoM_vel(V=w_opt)['CoM_vel'].full().flatten()).reshape(ns, 3)
+
+CoM_acc = FKcomputer.computeCoM('acom', 0, ns-1)
+get_CoM_acc = Function("get_CoM_acc", [V], [CoM_acc], ['V'], ['CoM_acc'])
+CoM_acc_hist = (get_CoM_acc(V=w_opt)['CoM_acc'].full().flatten()).reshape(ns-1, 3)
+
 
 
 
@@ -290,10 +291,9 @@ logger.add('MasterPoint_vel_lin', MasterPoint_vel_linear_hist)
 logger.add('MasterPoint_vel_ang', MasterPoint_vel_angular_hist)
 # logger.add('MasterPoint_acc', MasterPoint_acc_linear_hist)
 # logger.add('AnchorPoint', AnchorPoint_pos_hist)
-# logger.add('CoM_pos', CoM_pos_hist)
-# logger.add('CoM_vel', CoM_vel_hist)
-# logger.add('CoM_acc', CoM_acc_hist)
-# logger.add('BaseLink', BaseLink_pos_hist)
+logger.add('CoM_pos', CoM_pos_hist)
+logger.add('CoM_vel', CoM_vel_hist)
+logger.add('CoM_acc', CoM_acc_hist)
 logger.add('BaseLink', BaseLink_pos_hist)
 logger.add('BaseLink_vel_lin', BaseLink_vel_linear_hist)
 logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
@@ -312,6 +312,43 @@ q_hist_res = (x_hist_res[0:nq, :]).transpose()
 logger.add('Q_res', q_hist_res)
 
 del(logger)
+
+# DOUBLE PENDULUM ANALYSIS
+theta1 = MasterPoint_rot_hist[0:ns-1, 1]
+T1 = tau_hist[:, -1]
+
+ddot_x1 = np.diff(MasterPoint_vel_linear_hist[:, 0])/dt_min
+ddot_z1 = np.diff(MasterPoint_vel_linear_hist[:, 2])/dt_min
+
+ddot_x2 = CoM_acc_hist[:, 0]
+ddot_z2 = CoM_acc_hist[:, 2]
+
+m1 = 1
+m2 = 61
+g = 9.81
+
+e_x = m1*ddot_x1 + m2*ddot_x2 + T1*sin(theta1)
+e_z = m1*ddot_z1 + m2*ddot_z2 + T1*cos(theta1) + m2*g
+
+#### PLOTS ####
+PLOT = True
+if PLOT:
+    time = np.arange(0.0, tf, tf/ns)
+
+    plt.plot(time[0:ns-1], e_x, label='$\mathrm{x}$', linewidth=3.0, color='red')
+    plt.plot(time[0:ns-1], e_z, label='$\mathrm{z}$', linewidth=3.0, color='blue')
+
+    plt.legend(loc='upper right', fancybox=True, framealpha=0.5, prop={'size':20})
+    plt.grid()
+    plt.suptitle('$\mathrm{Double \ pendulum \ model \ error}$', size = 20)
+    plt.xlabel('$\mathrm{[sec]}$', size = 20)
+    plt.ylabel('$\mathrm{[N]}$', size = 20)
+
+    # plt.savefig("double_pendulum_error.pdf", format="pdf")
+
+    plt.show()
+###
+
 
 # REPLAY TRAJECTORY
 joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
