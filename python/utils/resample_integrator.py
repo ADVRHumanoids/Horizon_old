@@ -1,10 +1,20 @@
 from casadi import *
 from horizon import *
 from utils.integrator import *
+from utils.inverse_dynamics import *
 
-def resample_integrator(X, U_integrator, time, dt, dae):
+def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn):
 
     ns = np.size(X)
+    nx = X[0].size1()
+    nv = U_integrator[0].size1()
+    nq = nv + 1
+
+    X_res = []
+    Tau_res = []
+
+    for key in dict:
+        Jac = Function.deserialize(kindyn.jacobian(key, kindyn.LOCAL))
 
     if np.size(time) == 1:
 
@@ -17,7 +27,6 @@ def resample_integrator(X, U_integrator, time, dt, dae):
             ni = int(round(ti / dt))  # number of intermediate nodes in interval
 
         opts = {'tf': dt}
-        F_integrator = []
         if type(X[0]) is casadi.SX:
             F_integrator = RK4(dae, opts, 'SX')
         elif type(X[0]) is casadi.MX:
@@ -27,12 +36,13 @@ def resample_integrator(X, U_integrator, time, dt, dae):
 
         # Resample X
         n_res = (ns - 1) * ni
-        nx = X[0].size1()
-        X_res = []
         if type(X[0]) is casadi.SX:
             X_res = SX(Sparsity.dense(nx, n_res))
+            Tau_res = SX(Sparsity.dense(nv, n_res))
         elif type(X[0]) is casadi.MX:
             X_res = MX(Sparsity.dense(nx, n_res))
+            Tau_res = MX(Sparsity.dense(nv, n_res))
+
         X_res[0:nx, 0] = X[0]
 
         k = -1
@@ -45,14 +55,26 @@ def resample_integrator(X, U_integrator, time, dt, dae):
                 else:
                     X_res[0:nx, k + 1] = F_integrator(x0=X_res[0:nx, k], p=U_integrator[i])['xf']
 
-                k += 1
+                if type(X[0]) is casadi.SX:
+                    JtF_k = SX([0])
+                    zeros = SX.zeros(3, 1)
+                elif type(X[0]) is casadi.MX:
+                    JtF_k = MX([0])
+                    zeros = MX.zeros(3, 1)
 
-        return X_res
+                for key in dict:
+                    Jac_k = Jac(q=X_res[0:nq, k + 1])['J']
+                    Force_k = dict[key][i]
+                    JtF = mtimes(Jac_k.T, vertcat(Force_k, zeros))
+                    JtF_k = JtF_k + JtF
+
+                Tau_res[0:nv, k + 1] = ID(q=X_res[0:nq, k + 1], v=X_res[nq:nx, k + 1], a=U_integrator[i])['tau'] - JtF_k
+
+                k += 1
 
     else:
 
         opts = {'tf': dt}
-        F_integrator = []
         if type(X[0]) is casadi.SX:
             F_integrator = RK4(dae, opts, 'SX')
         elif type(X[0]) is casadi.MX:
@@ -67,12 +89,12 @@ def resample_integrator(X, U_integrator, time, dt, dae):
             n_res += ni[i]
 
         # Resample X
-        nx = X[0].size1()
         if type(X[0]) is casadi.SX:
             X_res = SX(Sparsity.dense(nx, n_res))
+            Tau_res = SX(Sparsity.dense(nv, n_res))
         elif type(X[0]) is casadi.MX:
             X_res = MX(Sparsity.dense(nx, n_res))
-        X_res[0:nx, 0] = X[0]
+            Tau_res = MX(Sparsity.dense(nv, n_res))
 
         k = -1
 
@@ -84,7 +106,21 @@ def resample_integrator(X, U_integrator, time, dt, dae):
                 else:
                     X_res[0:nx, k + 1] = F_integrator(x0=X_res[0:nx, k], p=U_integrator[i])['xf']
 
+                if type(X[0]) is casadi.SX:
+                    JtF_k = SX([0])
+                    zeros = SX.zeros(3, 1)
+                elif type(X[0]) is casadi.MX:
+                    JtF_k = MX([0])
+                    zeros = MX.zeros(3, 1)
+
+                for key in dict:
+                    Jac_k = Jac(q=X_res[0:nq, k + 1])['J']
+                    Force_k = dict[key][i]
+                    JtF = mtimes(Jac_k.T, vertcat(Force_k, zeros))
+                    JtF_k = JtF_k + JtF
+
+                Tau_res[0:nv, k + 1] = ID(q=X_res[0:nq, k + 1], v=X_res[nq:nx, k + 1], a=U_integrator[i])['tau'] - JtF_k
+
                 k += 1
 
-        return X_res
-
+    return X_res, Tau_res
