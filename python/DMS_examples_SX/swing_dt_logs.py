@@ -115,7 +115,7 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 J = SX([0])
 
 min_X = lambda k: 1.*dot(Qdot[k], Qdot[k])
-J += cost_function(min_X, 0, ns)
+# J += cost_function(min_X, 0, ns)
 
 min_U = lambda k: 1.*dot(Qddot[k], Qddot[k])
 #J += cost_function(min_U, 0, ns-1)
@@ -166,12 +166,12 @@ G.set_constraint(g5, g_min5, g_max5)
 # G.set_constraint(g6, g_min6, g_max6)
 
 ## CONST ENERGY
-CE = ConstEnergy(kindyn, Q, Qdot)
-g6, g_min6, g_max6 = constraint(CE, 0, ns)
-G.set_constraint(g6, g_min6, g_max6)
+# CE = ConstEnergy(kindyn, Q, Qdot)
+# g6, g_min6, g_max6 = constraint(CE, 0, ns)
+# G.set_constraint(g6, g_min6, g_max6)
 
-opts = {'ipopt.tol': 1e0,
-        'ipopt.constr_viol_tol': 1e0,
+opts = {'ipopt.tol': 1e-3,
+        'ipopt.constr_viol_tol': 1e-3,
         'ipopt.max_iter': 4000,
         'ipopt.linear_solver': 'ma57'}
 
@@ -311,16 +311,18 @@ logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
 #logger.add('FloatingBase_J', FloatingBase_J_hist)
 
 
-
-
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res = resample_integrator(X, Qddot, dt_hist, dt, dae)
+X_res, Tau_res = resample_integrator(X, Qddot, tf, dt, dae, ID, dd, kindyn)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
-x_hist_res = get_X_res(V=w_opt)['X_res'].full()
+x_hist_res = get_X_res(V=w_opt)['X_res'].full().transpose()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
 
-logger.add('Q_res', q_hist_res)
+get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
+tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
+
+logger.add('Q_res', x_hist_res[:, 0:nq])
+logger.add('Tau_res', tau_hist_res)
 
 del(logger)
 
