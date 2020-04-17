@@ -35,37 +35,6 @@ def RK4(dae, opts, casadi_type):
 
     return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
 
-def LEAPFROG(dae, opts, casadi_type):
-    x = dae['x']
-    qddot = dae['p']
-    xdot = dae['ode']
-    L = dae['quad']
-
-    f_RK = Function('f_RK', [x, qddot], [xdot, L])
-
-    nx = x.size1()
-    nv = qddot.size1()
-
-    if casadi_type is 'MX':
-        X0_RK = MX.sym('X0_RK', nx)
-        U_RK = MX.sym('U_RK', nv)
-    elif casadi_type is 'SX':
-        X0_RK = SX.sym('X0_RK', nx)
-        U_RK = SX.sym('U_RK', nv)
-    else:
-        raise Exception('Input casadi_type can be only SX or MX!')
-
-    DT_RK = opts['tf']
-    X_RK = X0_RK
-    Q_RK = 0
-
-    k1, k1_q = f_RK(X_RK, U_RK)
-    k2, k2_q = f_RK(X_RK + 0.5 * DT_RK * k1, U_RK)
-
-    X_RK = X_RK + DT_RK / 2. * k2
-
-    return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
-
 def RK4_time(dae, casadi_type):
     x = dae['x']
     qddot = dae['p']
@@ -202,6 +171,39 @@ def RKF45_time(dae, casadi_type):
 
     return Function('F_RKF45', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
 
+
+def LEAPFROG(dae, opts, casadi_type):
+    x = dae['x']
+    qddot = dae['p']
+    xdot = dae['ode']
+    L = dae['quad']
+
+    f_RK = Function('f_RK', [x, qddot], [xdot, L])
+
+    nx = x.size1()
+    nv = qddot.size1()
+
+    if casadi_type is 'MX':
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
+    elif casadi_type is 'SX':
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
+    else:
+        raise Exception('Input casadi_type can be only SX or MX!')
+
+    DT_RK = opts['tf']
+    X_RK = X0_RK
+    Q_RK = 0
+
+    k1, k1_q = f_RK(X_RK, U_RK)
+    k2, k2_q = f_RK(X_RK + 0.5 * DT_RK * k1, U_RK)
+
+    X_RK = X_RK + DT_RK / 2. * k2
+    Q_RK = Q_RK + DT_RK / 2. * k2_q
+
+    return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
+
 def LEAPFROG_time(dae, casadi_type):
     x = dae['x']
     qddot = dae['p']
@@ -231,5 +233,69 @@ def LEAPFROG_time(dae, casadi_type):
     k2, k2_q = f_RK(X_RK + 0.5 * DT_RK * k1, U_RK)
 
     X_RK = X_RK + DT_RK / 2. * k2
+    Q_RK = Q_RK + DT_RK / 2. * k2_q
+
+    return Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+
+def EULER(dae, opts, casadi_type):
+    x = dae['x']
+    qddot = dae['p']
+    xdot = dae['ode']
+    L = dae['quad']
+
+    f_RK = Function('f_RK', [x, qddot], [xdot, L])
+
+    nx = x.size1()
+    nv = qddot.size1()
+
+    if casadi_type is 'MX':
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
+    elif casadi_type is 'SX':
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
+    else:
+        raise Exception('Input casadi_type can be only SX or MX!')
+
+    DT_RK = opts['tf']
+    X_RK = X0_RK
+    Q_RK = 0
+
+    k1, k1_q = f_RK(X_RK, U_RK)
+
+    X_RK = X_RK + DT_RK * k1
+    Q_RK = Q_RK + DT_RK * k1_q
+
+    return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
+
+def EULER_time(dae, casadi_type):
+    x = dae['x']
+    qddot = dae['p']
+    xdot = dae['ode']
+    L = dae['quad']
+
+    f_RK = Function('f_RK', [x, qddot], [xdot, L])
+
+    nx = x.size1()
+    nv = qddot.size1()
+
+    if casadi_type is 'MX':
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
+        DT_RK = MX.sym('DT_RK', 1)
+    elif casadi_type is 'SX':
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
+        DT_RK = SX.sym('DT_RK', 1)
+    else:
+        raise Exception('Input casadi_type can be only SX or MX!')
+
+    X_RK = X0_RK
+    Q_RK = 0
+
+    k1, k1_q = f_RK(X_RK, U_RK)
+
+    X_RK = X_RK + DT_RK * k1
+    Q_RK = Q_RK + DT_RK * k1_q
 
     return Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])

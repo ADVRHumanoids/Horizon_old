@@ -32,7 +32,7 @@ ID = Function.deserialize(kindyn.rnea())
 
 
 # OPTIMIZATION PARAMETERS
-ns = 70  # number of shooting nodes
+ns = 200  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -46,7 +46,7 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, "CONTROL")
-dt_min = 0.01
+dt_min = 0.005
 dt_max = 0.01
 dt_init = dt_min
 
