@@ -197,10 +197,10 @@ def LEAPFROG(dae, opts, casadi_type):
     Q_RK = 0
 
     k1, k1_q = f_RK(X_RK, U_RK)
-    k2, k2_q = f_RK(X_RK + 0.5 * DT_RK * k1, U_RK)
+    k2, k2_q = f_RK(X_RK + DT_RK / 2. * k1, U_RK)
 
-    X_RK = X_RK + DT_RK / 2. * k2
-    Q_RK = Q_RK + DT_RK / 2. * k2_q
+    X_RK = X_RK + DT_RK / 2. * (k1 + k2)
+    Q_RK = Q_RK + DT_RK / 2. * (k1_q + k2_q)
 
     return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
 
@@ -230,10 +230,10 @@ def LEAPFROG_time(dae, casadi_type):
     Q_RK = 0
 
     k1, k1_q = f_RK(X_RK, U_RK)
-    k2, k2_q = f_RK(X_RK + 0.5 * DT_RK * k1, U_RK)
+    k2, k2_q = f_RK(X_RK + DT_RK / 2. * k1, U_RK)
 
-    X_RK = X_RK + DT_RK / 2. * k2
-    Q_RK = Q_RK + DT_RK / 2. * k2_q
+    X_RK = X_RK + DT_RK / 2. * (k1 + k2)
+    Q_RK = Q_RK + DT_RK / 2. * (k1_q + k2_q)
 
     return Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
 
