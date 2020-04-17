@@ -25,14 +25,14 @@ kindyn = cas_kin_dyn.CasadiKinDyn(urdf)
 FK_waist = Function.deserialize(kindyn.fk('Waist'))
 FKR = Function.deserialize(kindyn.fk('Contact1'))
 FKL = Function.deserialize(kindyn.fk('Contact2'))
-FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
+
 
 # Inverse Dynamics
 ID = Function.deserialize(kindyn.rnea())
 
 
 # OPTIMIZATION PARAMETERS
-ns = 200  # number of shooting nodes
+ns = 70  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -46,7 +46,7 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, "CONTROL")
-dt_min = 0.005
+dt_min = 0.01
 dt_max = 0.01
 dt_init = dt_min
 
@@ -103,7 +103,7 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = LEAPFROG_time(dae, "SX")
+F_integrator = RK4_time(dae, "SX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
@@ -114,11 +114,15 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_X = lambda k: 1.*dot(Qdot[k], Qdot[k])
-# J += cost_function(min_X, 0, ns)
+min_Qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
+J += cost_function(min_Qdot, 0, ns)
 
-min_U = lambda k: 1.*dot(Qddot[k], Qddot[k])
-#J += cost_function(min_U, 0, ns-1)
+#min_Qddot = lambda k: 100.*dot(Qddot[k], Qddot[k])
+#J += cost_function(min_Qddot, 0, ns-1)
+
+#min_FRope = lambda k: 1000.*dot(FRope[k], FRope[k])
+#J += cost_function(min_FRope, 0, ns-1)
+
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -157,6 +161,7 @@ g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
 # ROPE CONTACT CONSTRAINT
+FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 contact_constr = cons.contact.contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
@@ -165,10 +170,6 @@ G.set_constraint(g5, g_min5, g_max5)
 # g6, g_min6, g_max6 = cons.final_time.final_time(Dt, t_final)
 # G.set_constraint(g6, g_min6, g_max6)
 
-## CONST ENERGY
-# CE = ConstEnergy(kindyn, Q, Qdot)
-# g6, g_min6, g_max6 = constraint(CE, 0, ns)
-# G.set_constraint(g6, g_min6, g_max6)
 
 opts = {'ipopt.tol': 1e-3,
         'ipopt.constr_viol_tol': 1e-3,
@@ -309,6 +310,8 @@ logger.add('BaseLink', BaseLink_pos_hist)
 logger.add('BaseLink_vel_lin', BaseLink_vel_linear_hist)
 logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
 #logger.add('FloatingBase_J', FloatingBase_J_hist)
+
+
 
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
