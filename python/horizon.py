@@ -84,9 +84,18 @@ def concat_states_and_controls(dict):
 
 
 
-# concat: creates a list concatenating (vertically) each variable contained in V at the same node:
-# Example: V = [Q, Qdot] then X = [MX(vertcat(Q0, Qdot0)), MX((vertcat(Q1, Qdot1)), MX(vertcat(Q2, Qdot2)), ...]'
 def concat(V, s):
+    """Create a single list given a list of lists of variables
+    TODO: check size of V elements wrt s, evetually rise size error
+
+        Args:
+            V: list of lists of variables
+            s: number of nodes
+
+        Returns:
+            X: list of all the variables ordered by node
+    """
+
     X = []
     for k in range(s):
         x = []
@@ -97,11 +106,20 @@ def concat(V, s):
 
 # create_state_and_control: creates state list X and control list U  from VX list and VU list using concat
 def create_state_and_control(VX, VU):
-    #MISSING CHECK OF SIZE OF VARIABLES CONTAINED IN VX!!!
+    """Create lists of states and controls given two lists containing lists of variables
+
+            Args:
+                VX: list of lists of state variables
+                VU: list of lists of control variables
+
+            Returns:
+                X: list of all the state variables ordered by node
+                U: list of all the control variables ordered by node
+        """
+
     ns = np.size(VX[0])
     X = concat(VX, ns)
 
-    # MISSING CHECK OF SIZE OF VARIABLES CONTAINED IN VU!!!
     ns = np.size(VU[0])
     U = concat(VU, ns)
     return X, U
@@ -158,17 +176,24 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
 
     return x, xdot
 
-# create_variable: return a SX_var of size [size, 1] and a MX_var of size [size, ns] where:
-# if type is STATE then ns = number_of_nodes
-# if type is CONTROL then ns = number_of_nodes-1
-# if type is FINAL_STATE then ns = 1
-# else ns = 0
-#
-# casadi_type can be 'SX' (default) or 'MX'
-#
-# output: SX_var = [SX_Q_0, SX_Q_1, ..., SX_Q_size] which represents the state variable for a single shooting node
-#         MX_var = [MX(Q0), MX(Q1), ..., MX(Qnumber_of_nodes-1)] when type is CONTROL and casadi_type is 'MX', which are all the variables in the in all the nodes
 def create_variable(name, size, number_of_nodes, type, casadi_type = 'SX'):
+    """
+    Function to create a list of variables
+    Args:
+        name: of the variable
+        size: number of elements of the variable
+        number_of_nodes: number of nodes of the problem
+        type: type of the variable. This parameter will define the lenght, in terms of nodes, of the variable, in particular:
+                if STATE: the variable lenght will be equal the number of nodes of the problem
+                if CONTROL: the variable  lenght will be number_of_nodes-1
+                if FINAL_STATE: the variable lenght will be 1
+        casadi_type: SX or MX
+
+    Returns:
+        SX_var: a variable of type SX with the given input size
+        opc_var: a list of casady_type of varibales with the given input size and length
+
+    """
     SX_var = SX.sym('SX_'+name, size)
     opc_var = []
 
@@ -310,32 +335,67 @@ class multiple_shooting(constraint_class):
         self.g_mink = [0] * self.dict['x0'][k + 1].size1()
         self.g_maxk = [0] * self.dict['x0'][k + 1].size1()
 
+
 class unit_norm_quaternion(constraint_class):
+    """Constraint class which impose that quaternion norm is 1
+            """
+
     def __init__(self, quaternion):
         self.quaternion = quaternion
 
     def virtual_method(self, k):
+        """Impose quaternion norm to be one for the kth node
+        Args:
+            k: node
+        """
         print self.quaternion[k]
         self.gk = [norm_2(self.quaternion[k])]
         self.g_mink = [1.]
         self.g_maxk = [1.]
 
 class constraint_handler():
+    """Class to handle constraints for the optimal control problem
+        Attributes:
+            g: list of constraints
+            g_min: list of lower bounds
+            g_max: list of upper bounds
+    """
     def __init__(self):
         self.g = []
         self.g_min = []
         self.g_max = []
 
     def set_constraint(self, g, g_min, g_max):
+        """Add constraints and bounds to constraints and bounds lists
+        Args:
+            g: list of new constraints
+            g_min: list of new lower bounds
+            g_max: list of new upper bounds
+    """
         self.g += g
         self.g_min += g_min
         self.g_max += g_max
 
     def get_constraints(self):
+        """Retrieve all the specified constraints and bounds
+                Returns:
+                    g: vertical concatenation of all constraints g
+                    g_min: list of lower bounds
+                    g_max: list of upper bounds
+            """
+
         return vertcat(*self.g), self.g_min, self.g_max
 
 
 def retrieve_solution(input, output_dict, solution):
+    """Function which evaluates separately each component of solution.
+            Args:
+                input: symbolic vector of variables of the optimization problem
+                output_dict: how the output dictionary definition
+                solution: solution computed by the solver
+            Returns:
+                o: dictionary defined by output_dict containing solution
+    """
     output_keys = []
     outputs = []
     ns = []
