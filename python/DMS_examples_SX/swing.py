@@ -11,6 +11,10 @@ from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
 from utils.integrator import *
+from utils.kinematics import *
+from utils.conversions_to_euler import *
+import matplotlib.pyplot as plt
+
 
 logger = matl.MatLogger2('/tmp/swing_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -27,12 +31,9 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 # Inverse Dynamics
 ID = Function.deserialize(kindyn.rnea())
 
-# Jacobians
-Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
-Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
 
 # OPTIMIZATION PARAMETERS
-ns = 70  # number of shooting nodes
+ns = 140  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -48,13 +49,13 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 q, Q = create_variable("Q", nq, ns, "STATE")
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
-                  -0.3, -0.1, -0.1,  # Contact 1
-                  -0.3, -0.05, -0.1,  # Contact 2
+                  0.0, 0.0, 0.0,  # Contact 1
+                  0.0, 0.0, 0.0,  # Contact 2
                   -1.57, -1.57, -3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
-                  0.3, 0.05, 0.1,  # Contact 1
-                  0.3, 0.1, 0.1,  # Contact 2
+                  0.0, 0.0, 0.0,  # Contact 1
+                  0.0, 0.0, 0.0,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
@@ -65,24 +66,23 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
 
 
 qdot, Qdot = create_variable('Qdot', nv, ns, "STATE")
-qdot_min = (-100.*np.ones(nv)).tolist()
-qdot_max = (100.*np.ones(nv)).tolist()
+qdot_min = (-1000.*np.ones(nv)).tolist()
+qdot_max = (1000.*np.ones(nv)).tolist()
 qdot_init = np.zeros(nv).tolist()
 
 qddot, Qddot = create_variable('Qddot', nv, ns, "CONTROL")
-qddot_min = (-100.*np.ones(nv)).tolist()
-qddot_max = (100.*np.ones(nv)).tolist()
+qddot_min = (-1000.*np.ones(nv)).tolist()
+qddot_max = (1000.*np.ones(nv)).tolist()
 qddot_init = np.zeros(nv).tolist()
-qddot_init[2] = -9.8
 
 f1, F1 = create_variable('F1', nf, ns, "CONTROL")
-f_min1 = (-10000.*np.ones(nf)).tolist()
-f_max1 = (10000.*np.ones(nf)).tolist()
+f_min1 = (0.*np.ones(nf)).tolist()
+f_max1 = (0.*np.ones(nf)).tolist()
 f_init1 = np.zeros(nf).tolist()
 
 f2, F2 = create_variable('F2', nf, ns, "CONTROL")
-f_min2 = (-10000.*np.ones(nf)).tolist()
-f_max2 = (10000.*np.ones(nf)).tolist()
+f_min2 = (0.*np.ones(nf)).tolist()
+f_max2 = (0.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
 fRope, FRope = create_variable('FRope', nf, ns, "CONTROL")
@@ -94,12 +94,12 @@ x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
 
 L = 0.5*dot(qdot, qdot)  # Objective term
 
-tf = 2.0  # [s]
+tf = 2.  # [s]
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
 opts = {'tf': tf/ns}
-F_integrator = RK4(dae, opts, "SX")
+F_integrator = EMPR(dae, opts, "SX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
@@ -110,18 +110,24 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-K = 300000.
-min_q = lambda k: K*dot(Q[k][7:13]-q_init[7:13], Q[k][7:13]-q_init[7:13])
-J += cost_function(min_q, 0, ns)
 
-D = 100.
-min_qdot_legs = lambda k: D*dot(Qdot[k][6:12], Qdot[k][6:12])
-J += cost_function(min_qdot_legs, 0, ns)
-min_qdot = lambda k: 1.*dot(Qdot[k][12:-1], Qdot[k][12:-1])
-J += cost_function(min_qdot, 0, ns)
+minQdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
+J += cost_function(minQdot, 0, ns)
 
-min_qddot_a = lambda k: 1.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
-J += cost_function(min_qddot_a, 0, ns-1)
+qf =     np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+                   0., 0., 0.,
+                   0., 0., 0.,
+                   0., 0., 0.,
+                   0.3]).tolist()
+
+minQf = lambda k: 1.*dot(Q[k]-qf, Q[k]-qf)
+#J += cost_function(minQf, 70, ns)
+
+
+#
+#minU = lambda k: 10.*dot(U[k], U[k])
+#J += cost_function(minU, 0, ns-1)
+
 
 # min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
 # J += cost_function(min_F1, 0, ns-1)
@@ -132,8 +138,6 @@ J += cost_function(min_qddot_a, 0, ns-1)
 # min_FRope = lambda k: 1.*dot(FRope[k], FRope[k])
 # J += cost_function(min_FRope, 0, ns-1)
 
-# min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
-# J += cost_function(min_deltaFRope, 1, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -176,8 +180,9 @@ g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
 
-opts = {'ipopt.tol': 1e-4,
-        'ipopt.max_iter': 2000,
+opts = {'ipopt.tol': 1e-3,
+        'ipopt.constr_viol_tol': 1e-3,
+        'ipopt.max_iter': 4000,
         'ipopt.linear_solver': 'ma57'}
 
 g, g_min, g_max = G.get_constraints()
@@ -194,12 +199,6 @@ w_opt = sol['x'].full().flatten()
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope}, w_opt)
 q_hist = solution_dict['Q']
 
-# RESAMPLE STATE FOR REPLAY TRAJECTORY
-dt = 0.001
-X_res = resample_integrator(X, Qddot, tf, dt, dae)
-get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
-x_hist_res = get_X_res(V=w_opt)['X_res'].full()
-q_hist_res = (x_hist_res[0:nq, :]).transpose()
 
 # GET ADDITIONAL VARIABLES
 Tau = id.compute_nodes(0, ns-1)
@@ -210,10 +209,187 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
-logger.add('Q_res', q_hist_res)
+FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
+
+# Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
+# get_Contact1_pos = Function("get_Contact1_pos", [V], [Contact1_pos], ['V'], ['Contact1_pos'])
+# Contact1_pos_hist = (get_Contact1_pos(V=w_opt)['Contact1_pos'].full().flatten()).reshape(ns, 3)
+#
+# Contact2_pos = FKcomputer.computeFK('Contact2', 'ee_pos', 0, ns)
+# get_Contact2_pos = Function("get_Contact2_pos", [V], [Contact2_pos], ['V'], ['Contact2_pos'])
+# Contact2_pos_hist = (get_Contact2_pos(V=w_opt)['Contact2_pos'].full().flatten()).reshape(ns, 3)
+#
+# Waist_pos = FKcomputer.computeFK('Waist', 'ee_pos', 0, ns)
+# get_Waist_pos = Function("get_Waist_pos", [V], [Waist_pos], ['V'], ['Waist_pos'])
+# Waist_pos_hist = (get_Waist_pos(V=w_opt)['Waist_pos'].full().flatten()).reshape(ns, 3)
+#
+# Waist_rot = FKcomputer.computeFK('Waist', 'ee_rot', 0, ns)
+# get_Waist_rot = Function("get_Waist_rot", [V], [Waist_rot], ['V'], ['Waist_rot'])
+# Waist_rot_hist = (get_Waist_rot(V=w_opt)['Waist_rot'].full().flatten()).reshape(ns, 3, 3)
+# # CONVERSION TO EULER ANGLES
+# Waist_rot_hist = rotation_matrix_to_euler(Waist_rot_hist)
+#
+#
+
+MasterPoint_pos = FKcomputer.computeFK('rope_anchor1_3', 'ee_pos', 0, ns)
+get_MasterPoint_pos = Function("get_MasterPoint_pos", [V], [MasterPoint_pos], ['V'], ['MasterPoint_pos'])
+MasterPoint_pos_hist = (get_MasterPoint_pos(V=w_opt)['MasterPoint_pos'].full().flatten()).reshape(ns, 3)
+
+MasterPoint_rot = FKcomputer.computeFK('rope_anchor1_3', 'ee_rot', 0, ns)
+get_MasterPoint_rot = Function("get_MasterPoint_rot", [V], [MasterPoint_rot], ['V'], ['MasterPoint_rot'])
+MasterPoint_rot_hist = (get_MasterPoint_rot(V=w_opt)['MasterPoint_rot'].full().flatten()).reshape(ns, 3, 3)
+# CONVERSION TO EULER ANGLES
+MasterPoint_rot_hist = rotation_matrix_to_euler(MasterPoint_rot_hist)
+
+MasterPoint_vel_linear = FKcomputer.computeDiffFK('rope_anchor1_3', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_MasterPoint_vel_linear = Function("get_MasterPoint_vel_linear", [V], [MasterPoint_vel_linear], ['V'], ['MasterPoint_vel_linear'])
+MasterPoint_vel_linear_hist = (get_MasterPoint_vel_linear(V=w_opt)['MasterPoint_vel_linear'].full().flatten()).reshape(ns, 3)
+
+MasterPoint_vel_angular = FKcomputer.computeDiffFK('rope_anchor1_3', 'ee_vel_angular', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_MasterPoint_vel_angular = Function("get_MasterPoint_vel_angular", [V], [MasterPoint_vel_angular], ['V'], ['MasterPoint_vel_angular'])
+MasterPoint_vel_angular_hist = (get_MasterPoint_vel_angular(V=w_opt)['MasterPoint_vel_angular'].full().flatten()).reshape(ns, 3)
+
+BaseLink_pos = FKcomputer.computeFK('base_link', 'ee_pos', 0, ns)
+get_BaseLink_pos = Function("get_BaseLink_pos", [V], [BaseLink_pos], ['V'], ['BaseLink_pos'])
+BaseLink_pos_hist = (get_BaseLink_pos(V=w_opt)['BaseLink_pos'].full().flatten()).reshape(ns, 3)
+
+BaseLink_vel_linear = FKcomputer.computeDiffFK('base_link', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
+BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linear'].full().flatten()).reshape(ns, 3)
+
+BaseLink_vel_angular = FKcomputer.computeDiffFK('base_link', 'ee_vel_angular', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_BaseLink_vel_angular = Function("get_BaseLink_vel_angular", [V], [BaseLink_vel_angular], ['V'], ['BaseLink_vel_angular'])
+BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_angular'].full().flatten()).reshape(ns, 3)
+
+#FloatingBase_J = FKcomputer.computeFK('base_link','ee_jacobian', 0, ns)
+#get_FloatingBase_J = Function("get_FloatingBase_J", [V], [FloatingBase_J], ['V'], ['FloatingBase_J'])
+#FloatingBase_J_hist = (get_FloatingBase_J(V=w_opt)['FloatingBase_J'].full().flatten()).reshape(ns, 6, nv)
+
+# MasterPoint_acc_linear = FKcomputer.computeFK('rope_anchor1_3', 'ee_acc_linear', 0, ns-1)
+# get_MasterPoint_acc_linear = Function("get_MasterPoint_acc_linear", [V], [MasterPoint_acc_linear], ['V'], ['MasterPoint_acc_linear'])
+# MasterPoint_acc_linear_hist = (get_MasterPoint_acc_linear(V=w_opt)['MasterPoint_acc_linear'].full().flatten()).reshape(ns-1, 3)
+#
+AnchorPoint_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
+get_AnchorPoint_pos = Function("get_AnchorPoint_pos", [V], [AnchorPoint_pos], ['V'], ['AnchorPoint_pos'])
+AnchorPoint_pos_hist = (get_AnchorPoint_pos(V=w_opt)['AnchorPoint_pos'].full().flatten()).reshape(ns, 3)
+
+CoM_pos = FKcomputer.computeCoM('com', 0, ns)
+get_CoM_pos = Function("get_CoM_pos", [V], [CoM_pos], ['V'], ['CoM_pos'])
+CoM_pos_hist = (get_CoM_pos(V=w_opt)['CoM_pos'].full().flatten()).reshape(ns, 3)
+
+CoM_vel = FKcomputer.computeCoM('vcom', 0, ns)
+get_CoM_vel = Function("get_CoM_vel", [V], [CoM_vel], ['V'], ['CoM_vel'])
+CoM_vel_hist = (get_CoM_vel(V=w_opt)['CoM_vel'].full().flatten()).reshape(ns, 3)
+
+CoM_acc = FKcomputer.computeCoM('acom', 0, ns-1)
+get_CoM_acc = Function("get_CoM_acc", [V], [CoM_acc], ['V'], ['CoM_acc'])
+CoM_acc_hist = (get_CoM_acc(V=w_opt)['CoM_acc'].full().flatten()).reshape(ns-1, 3)
+
+KE = FKcomputer.computeKineticEnergy(0, ns)
+get_KE = Function("get_KE", [V], [KE], ['V'], ['KE'])
+KE_hist = (get_KE(V=w_opt)['KE'].full().flatten()).reshape(ns, 1)
+
+PE = FKcomputer.computePotentialEnergy(0, ns)
+get_PE = Function("get_PE", [V], [PE], ['V'], ['PE'])
+PE_hist = (get_PE(V=w_opt)['PE'].full().flatten()).reshape(ns, 1)
+
 logger.add('Tau', tau_hist)
+logger.add('Tf', tf)
+logger.add('w_opt', w_opt)
+# logger.add('Contact1', Contact1_pos_hist)
+# logger.add('Contact2', Contact2_pos_hist)
+# logger.add('Waist_pos', Waist_pos_hist)
+# logger.add('Waist_rot', Waist_rot_hist)
+# logger.add('fb_pos', q_hist[:, 0:3])
+# logger.add('fb_rot', quaternion_to_euler(q_hist[:, 3:7]))
+logger.add('MasterPoint', MasterPoint_pos_hist)
+logger.add('MasterPoint_rot', MasterPoint_rot_hist)
+logger.add('MasterPoint_vel_lin', MasterPoint_vel_linear_hist)
+logger.add('MasterPoint_vel_ang', MasterPoint_vel_angular_hist)
+# logger.add('MasterPoint_acc', MasterPoint_acc_linear_hist)
+logger.add('AnchorPoint', AnchorPoint_pos_hist)
+logger.add('CoM_pos', CoM_pos_hist)
+logger.add('CoM_vel', CoM_vel_hist)
+logger.add('CoM_acc', CoM_acc_hist)
+logger.add('BaseLink', BaseLink_pos_hist)
+logger.add('BaseLink_vel_lin', BaseLink_vel_linear_hist)
+logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
+#logger.add('FloatingBase_J', FloatingBase_J_hist)
+
+
+
+
+# RESAMPLE STATE FOR REPLAY TRAJECTORY
+dt = 0.001
+X_res, Tau_res = resample_integrator(X, Qddot, tf, dt, dae, ID, dd, kindyn)
+get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
+x_hist_res = get_X_res(V=w_opt)['X_res'].full()
+q_hist_res = (x_hist_res[0:nq, :]).transpose()
+
+get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
+tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
+
+logger.add('Q_res', q_hist_res)
+logger.add('Tau_res', tau_hist_res)
 
 del(logger)
+
+# DOUBLE PENDULUM ANALYSIS
+# theta1 = MasterPoint_rot_hist[0:ns-1, 1]
+# T1 = tau_hist[:, -1]
+#
+# ddot_x1 = np.diff(MasterPoint_vel_linear_hist[:, 0])/dt_min
+# ddot_z1 = np.diff(MasterPoint_vel_linear_hist[:, 2])/dt_min
+#
+#
+# ddot_x2 = CoM_acc_hist[:, 0]
+# ddot_z2 = CoM_acc_hist[:, 2]
+#
+# m1 = 1.0
+# m2 = 60.
+# g = 9.81
+#
+# e_x = m1*ddot_x1 + m2*ddot_x2 + T1*sin(theta1)
+# e_z = m1*ddot_z1 + m2*ddot_z2 + T1*cos(theta1) + (m1 + m2)*g
+
+
+
+#### PLOTS ####
+PLOT = True
+if PLOT:
+    time = np.arange(0.0, tf, tf/ns)
+    #
+    # plt.plot(time[0:ns-1], e_x, label='$\mathrm{x}$', linewidth=3.0, color='red')
+    # plt.plot(time[0:ns-1], e_z, label='$\mathrm{z}$', linewidth=3.0, color='blue')
+    #
+    # plt.legend(loc='upper right', fancybox=True, framealpha=0.5, prop={'size':20})
+    # plt.grid()
+    # plt.suptitle('$\mathrm{Double \ pendulum \ model \ error}$', size = 20)
+    # plt.xlabel('$\mathrm{[sec]}$', size = 20)
+    # plt.ylabel('$\mathrm{[N]}$', size = 20)
+
+    # plt.savefig("double_pendulum_error.pdf", format="pdf")
+
+    total_energy = KE_hist + PE_hist
+    plt.figure(1)
+    plt.plot(total_energy)
+    plt.suptitle('$\mathrm{Total \ Energy}$', size=20)
+
+    plt.figure(2)
+    plt.plot(KE_hist)
+    plt.suptitle('$\mathrm{Kinetic \ Energy}$', size=20)
+
+    plt.figure(3)
+    plt.plot(PE_hist)
+    plt.suptitle('$\mathrm{Potential \ Energy}$', size=20)
+
+    plt.figure(4)
+    plt.plot(CoM_pos_hist)
+    plt.suptitle('$\mathrm{CoM}$', size=20)
+
+    plt.show()
+###
+
 
 # REPLAY TRAJECTORY
 joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
