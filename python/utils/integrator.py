@@ -172,7 +172,7 @@ def RKF45_time(dae, casadi_type):
     return Function('F_RKF45', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
 
 
-def LEAPFROG(dae, opts, casadi_type):
+def EMPR(dae, opts, casadi_type): #Explicit Mid-Point Rule: equation (21) of: https://hal.archives-ouvertes.fr/cel-01484274/document
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
@@ -204,7 +204,7 @@ def LEAPFROG(dae, opts, casadi_type):
 
     return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
 
-def LEAPFROG_time(dae, casadi_type):
+def EMPR_time(dae, casadi_type): #Explicit Mid-Point Rule: equation (21) of: https://hal.archives-ouvertes.fr/cel-01484274/document
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
