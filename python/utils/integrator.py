@@ -1,6 +1,135 @@
 from casadi import *
 from horizon import *
 
+
+def EULER(dae, opts, casadi_type):
+    x = dae['x']
+    qddot = dae['p']
+    xdot = dae['ode']
+    L = dae['quad']
+
+    f_RK = Function('f_RK', [x, qddot], [xdot, L])
+
+    nx = x.size1()
+    nv = qddot.size1()
+
+    if casadi_type is 'MX':
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
+    elif casadi_type is 'SX':
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
+    else:
+        raise Exception('Input casadi_type can be only SX or MX!')
+
+    DT_RK = opts['tf']
+    X_RK = X0_RK
+    Q_RK = 0
+
+    k1, k1_q = f_RK(X_RK, U_RK)
+
+    X_RK = X_RK + DT_RK * k1
+    Q_RK = Q_RK + DT_RK * k1_q
+
+    return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
+
+def EULER_time(dae, casadi_type):
+    x = dae['x']
+    qddot = dae['p']
+    xdot = dae['ode']
+    L = dae['quad']
+
+    f_RK = Function('f_RK', [x, qddot], [xdot, L])
+
+    nx = x.size1()
+    nv = qddot.size1()
+
+    if casadi_type is 'MX':
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
+        DT_RK = MX.sym('DT_RK', 1)
+    elif casadi_type is 'SX':
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
+        DT_RK = SX.sym('DT_RK', 1)
+    else:
+        raise Exception('Input casadi_type can be only SX or MX!')
+
+    X_RK = X0_RK
+    Q_RK = 0
+
+    k1, k1_q = f_RK(X_RK, U_RK)
+
+    X_RK = X_RK + DT_RK * k1
+    Q_RK = Q_RK + DT_RK * k1_q
+
+    return Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+
+def RK2(dae, opts, casadi_type):
+    x = dae['x']
+    qddot = dae['p']
+    xdot = dae['ode']
+    L = dae['quad']
+
+    f_RK = Function('f_RK', [x, qddot], [xdot, L])
+
+    nx = x.size1()
+    nv = qddot.size1()
+
+    if casadi_type is 'MX':
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
+    elif casadi_type is 'SX':
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
+    else:
+        raise Exception('Input casadi_type can be only SX or MX!')
+
+    DT_RK = opts['tf']
+    X_RK = X0_RK
+    Q_RK = 0
+
+    k1, k1_q = f_RK(X_RK, U_RK)
+    k2, k2_q = f_RK(X_RK + DT_RK / 2. * k1, U_RK)
+
+    X_RK = X_RK + DT_RK * k2
+    Q_RK = Q_RK + DT_RK * k2_q
+
+    return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
+
+def RK2_time(dae, casadi_type):
+    x = dae['x']
+    qddot = dae['p']
+    xdot = dae['ode']
+    L = dae['quad']
+
+    f_RK = Function('f_RK', [x, qddot], [xdot, L])
+
+    nx = x.size1()
+    nv = qddot.size1()
+
+    if casadi_type is 'MX':
+        X0_RK = MX.sym('X0_RK', nx)
+        U_RK = MX.sym('U_RK', nv)
+        DT_RK = MX.sym('DT_RK', 1)
+    elif casadi_type is 'SX':
+        X0_RK = SX.sym('X0_RK', nx)
+        U_RK = SX.sym('U_RK', nv)
+        DT_RK = SX.sym('DT_RK', 1)
+    else:
+        raise Exception('Input casadi_type can be only SX or MX!')
+
+    X_RK = X0_RK
+    Q_RK = 0
+
+    k1, k1_q = f_RK(X_RK, U_RK)
+    k2, k2_q = f_RK(X_RK + DT_RK / 2. * k1, U_RK)
+
+    X_RK = X_RK + DT_RK * k2
+    Q_RK = Q_RK + DT_RK * k2_q
+
+    return Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+
 def RK4(dae, opts, casadi_type):
     x = dae['x']
     qddot = dae['p']
@@ -26,7 +155,7 @@ def RK4(dae, opts, casadi_type):
     Q_RK = 0
 
     k1, k1_q = f_RK(X_RK, U_RK)
-    k2, k2_q = f_RK(X_RK + 0.5 * DT_RK * k1, U_RK)
+    k2, k2_q = f_RK(X_RK + DT_RK / 2. * k1, U_RK)
     k3, k3_q = f_RK(X_RK + DT_RK / 2. * k2, U_RK)
     k4, k4_q = f_RK(X_RK + DT_RK * k3, U_RK)
 
@@ -61,7 +190,7 @@ def RK4_time(dae, casadi_type):
     Q_RK = 0
 
     k1, k1_q = f_RK(X_RK, U_RK)
-    k2, k2_q = f_RK(X_RK + 0.5 * DT_RK * k1, U_RK)
+    k2, k2_q = f_RK(X_RK + DT_RK / 2. * k1, U_RK)
     k3, k3_q = f_RK(X_RK + DT_RK / 2. * k2, U_RK)
     k4, k4_q = f_RK(X_RK + DT_RK * k3, U_RK)
 
@@ -172,7 +301,7 @@ def RKF45_time(dae, casadi_type):
     return Function('F_RKF45', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
 
 
-def EMPR(dae, opts, casadi_type): #Explicit Mid-Point Rule: equation (21) of: https://hal.archives-ouvertes.fr/cel-01484274/document
+def LEAPFROG(dae, opts, casadi_type):
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
@@ -185,26 +314,28 @@ def EMPR(dae, opts, casadi_type): #Explicit Mid-Point Rule: equation (21) of: ht
 
     if casadi_type is 'MX':
         X0_RK = MX.sym('X0_RK', nx)
+        X0_PREV_RK = MX.sym('X0_PREV_RK', nx)
         U_RK = MX.sym('U_RK', nv)
     elif casadi_type is 'SX':
         X0_RK = SX.sym('X0_RK', nx)
+        X0_PREV_RK = SX.sym('X0_PREV_RK', nx)
         U_RK = SX.sym('U_RK', nv)
     else:
         raise Exception('Input casadi_type can be only SX or MX!')
 
     DT_RK = opts['tf']
-    X_RK = X0_RK
+
     Q_RK = 0
 
-    k1, k1_q = f_RK(X_RK, U_RK)
-    k2, k2_q = f_RK(X_RK + DT_RK / 2. * k1, U_RK)
+    k1, k1_q = f_RK(X0_RK, U_RK)
 
-    X_RK = X_RK + DT_RK * k2
-    Q_RK = Q_RK + DT_RK * k2_q
+    X_RK = X0_PREV_RK + 2. * DT_RK * k1
+    X_PREV_RK = X0_RK
 
-    return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
+    return Function('F_RK', [X0_RK, X0_PREV_RK, U_RK], [X_RK, X_PREV_RK, Q_RK], ['x0', 'x0_prev', 'p'],
+                    ['xf', 'xf_prev', 'qf'])
 
-def EMPR_time(dae, casadi_type): #Explicit Mid-Point Rule: equation (21) of: https://hal.archives-ouvertes.fr/cel-01484274/document
+def LEAPFROG_time(dae, casadi_type):
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
@@ -217,85 +348,23 @@ def EMPR_time(dae, casadi_type): #Explicit Mid-Point Rule: equation (21) of: htt
 
     if casadi_type is 'MX':
         X0_RK = MX.sym('X0_RK', nx)
+        X0_PREV_RK = MX.sym('X0_PREV_RK', nx)
         U_RK = MX.sym('U_RK', nv)
         DT_RK = MX.sym('DT_RK', 1)
     elif casadi_type is 'SX':
         X0_RK = SX.sym('X0_RK', nx)
+        X0_PREV_RK = SX.sym('X0_PREV_RK', nx)
         U_RK = SX.sym('U_RK', nv)
         DT_RK = SX.sym('DT_RK', 1)
     else:
         raise Exception('Input casadi_type can be only SX or MX!')
 
-    X_RK = X0_RK
     Q_RK = 0
 
-    k1, k1_q = f_RK(X_RK, U_RK)
-    k2, k2_q = f_RK(X_RK + DT_RK / 2. * k1, U_RK)
+    k1, k1_q = f_RK(X0_RK, U_RK)
 
-    X_RK = X_RK + DT_RK * k2
-    Q_RK = Q_RK + DT_RK * k2_q
+    X_RK = X0_PREV_RK + 2. * DT_RK * k1
+    X_PREV_RK = X0_RK
 
-    return Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
-
-def EULER(dae, opts, casadi_type):
-    x = dae['x']
-    qddot = dae['p']
-    xdot = dae['ode']
-    L = dae['quad']
-
-    f_RK = Function('f_RK', [x, qddot], [xdot, L])
-
-    nx = x.size1()
-    nv = qddot.size1()
-
-    if casadi_type is 'MX':
-        X0_RK = MX.sym('X0_RK', nx)
-        U_RK = MX.sym('U_RK', nv)
-    elif casadi_type is 'SX':
-        X0_RK = SX.sym('X0_RK', nx)
-        U_RK = SX.sym('U_RK', nv)
-    else:
-        raise Exception('Input casadi_type can be only SX or MX!')
-
-    DT_RK = opts['tf']
-    X_RK = X0_RK
-    Q_RK = 0
-
-    k1, k1_q = f_RK(X_RK, U_RK)
-
-    X_RK = X_RK + DT_RK * k1
-    Q_RK = Q_RK + DT_RK * k1_q
-
-    return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
-
-def EULER_time(dae, casadi_type):
-    x = dae['x']
-    qddot = dae['p']
-    xdot = dae['ode']
-    L = dae['quad']
-
-    f_RK = Function('f_RK', [x, qddot], [xdot, L])
-
-    nx = x.size1()
-    nv = qddot.size1()
-
-    if casadi_type is 'MX':
-        X0_RK = MX.sym('X0_RK', nx)
-        U_RK = MX.sym('U_RK', nv)
-        DT_RK = MX.sym('DT_RK', 1)
-    elif casadi_type is 'SX':
-        X0_RK = SX.sym('X0_RK', nx)
-        U_RK = SX.sym('U_RK', nv)
-        DT_RK = SX.sym('DT_RK', 1)
-    else:
-        raise Exception('Input casadi_type can be only SX or MX!')
-
-    X_RK = X0_RK
-    Q_RK = 0
-
-    k1, k1_q = f_RK(X_RK, U_RK)
-
-    X_RK = X_RK + DT_RK * k1
-    Q_RK = Q_RK + DT_RK * k1_q
-
-    return Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+    return Function('F_RK', [X0_RK, X0_PREV_RK, U_RK, DT_RK], [X_RK, X_PREV_RK, Q_RK], ['x0', 'x0_prev', 'p', 'time'],
+                    ['xf', 'xf_prev', 'qf'])
