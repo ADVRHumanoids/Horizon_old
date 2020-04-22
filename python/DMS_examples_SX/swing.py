@@ -33,7 +33,7 @@ ID = Function.deserialize(kindyn.rnea())
 
 
 # OPTIMIZATION PARAMETERS
-ns = 140  # number of shooting nodes
+ns = 70  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -99,7 +99,8 @@ tf = 2.  # [s]
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
 opts = {'tf': tf/ns}
-F_integrator = EMPR(dae, opts, "SX")
+F_integrator = LEAPFROG(dae, opts, "SX")
+F_start = RK4(dae, opts, "SX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope])
@@ -150,7 +151,7 @@ G.set_constraint(g1, g_min1, g_max1)
 
 # MULTIPLE SHOOTING CONSTRAINT
 integrator_dict = {'x0': X, 'p': Qddot}
-multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
+multiple_shooting_constraint = multiple_shooting_LF(integrator_dict, F_start, F_integrator)
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
