@@ -3,6 +3,23 @@ from horizon import *
 
 
 def EULER(dae, opts, casadi_type):
+    """
+    Implements an integration scheme based on Euler integration (http://www.cmth.ph.ic.ac.uk/people/a.mackinnon/Lectures/compphys/node4.html):
+        x = x + dt*xdot(x,u)
+    Args:
+        dae: a dictionary containing
+            'x': state
+            'p': control
+            'ode': a function of the state and control returning the derivative of the state
+            'quad': quadrature term
+        opts: a dictionary containing 'tf': integration time
+        NOTE: this term can be used to take into account also a final time to optimize
+        casadi_type: 'SX' or 'MX'
+
+    Returns: Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
+        which given in input the actual state X0_RK and control U_RK returns the integrated state X_RK and quadrature term Q_RK
+
+    """
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
@@ -34,6 +51,21 @@ def EULER(dae, opts, casadi_type):
     return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
 
 def EULER_time(dae, casadi_type):
+    """
+        Implements an integration scheme based on Euler integration (http://www.cmth.ph.ic.ac.uk/people/a.mackinnon/Lectures/compphys/node4.html):
+            x = x + dt*xdot(x,u)
+        Args:
+            dae: a dictionary containing
+                'x': state
+                'p': control (gere including time)
+                'ode': a function of the state and control returning the derivative of the state
+                'quad': quadrature term
+            casadi_type: 'SX' or 'MX'
+
+        Returns: Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+            which given in input the actual state X0_RK, control U_RK and time DT_RK returns the integrated state X_RK and quadrature term Q_RK
+
+        """
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
@@ -66,6 +98,25 @@ def EULER_time(dae, casadi_type):
     return Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
 
 def RK2(dae, opts, casadi_type):
+    """
+        Implements an integration scheme based on 2nd-order Runge-Kutta integration (http://www.cmth.ph.ic.ac.uk/people/a.mackinnon/Lectures/compphys/node11.html):
+            k1 = xdot(x,u)
+            k2 = xdot(x + 0.5*dt*k1, u)
+            x = x + dt*k2
+        Args:
+            dae: a dictionary containing
+                'x': state
+                'p': control
+                'ode': a function of the state and control returning the derivative of the state
+                'quad': quadrature term
+            opts: a dictionary containing 'tf': integration time
+            NOTE: this term can be used to take into account also a final time to optimize
+            casadi_type: 'SX' or 'MX'
+
+        Returns: Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
+            which given in input the actual state X0_RK and control U_RK returns the integrated state X_RK and quadrature term Q_RK
+
+        """
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
@@ -98,6 +149,24 @@ def RK2(dae, opts, casadi_type):
     return Function('F_RK', [X0_RK, U_RK], [X_RK, Q_RK], ['x0', 'p'], ['xf', 'qf'])
 
 def RK2_time(dae, casadi_type):
+    """
+    Implements an integration scheme based on 2nd-order Runge-Kutta integration (http://www.cmth.ph.ic.ac.uk/people/a.mackinnon/Lectures/compphys/node11.html):
+    k1 = xdot(x,u)
+    k2 = xdot(x + 0.5*dt*k1, u)
+    x = x + dt*k2
+    Args:
+        dae: a dictionary containing
+            'x': state
+            'p': control (gere including time)
+            'ode': a function of the state and control returning the derivative of the state
+            'quad': quadrature term
+        casadi_type: 'SX' or 'MX'
+
+    Returns: Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+        which given in input the actual state X0_RK, control U_RK and time DT_RK returns the integrated state X_RK and quadrature term Q_RK
+
+    """
+
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
@@ -335,7 +404,7 @@ def LEAPFROG(dae, opts, casadi_type):
     return Function('F_RK', [X0_RK, X0_PREV_RK, U_RK], [X_RK, X_PREV_RK, Q_RK], ['x0', 'x0_prev', 'p'],
                     ['xf', 'xf_prev', 'qf'])
 
-def LEAPFROG_time(dae, casadi_type):
+def LEAPFROG_time(dae, casadi_type): #stability not ensured if t_min != tmax
     x = dae['x']
     qddot = dae['p']
     xdot = dae['ode']
