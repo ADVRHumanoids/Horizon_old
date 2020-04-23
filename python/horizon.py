@@ -64,12 +64,16 @@ def create_init(dict, number_of_nodes):
 
     return vertcat(*v_init)
 
-# concat_states_and_controls: creates a list concatenating (vertically) each variable concatenated variable contained in X
-# and U at the same node adding the final state at the end:
-# Example: X = [MX(vertcat(Q0, Qdot0)), MX(vertcat(Q1, Qdot1)), MX(vertcat(Q2, Qdot2)), ..., MX(vertcat(Qn, Qdotn))]'
-#          U = [MX(vertcat(Qddot0, F0)), MX(vertcat(Qddot1, F1)), MX(vertcat(Qddot2, F2)), ..., MX(vertcat(Qddotn-1, Fn-1))]'
-# then V = [vertcat(Q0, Qdot0, Qddot0, F0, Q1, Qdot1, Qddot1, F1, Q2, Qdot2, Qddot2, F2, ..., Qn, Qdotn]'
 def concat_states_and_controls(dict):
+    """
+    Creates a single list of states and controls given the list of states and the list of controls
+    Args:
+        dict: a dictionary containing
+            X: list of states
+            U: list of controls
+    Returns:
+        vertcat(*V): list of states and controls ordered for each node
+    """
     X = dict["X"]
     U = dict["U"]
     ns = np.size(U)
@@ -125,13 +129,35 @@ def create_state_and_control(VX, VU):
     return X, U
 
 
-# dynamic_model_with_floating_base: gets in input a q of size [n, 1] and a qdot of size [n-1, 1]
-# (notice that the first 7 elements of q are postion and orientation with quaternion)
-# and return the dynamic model x, xdot considering the integration of the quaterion for the floating base orientation
-# NOTE: WORKING USING LOCAL QDOT AND QDDOT!
-def dynamic_model_with_floating_base(q, qdot, qddot):
+def dynamic_model_with_floating_base(q, ndot, nddot):
+    """
+    Construct the floating-base dynamic model:
+                x = [q, ndot]
+                xdot = [qdot, nddot]
+    using quaternion dynamics: quatdot = quat x [omega, 0]
+    NOTE: this implementation consider floating-base position and orientation expressed in GLOBAL (world) coordinates while
+    linear and angular velocities expressed in LOCAL (base_link) coordinates.
+    TODO: creates dedicated file for quaternion handling
+    Args:
+        q: joint space coordinates: q = [x y z px py pz pw qj], where p is a quaternion
+        ndot: joint space velocities: ndot = [vx vy vz wx wy wz qdotj]
+        nddot: joint space acceleration: nddot = [ax ay ax wdotx wdoty wdotz qddotj]
+
+    Returns:
+        x: state x = [q, ndot]
+        xdot: derivative of the state xdot = [qdot, nddot]
+    """
 
     def skew(q):
+        """
+        Create skew matrix from vector part of quaternion
+        TODO: move out
+        Args:
+            q: vector part of quaternion [qx, qy, qz]
+
+        Returns:
+            S = skew symmetric matrix built using q
+        """
         S = SX.zeros(3, 3)
         S[0, 1] = -q[2]; S[0, 2] = q[1]
         S[1, 0] = q[2];  S[1, 2] = -q[0]
@@ -139,12 +165,32 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
         return S
 
     def quaterion_product(q, p):
+        """
+        Computes quaternion product between two quaternions q and p
+        TODO: move out
+        Args:
+            q: quaternion
+            p: quaternion
+
+        Returns:
+            quaternion product q x p
+        """
         q0 = q[3]
         p0 = p[3]
 
         return [q0*p[0:3] + p0*q[0:3] + mtimes(skew(q[0:3]), p[0:3]), q0*p0 - mtimes(q[0:3].T, p[0:3])]
 
     def toRot(q):
+        """
+        Compute rotation matrix associated to given quaternion q
+        TODO: move out
+        Args:
+            q: quaternion
+
+        Returns:
+            R: rotation matrix
+
+        """
         R = SX.zeros(3, 3)
         qi = q[0]; qj = q[1]; qk = q[2]; qr = q[3]
         R[0, 0] = 1. - 2. * (qj * qj + qk * qk);
@@ -159,20 +205,14 @@ def dynamic_model_with_floating_base(q, qdot, qddot):
 
         return R
 
-
-    # Quaternion Derivative (Propagation)
-    #tmp1 = casadi.mtimes(0.5 * (q[6] * SX.eye(3) - S), qdot[3:6])
-    #tmp2 = -0.5 * casadi.mtimes(q[3:6].T, qdot[3:6])
-
-
     qw = SX.zeros(4,1)
-    qw[0:3] = 0.5*qdot[3:6]
+    qw[0:3] = 0.5*ndot[3:6]
     quaterniondot = quaterion_product(q[3:7], qw)
 
     R = toRot(q[3:7])
 
-    x = vertcat(q, qdot)
-    xdot = vertcat(mtimes(R, qdot[0:3]), vertcat(*quaterniondot), qdot[6:qdot.shape[0]], qddot)
+    x = vertcat(q, ndot)
+    xdot = vertcat(mtimes(R, ndot[0:3]), vertcat(*quaterniondot), ndot[6:ndot.shape[0]], nddot)
 
     return x, xdot
 
@@ -305,12 +345,26 @@ class constraint_class:
             k: node for which virtual_method is evaluated
 
         Raise:
-            NotImplementedError() if not implmented in derived class
+            NotImplementedError() if not implemented in derived class
         """
         raise NotImplementedError()
 
 class multiple_shooting_LF(constraint_class):
+    """
+        Class implementing multiple shooting constraint based on two integrators:
+            integral(x0, p) = x1
+    """
     def __init__(self, dict, F_start, F_integrator):
+        """
+        Constructor
+        Args:
+            dict: dictionary containing
+                x0: starting point for the integrator
+                p: control action
+                time: if present contains the time variable
+            F_start: integrator called at node k = 0 to start F_integrator
+            F_integrator: integrator which will be used in the constraint (started using F_start)
+        """
         self.dict = dict
         self.F_start = F_start
         self.F_integrator = F_integrator
@@ -356,7 +410,20 @@ class multiple_shooting_LF(constraint_class):
         self.g_maxk = [0] * self.dict['x0'][k + 1].size1()
 
 class multiple_shooting(constraint_class):
+    """
+    Class implementing multiple shooting constraint:
+        integral(x0, p) = x1
+    """
     def __init__(self, dict, F_integrator):
+        """
+        Constructor
+        Args:
+            dict: dictionary containing
+                x0: starting point for the integrator
+                p: control action
+                time: if present contains the time variable
+            F_integrator: integrator which will be used in the constraint
+        """
         self.dict = dict
         self.F_integrator = F_integrator
 
@@ -365,6 +432,16 @@ class multiple_shooting(constraint_class):
             self.keys.append(key)
 
     def virtual_method(self, k):
+        """
+        Computes the multiple shooting constraint at kth node
+        Args:
+            k: node
+
+        Returns:
+            self.gk = constraint at k
+            self.g_mink = lower bounds (0)
+            self.g_maxk = upper bounds (0)
+        """
         if 'time' in self.dict:  # time is optimized
             if np.size(self.dict['time']) == 1:  # only final time is optimized
                 integrator_out = self.F_integrator(x0=self.dict['x0'][k], p=self.dict['p'][k],
@@ -382,10 +459,16 @@ class multiple_shooting(constraint_class):
 
 
 class unit_norm_quaternion(constraint_class):
-    """Constraint class which impose that quaternion norm is 1
+    """
+    Constraint class which impose that quaternion norm is 1
             """
 
     def __init__(self, quaternion):
+        """
+        Constructor
+        Args:
+            quaternion: quaternion to impose unit norm
+        """
         self.quaternion = quaternion
 
     def virtual_method(self, k):
@@ -393,7 +476,6 @@ class unit_norm_quaternion(constraint_class):
         Args:
             k: node
         """
-        print self.quaternion[k]
         self.gk = [norm_2(self.quaternion[k])]
         self.g_mink = [1.]
         self.g_maxk = [1.]
@@ -422,7 +504,8 @@ class constraint_handler():
         self.g_max += g_max
 
     def get_constraints(self):
-        """Retrieve all the specified constraints and bounds
+        """
+        Retrieve all the specified constraints and bounds
                 Returns:
                     g: vertical concatenation of all constraints g
                     g_min: list of lower bounds
@@ -433,7 +516,8 @@ class constraint_handler():
 
 
 def retrieve_solution(input, output_dict, solution):
-    """Function which evaluates separately each component of solution.
+    """
+    Function which evaluates separately each component of solution.
             Args:
                 input: symbolic vector of variables of the optimization problem
                 output_dict: how the output dictionary definition
