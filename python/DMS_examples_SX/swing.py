@@ -115,29 +115,6 @@ J = SX([0])
 minQdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
 J += cost_function(minQdot, 0, ns)
 
-qf =     np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                   0., 0., 0.,
-                   0., 0., 0.,
-                   0., 0., 0.,
-                   0.3]).tolist()
-
-minQf = lambda k: 1.*dot(Q[k]-qf, Q[k]-qf)
-#J += cost_function(minQf, 70, ns)
-
-
-#
-#minU = lambda k: 10.*dot(U[k], U[k])
-#J += cost_function(minU, 0, ns-1)
-
-
-# min_F1 = lambda k: 1000.*dot(F1[k], F1[k])
-# J += cost_function(min_F1, 0, ns-1)
-
-# min_F2 = lambda k: 1000.*dot(F2[k], F2[k])
-# J += cost_function(min_F2, 0, ns-1)
-
-# min_FRope = lambda k: 1.*dot(FRope[k], FRope[k])
-# J += cost_function(min_FRope, 0, ns-1)
 
 
 # CONSTRAINTS
@@ -335,58 +312,42 @@ logger.add('Tau_res', tau_hist_res)
 
 del(logger)
 
-# DOUBLE PENDULUM ANALYSIS
-# theta1 = MasterPoint_rot_hist[0:ns-1, 1]
-# T1 = tau_hist[:, -1]
-#
-# ddot_x1 = np.diff(MasterPoint_vel_linear_hist[:, 0])/dt_min
-# ddot_z1 = np.diff(MasterPoint_vel_linear_hist[:, 2])/dt_min
-#
-#
-# ddot_x2 = CoM_acc_hist[:, 0]
-# ddot_z2 = CoM_acc_hist[:, 2]
-#
-# m1 = 1.0
-# m2 = 60.
-# g = 9.81
-#
-# e_x = m1*ddot_x1 + m2*ddot_x2 + T1*sin(theta1)
-# e_z = m1*ddot_z1 + m2*ddot_z2 + T1*cos(theta1) + (m1 + m2)*g
-
-
 
 #### PLOTS ####
 PLOT = True
 if PLOT:
     time = np.arange(0.0, tf, tf/ns)
-    #
-    # plt.plot(time[0:ns-1], e_x, label='$\mathrm{x}$', linewidth=3.0, color='red')
-    # plt.plot(time[0:ns-1], e_z, label='$\mathrm{z}$', linewidth=3.0, color='blue')
-    #
-    # plt.legend(loc='upper right', fancybox=True, framealpha=0.5, prop={'size':20})
-    # plt.grid()
-    # plt.suptitle('$\mathrm{Double \ pendulum \ model \ error}$', size = 20)
-    # plt.xlabel('$\mathrm{[sec]}$', size = 20)
-    # plt.ylabel('$\mathrm{[N]}$', size = 20)
-
-    # plt.savefig("double_pendulum_error.pdf", format="pdf")
-
     total_energy = KE_hist + PE_hist
+
     plt.figure(1)
-    plt.plot(total_energy)
-    plt.suptitle('$\mathrm{Total \ Energy}$', size=20)
+    plt.suptitle('$\mathrm{Energy}$', size=20)
+    plt.plot(time, KE_hist, linewidth=3.0, color='blue', label='$\mathrm{Kinetic}$')
+    plt.plot(time, PE_hist, linewidth=3.0, color='red', label='$\mathrm{Potential}$')
+    plt.plot(time, total_energy, linewidth=3.0, color='green', label='$\mathrm{Total}$')
+    plt.legend(loc='upper center', fancybox=True, framealpha=0.5, ncol=3)
+    axes = plt.gca()
+    axes.set_ylim([-110.0, 40.])
+    plt.grid()
+    plt.xlabel('$\mathrm{[sec]}$', size=20)
+    plt.ylabel('$\mathrm{[J]}$', size=20)
+
+    plt.savefig("energy.pdf", format="pdf")
+
 
     plt.figure(2)
-    plt.plot(KE_hist)
-    plt.suptitle('$\mathrm{Kinetic \ Energy}$', size=20)
+    plt.suptitle('$\mathrm{Master \ Point \ and \ COM  \ trajectories}$', size=20)
+    plt.plot(time, MasterPoint_pos_hist[:, 0], linewidth=3.0, color='red', label='$\mathrm{Master \ Point \ x}$ ', linestyle='--')
+    plt.plot(time, MasterPoint_pos_hist[:, 2], linewidth=3.0, color='blue', label='$\mathrm{Master \ Point \ z}$', linestyle='--')
+    plt.plot(time, CoM_pos_hist[:,0], linewidth=3.0, color='red', label='$\mathrm{COM \ x}$')
+    plt.plot(time, CoM_pos_hist[:, 2], linewidth=3.0, color='blue', label='$\mathrm{COM \ z}$')
+    plt.legend(loc='upper center', fancybox=True, framealpha=0.5, ncol=2)
+    axes = plt.gca()
+    axes.set_ylim([-0.2, 0.5])
+    plt.grid()
+    plt.xlabel('$\mathrm{[m]}$', size=20)
+    plt.ylabel('$\mathrm{[m]}$', size=20)
 
-    plt.figure(3)
-    plt.plot(PE_hist)
-    plt.suptitle('$\mathrm{Potential \ Energy}$', size=20)
-
-    plt.figure(4)
-    plt.plot(CoM_pos_hist)
-    plt.suptitle('$\mathrm{CoM}$', size=20)
+    plt.savefig("swing_master_point_com_trj.pdf", format="pdf")
 
     plt.show()
 ###
