@@ -14,6 +14,7 @@ from utils.integrator import *
 from utils.kinematics import *
 from utils.normalize_quaternion import *
 from utils.conversions_to_euler import *
+from utils.dt_RKF import *
 
 logger = matl.MatLogger2('/tmp/rope_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -107,7 +108,11 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = RK4_time(dae, 'SX')
+#F_integrator = RK4_time(dae, 'SX')
+
+opts = {'tol': 1e-3}
+F_integrator = RKF_time(dae, opts, 'SX')
+F_integrator2 = RKF_time(dae, opts, "SX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
@@ -120,6 +125,12 @@ touch_down_node = 60
 
 # SET UP COST FUNCTION
 J = SX([0])
+
+dict = {'x0':X, 'p':Qddot, 'time':Dt}
+variable_time = dt_RKF(dict, F_integrator2)
+dt_ref = variable_time.compute_nodes(0, ns-1)
+min_dt = lambda k: (Dt[k]-dt_ref[k])*(Dt[k]-dt_ref[k])
+J += cost_function(min_dt, 0, ns-1)
 
 q_trg = np.array([-.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0+foot_z_offset,
