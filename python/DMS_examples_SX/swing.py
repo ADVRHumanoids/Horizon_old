@@ -134,7 +134,7 @@ G.set_constraint(g2, g_min2, g_max2)
 
 # INVERSE DYNAMICS CONSTRAINT
 dd = {'rope_anchor2': FRope}
-id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
+id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     -1000., -1000., -1000.,  # Contact 1
