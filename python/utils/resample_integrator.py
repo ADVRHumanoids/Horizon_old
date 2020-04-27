@@ -3,7 +3,32 @@ from horizon import *
 from utils.integrator import *
 from utils.inverse_dynamics import *
 
-def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn):
+def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn, force_reference_frame = cas_kin_dyn.CasadiKinDyn.LOCAL):
+    """
+    Resample solution to a different number of nodes, RK4 integrator is used for the resampling
+    Args:
+        X: state variable
+        U_integrator: control variable
+        time: final time
+        dt: resampled period
+        dae: a dictionary containing
+                'x': state
+                'p': control
+                'ode': a function of the state and control returning the derivative of the state
+                'quad': quadrature term
+        ID: Function.deserialize(kindyn.rnea()) TODO: remove, this can be taken from kindyn
+        dict: dictionary containing a map between frames and force variables e.g. {'lsole': F1}
+        kindyn: object of type casadi_kin_dyn
+        force_reference_frame: this is the frame which is used to compute the Jacobian during the ID computation:
+                LOCAL (default)
+                WORLD
+                LOCAL_WORLD_ALIGNED
+
+    Returns:
+        X_res: resampled state
+        Tau_res: resampled torques
+        TODO: add resampled controls!
+    """
 
     ns = np.size(X)
     nx = X[0].size1()
@@ -14,7 +39,7 @@ def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn):
     Tau_res = []
 
     for key in dict:
-        Jac = Function.deserialize(kindyn.jacobian(key, kindyn.LOCAL))
+        Jac = Function.deserialize(kindyn.jacobian(key, force_reference_frame))
 
     if np.size(time) == 1:
 
