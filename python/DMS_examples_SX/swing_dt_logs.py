@@ -103,8 +103,7 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 
 # FORMULATE DISCRETE TIME DYNAMICS
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
-F_integrator = LEAPFROG_time(dae, "SX")
-F_start = RK4_time(dae, "SX")
+F_integrator = RK4_time(dae, "SX")
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
@@ -136,7 +135,7 @@ G.set_constraint(g1, g_min1, g_max1)
 
 # MULTIPLE SHOOTING CONSTRAINT
 integrator_dict = {'x0': X, 'p': Qddot, 'time': Dt}
-multiple_shooting_constraint = multiple_shooting_LF(integrator_dict, F_start, F_integrator)
+multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
 
 g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)

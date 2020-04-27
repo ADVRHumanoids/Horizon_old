@@ -27,10 +27,6 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 # Inverse Dynamics
 ID = Function.deserialize(kindyn.rnea())
 
-# Jacobians
-Jac_waist = Function.deserialize(kindyn.jacobian('Waist'))
-Jac_CRope = Function.deserialize(kindyn.jacobian('rope_anchor2'))
-
 # OPTIMIZATION PARAMETERS
 ns = 30  # number of shooting nodes
 
@@ -192,7 +188,7 @@ for i in range(ns-1):
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res = resample_integrator(X, Qddot, dt_hist, dt, dae)
+X_res, Tau_res = resample_integrator(X, Qddot, tf, dt, dae, ID, dd, kindyn)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
