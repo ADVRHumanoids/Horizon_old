@@ -172,7 +172,7 @@ G.set_constraint(g2, g_min2, g_max2)
 # INVERSE DYNAMICS CONSTRAINT
 # dd = {'rope_anchor2': FRope}
 dd = {'rope_anchor2': FRope, 'Contact1': F1, 'Contact2': F2}
-id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn)
+id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     -1000., -1000., -1000.,  # Contact 1
@@ -240,7 +240,7 @@ G.set_constraint(g, g_min, g_max)
 
 opts = {'ipopt.tol': 0.001,
         'ipopt.constr_viol_tol': 0.001,
-        'ipopt.max_iter': 4000,
+        'ipopt.max_iter': 5000,
         'ipopt.linear_solver': 'ma57'}
 
 g, g_min, g_max = G.get_constraints()
@@ -266,7 +266,7 @@ for i in range(ns-1):
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res, Tau_res = resample_integrator(X, Qddot, tf, dt, dae, ID, dd, kindyn)
+X_res, Tau_res = resample_integrator(X, Qddot, tf, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
@@ -282,7 +282,7 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
-FKcomputer = kinematics(kindyn, Q)
+FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
 Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
 get_Contact1_pos = Function("get_Contact1_pos", [V], [Contact1_pos], ['V'], ['Contact1_pos'])
 Contact1_pos_hist = (get_Contact1_pos(V=w_opt)['Contact1_pos'].full().flatten()).reshape(ns, 3)
