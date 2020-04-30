@@ -9,7 +9,7 @@ def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn, force_
     Args:
         X: state variable
         U_integrator: control variable
-        time: final time
+        time: the final time (tf) or the vector of intermediate periods (dt_hist)
         dt: resampled period
         dae: a dictionary containing
                 'x': state
