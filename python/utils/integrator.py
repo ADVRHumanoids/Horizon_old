@@ -383,10 +383,9 @@ def RKF_time(dae, opts, casadi_type):
     X_RK = X_RK + c1 * k1 + c3 * k3 + c4 * k4 + c5 * k5
 
     # Compute the estimate of the local truncation error
-    R = mmax(fabs(r1 * k1 + r3 * k3 + r4 * k4 + r5 * k5 + r6 * k6) / DT_RK)
+    R = mmax(fabs(r1 * k1 + r3 * k3 + r4 * k4 + r5 * k5 + r6 * k6))
     # Now compute next step size
     TOL = opts['tol']
-    EPS = 1e-6
-    DT_RK = DT_RK *0.84 * (TOL / (R + EPS)) ** 0.25 # DT_RK = DT_RK * mmin(mmax(0.84 * (TOL / (R+EPS)) ** 0.25))
+    DT_RK = DT_RK * 0.84 * (TOL * DT_RK / R) ** 0.25
 
     return Function('F_RK', [X0_RK, U_RK, DT0_RK], [X_RK, DT_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'dtf', 'qf'])
