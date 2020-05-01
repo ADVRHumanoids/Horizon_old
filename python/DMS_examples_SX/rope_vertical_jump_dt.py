@@ -14,6 +14,7 @@ from utils.integrator import *
 from utils.kinematics import *
 from utils.normalize_quaternion import *
 from utils.conversions_to_euler import *
+from utils.dt_RKF import *
 
 logger = matl.MatLogger2('/tmp/rope_vertical_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -121,6 +122,10 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
 F_integrator = RK4_time(dae, 'SX')
 
+opts = {'tol': 1.e-5}
+#F_integrator = RKF_time(dae, opts, 'SX')
+F_integrator2 = RKF_time(dae, opts, 'SX')
+
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
 V = concat_states_and_controls({"X": X, "U": U})
@@ -133,36 +138,51 @@ touch_down_node = 60
 # SET UP COST FUNCTION
 J = SX([0])
 
+dict = {'x0':X, 'p':Qddot, 'time':Dt}
+variable_time = dt_RKF(dict, F_integrator2)
+Dt_RKF = variable_time.compute_nodes(0, ns-1)
+# min_dt = lambda k: (Dt[k]-Dt_RKF[k])*(Dt[k]-Dt_RKF[k])
+# J += cost_function(min_dt, 0, ns-1)
+
 q_trg = np.array([-.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0+foot_z_offset,
                   0.0, 0.0, 0.0+foot_z_offset,
                   0.0, 0.0, 0.0,
                   0.3]).tolist()
 
-K = 6.5*1e5
+K = 50.#1000.#6.5*1e5
 min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0])
 J += cost_function(min_qd, lift_node+1, touch_down_node)
 
-# min_qd2 = lambda k: K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
-# J += cost_function(min_qd2, lift_node+1, touch_down_node)
-
-min_qdot = lambda k: 100.*dot(Qdot[k][0:-1], Qdot[k][0:-1])
-J += cost_function(min_qdot, 0, ns)
-
-min_qddot = lambda k: 20.*dot(Qddot[k][0:-1], Qddot[k][0:-1])
-J += cost_function(min_qddot, 0, ns-1)
-
-min_q = lambda k: K*dot(Q[k], Q[k])
-J += cost_function(min_q, touch_down_node, ns)
-
-#min_FC = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
-#J += cost_functionSX(min_FC, 0, ns-1)
-
-# min_deltaFC = lambda k: 1*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1]), (F1[k]-F1[k-1])+(F2[k]-F2[k-1])) # min Fdot
-# J += cost_functionSX(min_deltaFC, 1, ns-1)
+x_init = q_init + qdot_init
+min_xinit = lambda k: 10.*dot(Qdot[k]-qdot_init, Qdot[k]-qdot_init)
+#J += cost_function(min_xinit, touch_down_node+1, ns)
 
 
-#min_deltaFRope = lambda k: 1.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+min_qd2 = lambda k: 10.*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
+#J += cost_function(min_qd2, lift_node+1, touch_down_node)
+#
+min_qdot = lambda k: 1.*dot(Qdot[k][6:12], Qdot[k][6:12])
+J += cost_function(min_qdot, lift_node+1, ns)
+#
+min_qddot = lambda k: .001*dot(Qddot[k], Qddot[k])
+#J += cost_function(min_qddot, 0, ns-1)
+#
+
+min_jerk = lambda k: 0.001*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
+# J += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
+
+# min_q = lambda k: 0.1*K*dot((Q[k]-q_init), (Q[k]-q_init))
+# J += cost_function(min_q, touch_down_node, ns)
+
+min_FC = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
+#J += cost_function(min_FC, 0, lift_node)
+
+min_deltaFC = lambda k: 1.*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1]), (F1[k]-F1[k-1])+(F2[k]-F2[k-1])) # min Fdot
+J += cost_function(min_deltaFC, touch_down_node+1, ns-1)
+
+#
+min_deltaFRope = lambda k: 0.02*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
 #J += cost_function(min_deltaFRope, 1, ns-1)
 
 # CONSTRAINTS
@@ -278,12 +298,13 @@ for i in range(ns-1):
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res, Tau_res = resample_integrator(X, Qddot, tf, dt, dae, ID, dd, kindyn)
+X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
-# NORMALIZE QUATERNION
-q_hist_res = normalize_quaternion(q_hist_res)
+
+get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
+tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
 
 # GET ADDITIONAL VARIABLES
 Tau = id.compute_nodes(0, ns-1)
@@ -294,7 +315,7 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
-FKcomputer = kinematics(kindyn, Q)
+FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
 Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
 get_Contact1_pos = Function("get_Contact1_pos", [V], [Contact1_pos], ['V'], ['Contact1_pos'])
 Contact1_pos_hist = (get_Contact1_pos(V=w_opt)['Contact1_pos'].full().flatten()).reshape(ns, 3)
@@ -315,12 +336,18 @@ Waist_rot_hist = rotation_matrix_to_euler(Waist_rot_hist)
 
 
 logger.add('Q_res', q_hist_res)
+logger.add('Tau_res', tau_hist_res)
 logger.add('Tau', tau_hist)
 logger.add('Tf', tf)
 logger.add('Contact1', Contact1_pos_hist)
 logger.add('Contact2', Contact2_pos_hist)
 logger.add('Waist_pos', Waist_pos_hist)
 logger.add('Waist_rot', Waist_rot_hist)
+
+get_Dt_RKF = Function("get_Dt_RKF", [V], [Dt_RKF], ['V'], ['Dt_RKF'])
+Dt_RKF_hist = get_Dt_RKF(V=w_opt)['Dt_RKF'].full().transpose()
+
+logger.add('Dt_RKF', Dt_RKF_hist)
 
 del(logger)
 

@@ -52,8 +52,6 @@ dt_min = 0.01
 dt_max = 0.08 #0.08
 dt_init = dt_min
 
-
-
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
 
 foot_z_offset = 0.#0.5
@@ -112,7 +110,7 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
 F_integrator = RK4_time(dae, 'SX')
 
-opts = {'tol': 1e-3}
+opts = {'tol': 1.e-5}
 #F_integrator = RKF_time(dae, opts, 'SX')
 F_integrator2 = RKF_time(dae, opts, 'SX')
 
@@ -128,10 +126,10 @@ touch_down_node = 60
 # SET UP COST FUNCTION
 J = SX([0])
 
-# dict = {'x0':X, 'p':Qddot, 'time':Dt}
-# variable_time = dt_RKF(dict, F_integrator2)
-# dt_ref = variable_time.compute_nodes(0, ns-1)
-# min_dt = lambda k: (Dt[k]-dt_ref[k])*(Dt[k]-dt_ref[k])
+dict = {'x0':X, 'p':Qddot, 'time':Dt}
+variable_time = dt_RKF(dict, F_integrator2)
+Dt_RKF = variable_time.compute_nodes(0, ns-1)
+# min_dt = lambda k: (Dt[k]-Dt_RKF[k])*(Dt[k]-Dt_RKF[k])
 # J += cost_function(min_dt, 0, ns-1)
 
 q_trg = np.array([-.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
@@ -348,17 +346,25 @@ X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn,
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
-# NORMALIZE QUATERNION
-q_hist_res = normalize_quaternion(q_hist_res)
+
+get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
+tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
+
 
 logger.add('Q_res', q_hist_res)
 logger.add('Tau', tau_hist)
+logger.add('Tau_res', tau_hist_res)
 logger.add('Tf', tf)
 logger.add('Contact1', Contact1_pos_hist)
 logger.add('Contact2', Contact2_pos_hist)
 logger.add('Waist_pos', Waist_pos_hist)
 logger.add('Waist_rot', Waist_rot_hist)
 logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
+
+get_Dt_RKF = Function("get_Dt_RKF", [V], [Dt_RKF], ['V'], ['Dt_RKF'])
+Dt_RKF_hist = get_Dt_RKF(V=w_opt)['Dt_RKF'].full().transpose()
+
+logger.add('Dt_RKF', Dt_RKF_hist)
 
 del(logger)
 
