@@ -230,6 +230,9 @@ get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
 
+get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
+tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
+
 # GET ADDITIONAL VARIABLES
 Tau = id.compute_nodes(0, ns-1)
 get_Tau = Function("get_Tau", [V], [Tau], ['V'], ['Tau'])
@@ -240,6 +243,7 @@ for k in solution_dict:
     logger.add(k, solution_dict[k])
 
 logger.add('Q_res', q_hist_res)
+logger.add('Tau_res', tau_hist_res)
 logger.add('Tau', tau_hist)
 logger.add('Tf', tf)
 

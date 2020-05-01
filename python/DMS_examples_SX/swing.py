@@ -295,8 +295,6 @@ logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
 #logger.add('FloatingBase_J', FloatingBase_J_hist)
 
 
-
-
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
 X_res, Tau_res = resample_integrator(X, Qddot, tf, dt, dae, ID, dd, kindyn)
