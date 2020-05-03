@@ -7,10 +7,34 @@ import rospy
 from utils.normalize_quaternion import *
 
 class replay_trajectory:
-    def __init__(self, dt, joint_list, q_replay):
+    def __init__(self, dt, joint_list, q_replay, contact_dict={}):
         self.dt = dt
         self.joint_list = joint_list
         self.q_replay = q_replay
+        self.contact_dict = contact_dict
+        self.force_pub = []
+
+
+    def publishContactForces(self, time, k):
+        i = 0
+        for frame in self.contact_dict:
+            f_msg = geometry_msgs.msg.WrenchStamped()
+            f_msg.header.stamp = time
+            f_msg.header.frame_id = frame
+
+            f = self.contact_dict[frame]
+
+            f_msg.wrench.force.x = f[k][0]
+            f_msg.wrench.force.y = f[k][1]
+            f_msg.wrench.force.z = f[k][2]
+
+            f_msg.wrench.torque.x = 0.
+            f_msg.wrench.torque.y = 0.
+            f_msg.wrench.torque.z = 0.
+
+            self.force_pub[i].publish(f_msg)
+            i += 1
+
 
     def replay(self):
         pub = rospy.Publisher('joint_states', JointState, queue_size=10)
@@ -30,6 +54,9 @@ class replay_trajectory:
 
         q_replay = normalize_quaternion(self.q_replay)
 
+        for key in self.contact_dict:
+            self.force_pub.append(rospy.Publisher(key+'_forces',geometry_msgs.msg.WrenchStamped, queue_size=1))
+
         while not rospy.is_shutdown():
             for k in range(int(round(n_res))):
                 qk = q_replay[k]
@@ -47,9 +74,11 @@ class replay_trajectory:
                                   m.transform.rotation.w),
                                  rospy.Time.now(), m.child_frame_id, m.header.frame_id)
 
-                joint_state_pub.header.stamp = rospy.Time.now()
+                t = rospy.Time.now()
+                joint_state_pub.header.stamp = t
                 joint_state_pub.position = qk[7:nq]
                 joint_state_pub.velocity = []
                 joint_state_pub.effort = []
                 pub.publish(joint_state_pub)
+                self.publishContactForces(t, k)
                 rate.sleep()

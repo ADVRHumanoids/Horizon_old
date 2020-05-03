@@ -342,7 +342,8 @@ BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_ang
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
+#X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
+X_res, U_res, Tau_res = resample_integrator_with_controls(X, U, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
@@ -351,7 +352,16 @@ get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
 tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
 
 
+
+get_U_res = Function("get_U_res", [V], [U_res], ['V'], ['U_res'])
+u_hist_res = get_U_res(V=w_opt)['U_res'].full()
+F1_hist_res = (u_hist_res[nv:nv+3, :]).transpose()
+F2_hist_res = (u_hist_res[nv+3:nv+6, :]).transpose()
+
+
 logger.add('Q_res', q_hist_res)
+logger.add('F1_res', F1_hist_res)
+logger.add('F2_res', F1_hist_res)
 logger.add('Tau', tau_hist)
 logger.add('Tau_res', tau_hist_res)
 logger.add('Tf', tf)
@@ -457,10 +467,10 @@ plt.savefig("rope_jump_feet_norm_comparison.pdf", format="pdf")
 
 
 plt.figure(4, figsize=(15, 13))
-plt.suptitle('$\mathrm{Control Action}$', size=20)
+plt.suptitle('$\mathrm{Control \ Action}$', size=20)
 ###forces
 ax1 = plt.subplot(211)
-ax1.set_title('$\mathrm{Contact Forces}$', size=20)
+ax1.set_title('$\mathrm{Contact \ Forces}$', size=20)
 plt.xticks(time, labels)
 k = 0
 for F1 in F1_hist:
@@ -503,7 +513,7 @@ ax1.legend(loc='lower center', fancybox=True, framealpha=0.5, prop={'size':20}, 
 
 ### acc
 ax2 = plt.subplot(212)
-ax2.set_title('$\mathrm{Leg Accelerations}$', size=20)
+ax2.set_title('$\mathrm{Leg \ Accelerations}$', size=20)
 plt.xticks(time, labels)
 k = 0
 for qddot in Qddot_hist:
@@ -563,4 +573,6 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
               'rope_joint']
 
-replay_trajectory(dt, joint_list, q_hist_res).replay()
+contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
+
+replay_trajectory(dt, joint_list, q_hist_res, contact_dict).replay()
