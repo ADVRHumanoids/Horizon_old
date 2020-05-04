@@ -2,26 +2,108 @@ from horizon import *
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 
 class contact(constraint_class):
+    """
+    Position constraint on a desired link given a joint space desired position
+    """
     def __init__(self, FKlink, Q, qinit):
+        """
+        Constructor
+        Args:
+            FKlink: forward kinematics function
+            Q: position state variables
+            qinit: desired joint space variables to evaluate in forwad kineamtics
+        """
         self.FKlink = FKlink
         self.Q = Q
         self.qinit = qinit
 
     def virtual_method(self, k):
+        """
+        Compute constraint at given node
+        Args:
+            k: node
+        """
         CLink_pos_init = self.FKlink(q=self.qinit)['ee_pos']
         CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
         self.gk = [CLink_pos - CLink_pos_init]
         self.g_mink = np.array([0., 0., 0.]).tolist()
         self.g_maxk = np.array([0., 0., 0.]).tolist()
 
+class surface_contact(constraint_class):
+    """
+    Position constraint to lies into a plane: ax + by + cz +d = 0 together with 0 Cartesian velocity of the contact
+    """
+    def __init__(self, plane_dict, FKlink, Q, Jac, Qdot):
+        """
+        Constructor
+        Args:
+            plane_dict: which contains following variables:
+                a
+                b
+                c
+                d
+                to define the plane ax + by + cz +d = 0
+            FKlink: forward kinematics function of desired link
+            Q: position state variables
+            Jac: Jacobian function of the link
+            Qdot: velocity state variables
+        """
+        self.P = np.array([0., 0., 0.])
+        self.d = 0.
+
+        if 'a' in plane_dict:
+            self.P[0] = plane_dict['a']
+        if 'b' in plane_dict:
+            self.P[1] = plane_dict['b']
+        if 'c' in plane_dict:
+            self.P[2] = plane_dict['c']
+
+        if 'd' in plane_dict:
+            self.d = plane_dict['d']
+
+        self.FKlink = FKlink
+        self.Jac = Jac
+        self.Q = Q
+        self.Qdot = Qdot
+
+    def virtual_method(self, k):
+        """
+            Compute constraint at given node
+            Args:
+                k: node
+        """
+        CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
+        CLink_jac = self.Jac(q=self.Q[k])['J'] #TODO: also orientations are locked!
+
+        self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac, self.Qdot[k])]
+        self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+        self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+
 
 class linearized_friction_cone(constraint_class):
+    """
+    Friction cone constraint
+    """
     def __init__(self, Force, mu, Rot):
+        """
+        Constructor
+        Args:
+            Force: control variable
+            mu: friction coefficient
+            Rot: rotation matrix associated to friction cone
+
+        TODO: Add constructor for normal/plane input
+        """
         self.F = Force
         self.mu = mu
         self.R = Rot
 
     def virtual_method(self, k):
+        """
+            Compute constraint at given node
+            Args:
+                k: node
+        """
 
         mu_lin = self.mu / 2.0 * sqrt(2.0)
 
@@ -43,16 +125,39 @@ class linearized_friction_cone(constraint_class):
         self.g_maxk = np.array([0., 0., 0., 0., 0.]).tolist()
 
 class remove_contact(constraint_class):
+    """
+    Class which imposes zero forces to a contact forces
+    """
     def __init__(self, Force):
+        """
+        Constructor
+        Args:
+            Force: control variable
+        """
         self.F = Force
 
     def virtual_method(self, k):
+        """
+            Compute constraint at given node
+            Args:
+                k: node
+        """
+
         self.gk = [self.F[k]]
         self.g_mink = np.array([0., 0., 0.]).tolist()
         self.g_maxk = np.array([0., 0., 0.]).tolist()
 
 class contact_handler(constraint_class):
+    """
+    Class to handle contact switching (kinematic part and force)
+    """
     def __init__(self, FKlink, Force):
+        """
+        Constructor
+        Args:
+            FKlink: forward kinematics of link in contact
+            Force: force control variable associated to link in contact
+        """
         self.FKlink = FKlink
 
         self.Force = Force
@@ -77,11 +182,18 @@ class contact_handler(constraint_class):
     def setContact(self, Q, q_contact):
         self.kinematic_contact = contact(self.FKlink, Q, q_contact)
 
+    def setSurfaceContact(self, plane_dict, Q, Jac, Qdot):
+        self.kinematic_contact = surface_contact(plane_dict, self.FKlink, Q, Jac, Qdot)
+
     def setFrictionCone(self, mu, Rot):
         self.friction_cone = linearized_friction_cone(self.Force, mu, Rot)
 
     def setContactAndFrictionCone(self, Q, q_contact, mu, Rot):
         self.setContact(Q, q_contact)
+        self.setFrictionCone(mu, Rot)
+
+    def setSurfaceContactAndFrictionCone(self, Q, plane_dict, Jac, Qdot, mu, Rot): #TODO: remove Rot, can be extracted from plane_dict!
+        self.setSurfaceContact(plane_dict, Q, Jac, Qdot)
         self.setFrictionCone(mu, Rot)
 
     def removeContact(self):
