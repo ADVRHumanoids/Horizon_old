@@ -15,6 +15,8 @@ from utils.kinematics import *
 from utils.normalize_quaternion import *
 from utils.conversions_to_euler import *
 from utils.dt_RKF import *
+import matplotlib.pyplot as plt
+
 
 logger = matl.MatLogger2('/tmp/rope_vertical_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -164,7 +166,7 @@ J += cost_function(min_qdot_legs, lift_node+1, touch_down_node)
 min_qd2 = lambda k: 10.*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
 #J += cost_function(min_qd2, lift_node+1, touch_down_node)
 #
-min_qdot = lambda k: 1.*dot(Qdot[k][0:6], Qdot[k][0:6])
+min_qdot = lambda k: 10.*dot(Qdot[k][0:6], Qdot[k][0:6])
 J += cost_function(min_qdot, lift_node+1, ns)
 #
 min_qddot = lambda k: .001*dot(Qddot[k], Qddot[k])
@@ -304,6 +306,11 @@ solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1'
 q_hist = solution_dict['Q']
 q_hist = normalize_quaternion(q_hist)
 
+F1_hist = solution_dict['F1']
+F2_hist = solution_dict['F2']
+Qddot_hist = solution_dict['Qddot']
+
+
 dt_hist = solution_dict['Dt']
 
 tf = 0.0
@@ -313,13 +320,20 @@ for i in range(ns-1):
 
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
-X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn)
+#X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn)
+X_res, U_res, Tau_res = resample_integrator_with_controls(X, U, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
 
 get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
 tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
+
+get_U_res = Function("get_U_res", [V], [U_res], ['V'], ['U_res'])
+u_hist_res = get_U_res(V=w_opt)['U_res'].full()
+F1_hist_res = (u_hist_res[nv:nv+3, :]).transpose()
+F2_hist_res = (u_hist_res[nv+3:nv+6, :]).transpose()
+
 
 # GET ADDITIONAL VARIABLES
 Tau = id.compute_nodes(0, ns-1)
@@ -349,6 +363,16 @@ Waist_rot_hist = (get_Waist_rot(V=w_opt)['Waist_rot'].full().flatten()).reshape(
 # CONVERSION TO EULER ANGLES
 Waist_rot_hist = rotation_matrix_to_euler(Waist_rot_hist)
 
+BaseLink_pos = FKcomputer.computeFK('base_link', 'ee_pos', 0, ns)
+get_BaseLink_pos = Function("base_link", [V], [BaseLink_pos], ['V'], ['BaseLink_pos'])
+BaseLink_pos_hist = (get_BaseLink_pos(V=w_opt)['BaseLink_pos'].full().flatten()).reshape(ns, 3)
+
+BaseLink_vel_angular = FKcomputer.computeDiffFK('base_link', 'ee_vel_angular', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_BaseLink_vel_angular = Function("get_BaseLink_vel_angular", [V], [BaseLink_vel_angular], ['V'], ['BaseLink_vel_angular'])
+BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_angular'].full().flatten()).reshape(ns, 3)
+
+
+
 
 logger.add('Q_res', q_hist_res)
 logger.add('Tau_res', tau_hist_res)
@@ -366,10 +390,201 @@ logger.add('Dt_RKF', Dt_RKF_hist)
 
 del(logger)
 
+#PLOTS
+goal = q_final[-1]*np.ones(ns)
+time  = [0]
+labels = [str(time[0])]
+#ticks = [3,5,7,57,69, 70]
+ticks = []
+k = 1
+for i in dt_hist:
+    time.append(time[k-1] + i)
+    if k in ticks:
+        l = '%s' % float('%.2g' % time[k])
+        labels.append(l)
+    else:
+        labels.append("")
+    k+=1
+
+
+plt.figure(1)
+plt.suptitle('$\mathrm{Rope \ - \ Length}$', size=20)
+plt.plot(time, q_hist[:,-1], linewidth=3.0, color='blue', label='$\mathrm{q_r}$')
+plt.plot(time, BaseLink_pos_hist[:,0], linewidth=3.0, color='black', linestyle='--', label='$\mathrm{floating \ - \ base \ x}$')
+plt.plot(time, goal, linewidth=3.0, color='red', linestyle='--', label='$\mathrm{q_r^{des}}$')
+plt.xticks(time, labels)
+axes = plt.gca()
+#axes.set_ylim([-0.5, 0.3])
+plt.grid()
+plt.xlabel('$\mathrm{[sec]}$', size=20)
+plt.ylabel('$\mathrm{[m]}$', size=20)
+axes.legend(loc='lower right', fancybox=True, framealpha=0.5, prop={'size':20})
+
+plt.savefig("rope_vertical_jump_rope_length.pdf", format="pdf")
+##
+
+plt.figure(2)
+plt.suptitle('$\mathrm{Floating \ Base \ \omega_y \ Trajectory}$', size=20)
+plt.plot(time, BaseLink_vel_angular_hist[:,1], linewidth=3.0, color='blue')
+plt.xticks(time, labels)
+plt.grid()
+plt.xlabel('$\mathrm{[sec]}$', size=20)
+plt.ylabel('$\mathrm{[\\frac{rad}{sec}]}$', size=20)
+
+plt.savefig("rope_vertical_jump_omega_x.pdf", format="pdf")
+##
+
+plt.figure(3, figsize=(15, 13))
+plt.suptitle('$\mathrm{Feet: \ Contact \ Force \ X \ VS \ Position \ X}$', size=20)
+ax1 = plt.subplot(211)
+ax1.set_title('$\mathrm{Right}$', size=20)
+plt.xticks(time, labels)
+y1_color = 'black'
+ax1.tick_params(axis='y', labelcolor=y1_color)
+k = 0
+for F1 in F1_hist:
+    ax1.hlines(y=F1[0], xmin=time[k], xmax=time[k+1], linewidth=3, color=y1_color)
+    k += 1
+for k in range(1, len(time)-1):
+    ax1.vlines(x=time[k], ymin=F1_hist[k-1][0], ymax=F1_hist[k][0], linewidth=3, color=y1_color)
+ax1.grid()
+ax1.set_xlabel('$\mathrm{[sec]}$', size=20)
+ax1.set_ylabel('$\mathrm{[N]}$', size=20)
+
+
+ax2 = ax1.twinx()
+y2_color = 'blue'
+ax2.tick_params(axis='y', labelcolor=y2_color)
+ax2.plot(time, Contact1_pos_hist[:,0], linewidth=3.0, color=y2_color, linestyle='--')
+ax2.set_ylabel('$\mathrm{[m]}$', size=20, color=y2_color)
+##
+ax1 = plt.subplot(212)
+ax1.set_title('$\mathrm{Left}$', size=20)
+y1_color = 'black'
+ax1.tick_params(axis='y', labelcolor=y1_color)
+plt.xticks(time, labels)
+k = 0
+for F2 in F2_hist:
+    ax1.hlines(y=F2[0], xmin=time[k], xmax=time[k+1], linewidth=3, color=y1_color)
+    k += 1
+for k in range(1, len(time)-1):
+    ax1.vlines(x=time[k], ymin=F2_hist[k-1][0], ymax=F2_hist[k][0], linewidth=3, color=y1_color)
+ax1.grid()
+ax1.set_xlabel('$\mathrm{[sec]}$', size=20)
+ax1.set_ylabel('$\mathrm{[N]}$', size=20)
+
+ax2 = ax1.twinx()
+y2_color = 'blue'
+ax2.tick_params(axis='y', labelcolor=y2_color)
+ax2.plot(time, Contact2_pos_hist[:,0], linewidth=3.0, color=y2_color, linestyle='--')
+ax2.set_ylabel('$\mathrm{[m]}$', size=20, color=y2_color)
+
+
+plt.savefig("rope_vertical_jump_feet_norm_comparison.pdf", format="pdf")
+##
+
+plt.figure(4, figsize=(15, 13))
+plt.suptitle('$\mathrm{Control \ Action}$', size=20)
+###forces
+ax1 = plt.subplot(211)
+ax1.set_title('$\mathrm{Contact \ Forces}$', size=20)
+plt.xticks(time, labels)
+k = 0
+for F1 in F1_hist:
+    if k == 0:
+        ax1.hlines(y=F1[0], xmin=time[k], xmax=time[k+1], linewidth=3, color='r', label='$\mathrm{F_{Cr,x}}$')
+        ax1.hlines(y=F1[1], xmin=time[k], xmax=time[k + 1], linewidth=3, color='g', label='$\mathrm{F_{Cr,y}}$')
+        ax1.hlines(y=F1[2], xmin=time[k], xmax=time[k + 1], linewidth=3, color='b', label='$\mathrm{F_{Cr,z}}$')
+    else:
+        ax1.hlines(y=F1[0], xmin=time[k], xmax=time[k + 1], linewidth=3, color='r')
+        ax1.hlines(y=F1[1], xmin=time[k], xmax=time[k + 1], linewidth=3, color='g')
+        ax1.hlines(y=F1[2], xmin=time[k], xmax=time[k + 1], linewidth=3, color='b')
+    k += 1
+
+k = 0
+for F2 in F2_hist:
+    if k == 0:
+        ax1.hlines(y=F2[0], xmin=time[k], xmax=time[k+1], linewidth=3, color='c', linestyle='--', label='$\mathrm{F_{Cl,x}}$')
+        ax1.hlines(y=F2[1], xmin=time[k], xmax=time[k + 1], linewidth=3, color='m', linestyle='--', label='$\mathrm{F_{Cl,y}}$')
+        ax1.hlines(y=F2[2], xmin=time[k], xmax=time[k + 1], linewidth=3, color='k', linestyle='--', label='$\mathrm{F_{Cl,z}}$')
+    else:
+        ax1.hlines(y=F2[0], xmin=time[k], xmax=time[k + 1], linewidth=3, color='c', linestyle='--')
+        ax1.hlines(y=F2[1], xmin=time[k], xmax=time[k + 1], linewidth=3, color='m', linestyle='--')
+        ax1.hlines(y=F2[2], xmin=time[k], xmax=time[k + 1], linewidth=3, color='k', linestyle='--')
+    k += 1
+
+for k in range(1, len(time)-1):
+    ax1.vlines(x=time[k], ymin=F1_hist[k-1][0], ymax=F1_hist[k][0], linewidth=3, color='r')
+    ax1.vlines(x=time[k], ymin=F1_hist[k - 1][1], ymax=F1_hist[k][1], linewidth=3, color='g')
+    ax1.vlines(x=time[k], ymin=F1_hist[k - 1][2], ymax=F1_hist[k][2], linewidth=3, color='b')
+
+for k in range(1, len(time)-1):
+    ax1.vlines(x=time[k], ymin=F2_hist[k-1][0], ymax=F2_hist[k][0], linewidth=3, color='c', linestyle='--')
+    ax1.vlines(x=time[k], ymin=F2_hist[k - 1][1], ymax=F2_hist[k][1], linewidth=3, color='m', linestyle='--')
+    ax1.vlines(x=time[k], ymin=F2_hist[k - 1][2], ymax=F2_hist[k][2], linewidth=3, color='k', linestyle='--')
+
+ax1.grid()
+ax1.set_xlabel('$\mathrm{[sec]}$', size=20)
+ax1.set_ylabel('$\mathrm{[N]}$', size=20)
+ax1.legend(loc='lower center', fancybox=True, framealpha=0.5, prop={'size':20}, ncol=3)
+
+### acc
+ax2 = plt.subplot(212)
+ax2.set_title('$\mathrm{Leg \ Accelerations}$', size=20)
+plt.xticks(time, labels)
+k = 0
+for qddot in Qddot_hist:
+    if k == 0:
+        ax2.hlines(y=qddot[6], xmin=time[k], xmax=time[k+1], linewidth=3, color='r', label='$\mathrm{\ddot{q}_{lr,1}}$')
+        ax2.hlines(y=qddot[7], xmin=time[k], xmax=time[k + 1], linewidth=3, color='g', label='$\mathrm{\ddot{q}_{lr,2}}$')
+        ax2.hlines(y=qddot[8], xmin=time[k], xmax=time[k + 1], linewidth=3, color='b', label='$\mathrm{\ddot{q}_{lr,3}}$')
+    else:
+        ax2.hlines(y=qddot[6], xmin=time[k], xmax=time[k + 1], linewidth=3, color='r')
+        ax2.hlines(y=qddot[7], xmin=time[k], xmax=time[k + 1], linewidth=3, color='g')
+        ax2.hlines(y=qddot[8], xmin=time[k], xmax=time[k + 1], linewidth=3, color='b')
+    k += 1
+
+k = 0
+for qddot in Qddot_hist:
+    if k == 0:
+        ax2.hlines(y=qddot[9], xmin=time[k], xmax=time[k+1], linewidth=3, color='c', linestyle='--', label='$\mathrm{\ddot{q}_{ll,1}}$')
+        ax2.hlines(y=qddot[10], xmin=time[k], xmax=time[k + 1], linewidth=3, color='m', linestyle='--', label='$\mathrm{\ddot{q}_{ll,2}}$')
+        ax2.hlines(y=qddot[11], xmin=time[k], xmax=time[k + 1], linewidth=3, color='k', linestyle='--', label='$\mathrm{\ddot{q}_{ll,3}}$')
+    else:
+        ax2.hlines(y=qddot[9], xmin=time[k], xmax=time[k + 1], linewidth=3, color='c', linestyle='--')
+        ax2.hlines(y=qddot[10], xmin=time[k], xmax=time[k + 1], linewidth=3, color='m', linestyle='--')
+        ax2.hlines(y=qddot[11], xmin=time[k], xmax=time[k + 1], linewidth=3, color='k', linestyle='--')
+    k += 1
+
+for k in range(1, len(time)-1):
+    ax2.vlines(x=time[k], ymin=Qddot_hist[k-1][6], ymax=Qddot_hist[k][6], linewidth=3, color='r')
+    ax2.vlines(x=time[k], ymin=Qddot_hist[k - 1][7], ymax=Qddot_hist[k][7], linewidth=3, color='g')
+    ax2.vlines(x=time[k], ymin=Qddot_hist[k - 1][8], ymax=Qddot_hist[k][8], linewidth=3, color='b')
+
+for k in range(1, len(time)-1):
+    ax2.vlines(x=time[k], ymin=Qddot_hist[k-1][9], ymax=Qddot_hist[k][9], linewidth=3, color='c', linestyle='--')
+    ax2.vlines(x=time[k], ymin=Qddot_hist[k - 1][10], ymax=Qddot_hist[k][10], linewidth=3, color='m', linestyle='--')
+    ax2.vlines(x=time[k], ymin=Qddot_hist[k - 1][11], ymax=Qddot_hist[k][11], linewidth=3, color='k', linestyle='--')
+
+ax2.grid()
+ax2.set_xlabel('$\mathrm{[sec]}$', size=20)
+ax2.set_ylabel('$\mathrm{[\\frac{rad}{sec^2}]}$', size=20)
+ax2.legend(loc='lower center', fancybox=True, framealpha=0.5, prop={'size':20}, ncol=3)
+
+
+
+plt.savefig("rope_vertical_jump_force.pdf", format="pdf")
+
+
+plt.show()
+
+
 # REPLAY TRAJECTORY
 joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'Contact2_x', 'Contact2_y', 'Contact2_z',
               'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
               'rope_joint']
 
-replay_trajectory(dt, joint_list, q_hist_res).replay()
+contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
+
+replay_trajectory(dt, joint_list, q_hist_res, contact_dict).replay()
