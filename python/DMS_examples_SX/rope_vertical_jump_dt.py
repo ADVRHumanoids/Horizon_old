@@ -54,13 +54,13 @@ t_final = ns*dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
 
-foot_z_offset = 0.#0.5
+foot_z_offset = 0.3
 
-jump_length = 0.6
+jump_length = 1.
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
-                  -0.3, -0.1, -0.1+foot_z_offset,  # Contact 1
-                  -0.3, -0.05, -0.1+foot_z_offset,  # Contact 2
+                  -0.3, -0.1, -0.1, #+foot_z_offset,  # Contact 1
+                  -0.3, -0.05, -0.1, #+foot_z_offset,  # Contact 2
                   -1.57, -1.57, -3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
@@ -74,8 +74,8 @@ alpha = 0.3
 rope_init_lenght = 0.3
 x_foot = rope_init_lenght * np.sin(alpha)
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                   x_foot, 0., 0.+foot_z_offset,
-                   x_foot, 0., 0.+foot_z_offset,
+                   x_foot, 0., 0.,
+                   x_foot, 0., 0.,
                    0., alpha, 0.,
                    rope_init_lenght]).tolist()
 print "q_init: ", q_init
@@ -144,41 +144,43 @@ Dt_RKF = variable_time.compute_nodes(0, ns-1)
 # min_dt = lambda k: (Dt[k]-Dt_RKF[k])*(Dt[k]-Dt_RKF[k])
 # J += cost_function(min_dt, 0, ns-1)
 
-q_trg = np.array([-.4, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+q_trg = np.array([-.6, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0+foot_z_offset,
                   0.0, 0.0, 0.0+foot_z_offset,
                   0.0, 0.0, 0.0,
-                  0.3]).tolist()
+                  q_final[-1]]).tolist()
 
-K = 50.#1000.#6.5*1e5
-min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0])
+K = 100.#1000.#6.5*1e5
+min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1])
 J += cost_function(min_qd, lift_node+1, touch_down_node)
 
 x_init = q_init + qdot_init
 min_xinit = lambda k: 10.*dot(Qdot[k]-qdot_init, Qdot[k]-qdot_init)
 #J += cost_function(min_xinit, touch_down_node+1, ns)
 
+min_qdot_legs = lambda k: 1.*dot(Qdot[k][6:12], Qdot[k][6:12])
+J += cost_function(min_qdot_legs, lift_node+1, touch_down_node)
 
 min_qd2 = lambda k: 10.*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
 #J += cost_function(min_qd2, lift_node+1, touch_down_node)
 #
-min_qdot = lambda k: 1.*dot(Qdot[k][6:12], Qdot[k][6:12])
+min_qdot = lambda k: 1.*dot(Qdot[k][0:6], Qdot[k][0:6])
 J += cost_function(min_qdot, lift_node+1, ns)
 #
 min_qddot = lambda k: .001*dot(Qddot[k], Qddot[k])
 #J += cost_function(min_qddot, 0, ns-1)
 #
 
-min_jerk = lambda k: 0.001*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
-# J += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
+min_jerk = lambda k: 0.0003*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
+# J += cost_function(min_jerk, 0, touch_down_node) # <- this smooths qddot solution
 
-# min_q = lambda k: 0.1*K*dot((Q[k]-q_init), (Q[k]-q_init))
+min_q = lambda k: 0.1*K*dot((Q[k]-q_init), (Q[k]-q_init))
 # J += cost_function(min_q, touch_down_node, ns)
 
 min_FC = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
 #J += cost_function(min_FC, 0, lift_node)
 
-min_deltaFC = lambda k: 1.*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1]), (F1[k]-F1[k-1])+(F2[k]-F2[k-1])) # min Fdot
+min_deltaFC = lambda k: 0.001*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1]), (F1[k]-F1[k-1])+(F2[k]-F2[k-1])) # min Fdot
 J += cost_function(min_deltaFC, touch_down_node+1, ns-1)
 
 #
@@ -260,14 +262,27 @@ contact_handler_F2.removeContact()
 g, g_min, g_max = constraint(contact_handler_F2, lift_node+1, touch_down_node)
 G.set_constraint(g, g_min, g_max)
 
-# TOUCH DOWN
-contact_handler_F1.setContactAndFrictionCone(Q, q_final, mu, R_wall)
-g, g_min, g_max = constraint(contact_handler_F1, touch_down_node, ns)
-G.set_constraint(g, g_min, g_max)
+# # TOUCH DOWN
+# contact_handler_F1.setContactAndFrictionCone(Q, q_final, mu, R_wall)
+# g, g_min, g_max = constraint(contact_handler_F1, touch_down_node, ns)
+# G.set_constraint(g, g_min, g_max)
+#
+# contact_handler_F2.setContactAndFrictionCone(Q, q_final, mu, R_wall)
+# g, g_min, g_max = constraint(contact_handler_F2, touch_down_node, ns)
+# G.set_constraint(g, g_min, g_max)
 
-contact_handler_F2.setContactAndFrictionCone(Q, q_final, mu, R_wall)
-g, g_min, g_max = constraint(contact_handler_F2, touch_down_node, ns)
-G.set_constraint(g, g_min, g_max)
+# TOUCH DOWN
+surface_dict = {'a': 1., 'd': -x_foot}
+Jac1 = Function.deserialize(kindyn.jacobian('Contact1', kindyn.LOCAL))
+Jac2 = Function.deserialize(kindyn.jacobian('Contact2', kindyn.LOCAL))
+
+contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
+g14, g_min14, g_max14 = constraint(contact_handler_F1, touch_down_node, ns)
+G.set_constraint(g14, g_min14, g_max14)
+
+contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
+g1111, g_min1111, g_max1111 = constraint(contact_handler_F2, touch_down_node, ns)
+G.set_constraint(g1111, g_min1111, g_max1111)
 
 
 opts = {'ipopt.tol': 0.001,
