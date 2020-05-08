@@ -280,13 +280,13 @@ logger.add('w_opt', w_opt)
 # logger.add('Waist_rot', Waist_rot_hist)
 # logger.add('fb_pos', q_hist[:, 0:3])
 # logger.add('fb_rot', quaternion_to_euler(q_hist[:, 3:7]))
-logger.add('MasterPoint', MasterPoint_pos_hist)
+logger.add('MasterPoint_pos_hist', MasterPoint_pos_hist)
 logger.add('MasterPoint_rot', MasterPoint_rot_hist)
 logger.add('MasterPoint_vel_lin', MasterPoint_vel_linear_hist)
 logger.add('MasterPoint_vel_ang', MasterPoint_vel_angular_hist)
 # logger.add('MasterPoint_acc', MasterPoint_acc_linear_hist)
 logger.add('AnchorPoint', AnchorPoint_pos_hist)
-logger.add('CoM_pos', CoM_pos_hist)
+logger.add('CoM_pos_hist', CoM_pos_hist)
 logger.add('CoM_vel', CoM_vel_hist)
 logger.add('CoM_acc', CoM_acc_hist)
 logger.add('BaseLink', BaseLink_pos_hist)
@@ -308,14 +308,22 @@ tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
 logger.add('Q_res', q_hist_res)
 logger.add('Tau_res', tau_hist_res)
 
+
+time = np.arange(0.0, tf, tf/ns)
+total_energy = KE_hist + PE_hist
+
+logger.add('time', time)
+logger.add('KE_hist', KE_hist)
+logger.add('PE_hist', PE_hist)
+logger.add('total_energy', total_energy)
+
+
 del(logger)
 
 
 #### PLOTS ####
 PLOT = True
 if PLOT:
-    time = np.arange(0.0, tf, tf/ns)
-    total_energy = KE_hist + PE_hist
 
     plt.figure(1)
     plt.suptitle('$\mathrm{Energy}$', size=20)

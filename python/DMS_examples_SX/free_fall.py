@@ -15,7 +15,7 @@ from utils.kinematics import *
 import matplotlib.pyplot as plt
 import decimal
 
-FREE_FALL = True
+FREE_FALL = False
 
 logger = []
 if FREE_FALL:
@@ -232,11 +232,8 @@ tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
 for k in solution_dict:
     logger.add(k, solution_dict[k])
 
-logger.add('Q_res', q_hist_res)
-logger.add('Tau_res', tau_hist_res)
-logger.add('Tau', tau_hist)
-
-del(logger)
+#logger.add('Q_res', q_hist_res)
+#logger.add('Tau_res', tau_hist_res)
 
 FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
 ContactRope_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
@@ -244,10 +241,19 @@ get_ContactRope_pos = Function("get_ContactRope_pos", [V], [ContactRope_pos], ['
 ContactRope_pos_hist = (get_ContactRope_pos(V=w_opt)['ContactRope_pos'].full().flatten()).reshape(ns, 3)
 
 
+logger.add('ContactRope_pos_hist', ContactRope_pos_hist)
+logger.add('q_hist', q_hist)
+logger.add('tau_hist', tau_hist)
+
+time = np.arange(0.0, tf, tf/ns)
+logger.add('time', time)
+
+del(logger)
+
 #### PLOTS ####
 PLOT = True
 if PLOT:
-    time = np.arange(0.0, tf, tf/ns)
+
 
     if FREE_FALL:
         plt.figure(1) ### Rope anchor point

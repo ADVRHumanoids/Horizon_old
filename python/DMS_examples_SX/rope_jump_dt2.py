@@ -357,6 +357,11 @@ BaseLink_vel_angular = FKcomputer.computeDiffFK('base_link', 'ee_vel_angular', k
 get_BaseLink_vel_angular = Function("get_BaseLink_vel_angular", [V], [BaseLink_vel_angular], ['V'], ['BaseLink_vel_angular'])
 BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_angular'].full().flatten()).reshape(ns, 3)
 
+BaseLink_vel_linear = FKcomputer.computeDiffFK('base_link', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
+BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linear'].full().flatten()).reshape(ns, 3)
+
+
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
 #X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
@@ -378,28 +383,38 @@ F2_hist_res = (u_hist_res[nv+3:nv+6, :]).transpose()
 
 logger.add('Q_res', q_hist_res)
 logger.add('F1_res', F1_hist_res)
-logger.add('F2_res', F1_hist_res)
+logger.add('F2_res', F2_hist_res)
+logger.add('F1_hist', F1_hist)
+logger.add('F2_hist', F2_hist)
 logger.add('Tau', tau_hist)
 logger.add('Tau_res', tau_hist_res)
 logger.add('Tf', tf)
-logger.add('Contact1', Contact1_pos_hist)
-logger.add('Contact2', Contact2_pos_hist)
+logger.add('Contact1_pos_hist', Contact1_pos_hist)
+logger.add('Contact2_pos_hist', Contact2_pos_hist)
 logger.add('Waist_pos', Waist_pos_hist)
 logger.add('Waist_rot', Waist_rot_hist)
-logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
+logger.add('BaseLink_vel_ang_hist', BaseLink_vel_angular_hist)
+logger.add('BaseLink_vel_lin_hist', BaseLink_vel_linear_hist)
+logger.add('BaseLink_pos_hist', BaseLink_pos_hist)
+logger.add('qddot_hist', Qddot_hist)
+
 
 get_Dt_RKF = Function("get_Dt_RKF", [V], [Dt_RKF], ['V'], ['Dt_RKF'])
 Dt_RKF_hist = get_Dt_RKF(V=w_opt)['Dt_RKF'].full().transpose()
 
 logger.add('Dt_RKF', Dt_RKF_hist)
 
+goal = q_trg[0]*np.ones(ns)
+logger.add('goal', goal)
+
+
+
 del(logger)
 
 #PLOTS
-goal = q_trg[0]*np.ones(ns)
 time  = [0]
 labels = [str(time[0])]
-ticks = [3,5,7,57,69, 70]
+ticks = [3,7,10,57,69, 70]
 k = 1
 for i in dt_hist:
     time.append(time[k-1] + i)
@@ -425,12 +440,14 @@ plt.ylabel('$\mathrm{[m]}$', size=20)
 plt.savefig("rope_jump2_x_trj.pdf", format="pdf")
 
 plt.figure(2)
-plt.suptitle('$\mathrm{Floating \ Base \ \omega_y \ Trajectory}$', size=20)
-plt.plot(time, BaseLink_vel_angular_hist[:,1], linewidth=3.0, color='blue')
+plt.suptitle('$\mathrm{Floating \ Base \ v_x \ and \ \omega_y \ Trajectory}$', size=20)
+plt.plot(time, BaseLink_vel_angular_hist[:,1], linewidth=3.0, color='blue', label='$\mathrm{\omega_{fb,y}}$' )
+plt.plot(time, BaseLink_vel_linear_hist[:,0], linewidth=3.0, color='red', label='$\mathrm{\dot{p}_{fb,x}}$')
 plt.xticks(time, labels)
 plt.grid()
 plt.xlabel('$\mathrm{[sec]}$', size=20)
 plt.ylabel('$\mathrm{[\\frac{rad}{sec}]}$', size=20)
+plt.legend(loc='lower right', fancybox=True, framealpha=0.5, prop={'size':20}, ncol=3)
 
 plt.savefig("rope_jump2_omega_x.pdf", format="pdf")
 

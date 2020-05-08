@@ -173,8 +173,8 @@ min_qddot = lambda k: .001*dot(Qddot[k], Qddot[k])
 #J += cost_function(min_qddot, 0, ns-1)
 #
 
-min_jerk = lambda k: 0.0003*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
-# J += cost_function(min_jerk, 0, touch_down_node) # <- this smooths qddot solution
+min_jerk = lambda k: 0.001*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
+J += cost_function(min_jerk, 0, touch_down_node) # <- this smooths qddot solution
 
 min_q = lambda k: 0.1*K*dot((Q[k]-q_init), (Q[k]-q_init))
 # J += cost_function(min_q, touch_down_node, ns)
@@ -382,16 +382,24 @@ logger.add('Contact1', Contact1_pos_hist)
 logger.add('Contact2', Contact2_pos_hist)
 logger.add('Waist_pos', Waist_pos_hist)
 logger.add('Waist_rot', Waist_rot_hist)
+logger.add('BaseLink_pos_hist', BaseLink_pos_hist)
+logger.add('F1_hist', F1_hist)
+logger.add('F2_hist', F2_hist)
+logger.add('qddot_hist', Qddot_hist)
 
 get_Dt_RKF = Function("get_Dt_RKF", [V], [Dt_RKF], ['V'], ['Dt_RKF'])
 Dt_RKF_hist = get_Dt_RKF(V=w_opt)['Dt_RKF'].full().transpose()
 
 logger.add('Dt_RKF', Dt_RKF_hist)
 
+goal = q_final[-1]*np.ones(ns)
+logger.add('goal', goal)
+
+
+
 del(logger)
 
 #PLOTS
-goal = q_final[-1]*np.ones(ns)
 time  = [0]
 labels = [str(time[0])]
 #ticks = [3,5,7,57,69, 70]
@@ -423,15 +431,15 @@ axes.legend(loc='lower right', fancybox=True, framealpha=0.5, prop={'size':20})
 plt.savefig("rope_vertical_jump_rope_length.pdf", format="pdf")
 ##
 
-plt.figure(2)
-plt.suptitle('$\mathrm{Floating \ Base \ \omega_y \ Trajectory}$', size=20)
-plt.plot(time, BaseLink_vel_angular_hist[:,1], linewidth=3.0, color='blue')
-plt.xticks(time, labels)
-plt.grid()
-plt.xlabel('$\mathrm{[sec]}$', size=20)
-plt.ylabel('$\mathrm{[\\frac{rad}{sec}]}$', size=20)
-
-plt.savefig("rope_vertical_jump_omega_x.pdf", format="pdf")
+# plt.figure(2)
+# plt.suptitle('$\mathrm{Floating \ Base \ \omega_y \ Trajectory}$', size=20)
+# plt.plot(time, BaseLink_vel_angular_hist[:,1], linewidth=3.0, color='blue')
+# plt.xticks(time, labels)
+# plt.grid()
+# plt.xlabel('$\mathrm{[sec]}$', size=20)
+# plt.ylabel('$\mathrm{[\\frac{rad}{sec}]}$', size=20)
+#
+# plt.savefig("rope_vertical_jump_omega_x.pdf", format="pdf")
 ##
 
 plt.figure(3, figsize=(15, 13))
@@ -565,6 +573,17 @@ for k in range(1, len(time)-1):
     ax2.vlines(x=time[k], ymin=Qddot_hist[k-1][9], ymax=Qddot_hist[k][9], linewidth=3, color='c', linestyle='--')
     ax2.vlines(x=time[k], ymin=Qddot_hist[k - 1][10], ymax=Qddot_hist[k][10], linewidth=3, color='m', linestyle='--')
     ax2.vlines(x=time[k], ymin=Qddot_hist[k - 1][11], ymax=Qddot_hist[k][11], linewidth=3, color='k', linestyle='--')
+
+k = 0
+for qddot in Qddot_hist:
+    if k == 0:
+        ax2.hlines(y=qddot[15], xmin=time[k], xmax=time[k+1], linewidth=3, color='y', label='$\mathrm{\ddot{q}_{r}}$')#, linestyle='-.')
+    else:
+        ax2.hlines(y=qddot[15], xmin=time[k], xmax=time[k + 1], linewidth=3, color='y')#, linestyle='--')
+    k += 1
+for k in range(1, len(time)-1):
+    ax2.vlines(x=time[k], ymin=Qddot_hist[k-1][15], ymax=Qddot_hist[k][15], linewidth=3, color='y')#, linestyle='--')
+
 
 ax2.grid()
 ax2.set_xlabel('$\mathrm{[sec]}$', size=20)

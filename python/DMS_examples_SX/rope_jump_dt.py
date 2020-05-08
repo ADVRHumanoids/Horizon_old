@@ -142,18 +142,18 @@ K = 50.#1000.#6.5*1e5
 min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0])
 J += cost_function(min_qd, lift_node+1, touch_down_node)
 
-x_init = q_init + qdot_init
-min_xinit = lambda k: 10.*dot(Qdot[k]-qdot_init, Qdot[k]-qdot_init)
+#x_init = q_init + qdot_init
+#min_xinit = lambda k: 10.*dot(Qdot[k]-qdot_init, Qdot[k]-qdot_init)
 #J += cost_function(min_xinit, touch_down_node+1, ns)
 
 
-min_qd2 = lambda k: 10.*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
+#min_qd2 = lambda k: 10.*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])
 #J += cost_function(min_qd2, lift_node+1, touch_down_node)
 #
 min_qdot = lambda k: 1.*dot(Qdot[k][6:12], Qdot[k][6:12])
 J += cost_function(min_qdot, lift_node+1, ns)
 #
-min_qddot = lambda k: .001*dot(Qddot[k], Qddot[k])
+#min_qddot = lambda k: .001*dot(Qddot[k], Qddot[k])
 #J += cost_function(min_qddot, 0, ns-1)
 #
 
@@ -163,14 +163,14 @@ J += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
 # min_q = lambda k: 0.1*K*dot((Q[k]-q_init), (Q[k]-q_init))
 # J += cost_function(min_q, touch_down_node, ns)
 
-min_FC = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
+#min_FC = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
 #J += cost_function(min_FC, 0, lift_node)
 
 min_deltaFC = lambda k: 1.*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1]), (F1[k]-F1[k-1])+(F2[k]-F2[k-1])) # min Fdot
 J += cost_function(min_deltaFC, touch_down_node+1, ns-1)
 
 #
-min_deltaFRope = lambda k: 0.02*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+#min_deltaFRope = lambda k: 0.02*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
 #J += cost_function(min_deltaFRope, 1, ns-1)
 
 # CONSTRAINTS
@@ -340,6 +340,10 @@ BaseLink_vel_angular = FKcomputer.computeDiffFK('base_link', 'ee_vel_angular', k
 get_BaseLink_vel_angular = Function("get_BaseLink_vel_angular", [V], [BaseLink_vel_angular], ['V'], ['BaseLink_vel_angular'])
 BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_angular'].full().flatten()).reshape(ns, 3)
 
+BaseLink_vel_linear = FKcomputer.computeDiffFK('base_link', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
+BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linear'].full().flatten()).reshape(ns, 3)
+
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
 #X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
@@ -361,25 +365,32 @@ F2_hist_res = (u_hist_res[nv+3:nv+6, :]).transpose()
 
 logger.add('Q_res', q_hist_res)
 logger.add('F1_res', F1_hist_res)
-logger.add('F2_res', F1_hist_res)
-logger.add('Tau', tau_hist)
+logger.add('F2_res', F2_hist_res)
+logger.add('F1_hist', F1_hist)
+logger.add('F2_hist', F2_hist)
+logger.add('Tau_hist', tau_hist)
 logger.add('Tau_res', tau_hist_res)
 logger.add('Tf', tf)
-logger.add('Contact1', Contact1_pos_hist)
-logger.add('Contact2', Contact2_pos_hist)
+logger.add('Contact1_pos_hist', Contact1_pos_hist)
+logger.add('Contact2_pos_hist', Contact2_pos_hist)
 logger.add('Waist_pos', Waist_pos_hist)
 logger.add('Waist_rot', Waist_rot_hist)
-logger.add('BaseLink_vel_ang', BaseLink_vel_angular_hist)
+logger.add('BaseLink_pos_hist', BaseLink_pos_hist)
+logger.add('BaseLink_vel_ang_hist', BaseLink_vel_angular_hist)
+logger.add('BaseLink_vel_lin_hist', BaseLink_vel_linear_hist)
 
 get_Dt_RKF = Function("get_Dt_RKF", [V], [Dt_RKF], ['V'], ['Dt_RKF'])
 Dt_RKF_hist = get_Dt_RKF(V=w_opt)['Dt_RKF'].full().transpose()
 
 logger.add('Dt_RKF', Dt_RKF_hist)
+logger.add('qddot_hist', Qddot_hist)
+
+goal = q_trg[0]*np.ones(ns)
+logger.add('goal', goal)
 
 del(logger)
 
 #PLOTS
-goal = q_trg[0]*np.ones(ns)
 time  = [0]
 labels = [str(time[0])]
 ticks = [3,5,7,57,69, 70]
@@ -408,12 +419,14 @@ plt.ylabel('$\mathrm{[m]}$', size=20)
 plt.savefig("rope_jump_x_trj.pdf", format="pdf")
 
 plt.figure(2)
-plt.suptitle('$\mathrm{Floating \ Base \ \omega_y \ Trajectory}$', size=20)
-plt.plot(time, BaseLink_vel_angular_hist[:,1], linewidth=3.0, color='blue')
+plt.suptitle('$\mathrm{Floating \ Base \ v_x \ and \ \omega_y \ Trajectory}$', size=20)
+plt.plot(time, BaseLink_vel_angular_hist[:,1], linewidth=3.0, color='blue', label='$\mathrm{\omega_{fb,y}}$' )
+plt.plot(time, BaseLink_vel_linear_hist[:,0], linewidth=3.0, color='red', label='$\mathrm{\dot{p}_{fb,x}}$')
 plt.xticks(time, labels)
 plt.grid()
 plt.xlabel('$\mathrm{[sec]}$', size=20)
 plt.ylabel('$\mathrm{[\\frac{rad}{sec}]}$', size=20)
+plt.legend(loc='lower right', fancybox=True, framealpha=0.5, prop={'size':20}, ncol=3)
 
 plt.savefig("rope_jump_omega_x.pdf", format="pdf")
 
