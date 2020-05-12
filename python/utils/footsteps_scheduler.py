@@ -1,6 +1,6 @@
 from horizon import *
 
-class footsteps_scheduler():
+class footsteps_scheduler(constraint_handler):
     """
     The foostep scheduler schedule, starting from a start_node, a series of walking_phases, each walking phase is composed by a series of walking_actions and each action
     stand for a certain number of node (nodes_per_action).
@@ -20,8 +20,10 @@ class footsteps_scheduler():
             walking_phases: how many walking phases will be considered
             nodes_per_action: the number of node associated to each action
             total_number_of_nodes: total number of nodes in the optimization node
-            actions_dict: dictionary of actions, collections.OrderedDict() should be used to keep actions order!
+            actions_dict: dictionary of actions. Each action is formed by an ID and a list of constraint active for that action.
+                Collections.OrderedDict() should be used to keep actions order!
         """
+        super(footsteps_scheduler, self).__init__()
 
         self.actions_dict = actions_dict
 
@@ -55,6 +57,9 @@ class footsteps_scheduler():
         print 'scheduled walking: ', self.scheduled_walking
         print 'number of nodes for walking: ', len(self.scheduled_walking)
 
+        print "creating constraints"
+        self.constraint_creator()
+
     def action_scheduler(self):
         """
         The action scheduler creates a list of actions based on nodes_action
@@ -69,3 +74,16 @@ class footsteps_scheduler():
         """
         for i in range(self.walking_phases):
             self.scheduled_walking += self.actions_per_walking_phase
+
+    def constraint_creator(self):
+        """
+        Based on the scheduled_walking it creates a proper set of constraints from the given actions_dict
+        """
+        sn = self.start_node
+        for action in self.scheduled_walking:
+            constraint_list = self.actions_dict[action[1]]
+            print "there are ", len(constraint_list), " constraints for action ", action[1]
+            for cons in constraint_list:
+                gk, g_mink, g_maxk = constraint(cons, sn, sn+1)
+                self.set_constraint(gk, g_mink, g_maxk)
+            sn = sn + 1
