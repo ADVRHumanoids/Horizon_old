@@ -26,6 +26,7 @@ kindyn = cas_kin_dyn.CasadiKinDyn(urdf)
 
 FKR = Function.deserialize(kindyn.fk('Contact1'))
 FKL = Function.deserialize(kindyn.fk('Contact2'))
+FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 
 # Inverse Dynamics
 ID = Function.deserialize(kindyn.rnea())
@@ -43,7 +44,47 @@ nv = kindyn.nv()  # Velocity DoFs
 
 nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
-# VARIABLES
+# CREATE VARIABLES
+dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
+dt_min = 0.01
+dt_max = 0.08 #0.08
+dt_init = dt_min
+
+q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
+
+foot_z_offset = 0.#0.5
+
+q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
+                  -0.3, -0.1, -0.1+foot_z_offset,  # Contact 1
+                  -0.3, -0.05, -0.1+foot_z_offset,  # Contact 2
+                  -1.57, -1.57, -3.1415,  # rope_anchor
+                  0.3]).tolist()  # rope
+q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
+                  0.3, 0.05, 0.1+foot_z_offset,  # Contact 1
+                  0.3, 0.1, 0.1+foot_z_offset,  # Contact 2
+                  1.57, 1.57, 3.1415,  # rope_anchor
+                  0.3]).tolist()  # rope
+alpha = 0.3# 0.3
+rope_lenght = 0.3
+x_foot = rope_lenght * np.sin(alpha)
+q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+                   x_foot, 0., 0.+foot_z_offset,
+                   x_foot, 0., 0.+foot_z_offset,
+                   0., alpha, 0.,
+                   rope_lenght]).tolist()
+print "q_init: ", q_init
+
+qdot, Qdot = create_variable('Qdot', nv, ns, 'STATE', 'SX')
+qdot_min = (-100.*np.ones(nv)).tolist()
+qdot_max = (100.*np.ones(nv)).tolist()
+qdot_init = np.zeros(nv).tolist()
+
+qddot, Qddot = create_variable('Qddot', nv, ns, 'CONTROL', 'SX')
+qddot_min = (-100.*np.ones(nv)).tolist()
+qddot_max = (100.*np.ones(nv)).tolist()
+qddot_init = np.zeros(nv).tolist()
+qddot_init[2] = -9.8
+
 f1, F1 = create_variable('F1', nf, ns, 'CONTROL', 'SX')
 f_min1 = (-10000.*np.ones(nf)).tolist()
 f_max1 = (10000.*np.ones(nf)).tolist()
@@ -53,6 +94,72 @@ f2, F2 = create_variable('F2', nf, ns, 'CONTROL', 'SX')
 f_min2 = (-10000.*np.ones(nf)).tolist()
 f_max2 = (10000.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
+
+fRope, FRope = create_variable('FRope', nf, ns, 'CONTROL', 'SX')
+f_minRope = (-10000.*np.ones(nf)).tolist()
+f_maxRope = (10000.*np.ones(nf)).tolist()
+f_initRope = np.zeros(nf).tolist()
+
+x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
+
+L = 0.5*dot(qdot, qdot)  # Objective term
+
+# FORMULATE DISCRETE TIME DYNAMICS
+dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
+F_integrator = RK4_time(dae, 'SX')
+
+
+# START WITH AN EMPTY NLP
+X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, FRope, Dt])
+V = concat_states_and_controls({"X": X, "U": U})
+v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max],
+                              "u_min": [qddot_min, f_min1, f_min2, f_minRope, dt_min], "u_max": [qddot_max, f_max1, f_max2, f_maxRope, dt_max]}, ns)
+
+# SET UP COST FUNCTION
+J = SX([0])
+
+
+# SET UP CONSTRAINTS
+G = constraint_handler()
+
+# INITIAL CONDITION CONSTRAINT
+x_init = q_init + qdot_init
+init = cons.initial_condition.initial_condition(X[0], x_init)
+g1, g_min1, g_max1 = constraint(init, 0, 1)
+G.set_constraint(g1, g_min1, g_max1)
+
+# MULTIPLE SHOOTING CONSTRAINT
+integrator_dict = {'x0': X, 'p': Qddot, 'time': Dt}
+multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
+
+g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
+G.set_constraint(g2, g_min2, g_max2)
+
+# INVERSE DYNAMICS CONSTRAINT
+# dd = {'rope_anchor2': FRope}
+dd = {'rope_anchor2': FRope, 'Contact1': F1, 'Contact2': F2}
+id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
+
+tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
+                    -1000., -1000., -1000.,  # Contact 1
+                    -1000., -1000., -1000.,  # Contact 2
+                    0., 0., 0.,  # rope_anchor
+                    -10000.]).tolist()  # rope
+
+tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
+                    1000., 1000., 1000.,  # Contact 1
+                    1000., 1000., 1000.,  # Contact 2
+                    0., 0., 0.,  # rope_anchor
+                    0.0]).tolist()  # rope
+
+torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
+g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
+G.set_constraint(g3, g_min3, g_max3)
+
+# ROPE CONTACT CONSTRAINT
+contact_constr = cons.contact.contact(FKRope, Q, q_init)
+g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
+G.set_constraint(g5, g_min5, g_max5)
 
 
 #FOOSTEP SCHEDULER
@@ -78,7 +185,7 @@ actions_dict['N'] = [N_action_1, N_action_2]
 footsep_scheduler = footsteps_scheduler(start_node, flying_phases, nodes_per_action, ns, actions_dict)
 g, gmin, gmax = footsep_scheduler.get_constraints()
 
-G = constraint_handler()
+
 G.set_constraint([g], gmin, gmax)
 g, gmin, gmax = G.get_constraints()
 
