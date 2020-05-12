@@ -480,7 +480,7 @@ class unit_norm_quaternion(constraint_class):
         self.g_mink = [1.]
         self.g_maxk = [1.]
 
-class constraint_handler():
+class constraint_handler(object):
     """Class to handle constraints for the optimal control problem
         Attributes:
             g: list of constraints
