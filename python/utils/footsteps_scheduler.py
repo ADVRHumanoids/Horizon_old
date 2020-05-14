@@ -25,65 +25,125 @@ class footsteps_scheduler(constraint_handler):
         """
         super(footsteps_scheduler, self).__init__()
 
-        self.actions_dict = actions_dict
+        self.__actions_dict = actions_dict
 
-        self.walking_actions = actions_dict.keys()
-        print 'walking actions', self.walking_actions
+        self.__walking_actions = actions_dict.keys()
 
-        self.start_node = start_node
-        self.walking_phases = walking_phases
-        self.total_number_of_nodes = total_number_of_nodes
-        self.nodes_per_action = nodes_per_action
+        self.__start_node = start_node
+        self.__walking_phases = walking_phases
+        self.__total_number_of_nodes = total_number_of_nodes
+        self.__nodes_per_action = nodes_per_action
 
-        self.walking_nodes = len(self.walking_actions) * self.nodes_per_action * self.walking_phases
-        if self.walking_nodes > total_number_of_nodes:
-            FOOTSTEP_SCHEDULER_ERROR = 'walking nodes > total number of nodes : ' + str(self.walking_nodes) + ' > ' + str(self.total_number_of_nodes)
+        self.__walking_nodes = len(self.__walking_actions) * self.__nodes_per_action * self.__walking_phases
+        if self.__walking_nodes > total_number_of_nodes:
+            FOOTSTEP_SCHEDULER_ERROR = 'walking nodes > total number of nodes : ' + str(self.__walking_nodes) + ' > ' + str(self.__total_number_of_nodes)
             raise Exception(FOOTSTEP_SCHEDULER_ERROR)
-        print 'walking nodes: ', self.walking_nodes
 
-        self.end_node = self.start_node + self.walking_nodes - 1
-        if self.end_node > (self.total_number_of_nodes - 1):
-            FOOTSTEP_SCHEDULER_ERROR = 'walking final node > planned horizon: ' + str(self.end_node) + ' > ' + str(self.total_number_of_nodes - 1)
+        self.__end_node = self.__start_node + self.__walking_nodes - 1
+        if self.__end_node > (self.__total_number_of_nodes - 1):
+            FOOTSTEP_SCHEDULER_ERROR = 'walking final node > planned horizon: ' + str(self.__end_node) + ' > ' + str(self.__total_number_of_nodes - 1)
             raise Exception(FOOTSTEP_SCHEDULER_ERROR)
-        print 'walking end node:', self.end_node
 
-        self.actions_per_walking_phase = []
-        self.action_scheduler()
-        print 'actions per walking phase: ', self.actions_per_walking_phase
-        print 'number of nodes for single walking phase: ', len(self.actions_per_walking_phase)
+        self.__actions_per_walking_phase = []
+        self.__action_scheduler__()
 
-        self.scheduled_walking = []
-        self.walking_phases_scheduler()
-        print 'scheduled walking: ', self.scheduled_walking
-        print 'number of nodes for walking: ', len(self.scheduled_walking)
+
+        self.__scheduled_walking = []
+        self.__walking_phases_scheduler__()
+
+        if len(self.__scheduled_walking) != self.__walking_nodes:
+            FOOTSTEP_SCHEDULER_ERROR = 'len(self.__scheduled_walking) != self.__walking_nodes: ' + str(len(self.__scheduled_walking)) + ' > ' + str(self.__walking_nodes)
+            raise Exception(FOOTSTEP_SCHEDULER_ERROR)
+
+        print 'number of nodes for walking: ', len(self.__scheduled_walking)
 
         print "creating constraints"
-        self.constraint_creator()
+        self.__constraint_creator__()
 
-    def action_scheduler(self):
+    def __action_scheduler__(self):
         """
         The action scheduler creates a list of actions based on nodes_action
         """
-        for action in enumerate(self.walking_actions):
-            for n in range(self.nodes_per_action):
-                self.actions_per_walking_phase.append(action)
+        for action in enumerate(self.__walking_actions):
+            for n in range(self.__nodes_per_action):
+                self.__actions_per_walking_phase.append(action)
 
-    def walking_phases_scheduler(self):
+    def __walking_phases_scheduler__(self):
         """
         The walking phase scheduler creates a list of actions per each walking phase
         """
-        for i in range(self.walking_phases):
-            self.scheduled_walking += self.actions_per_walking_phase
+        for i in range(self.__walking_phases):
+            self.__scheduled_walking += self.__actions_per_walking_phase
 
-    def constraint_creator(self):
+    def __constraint_creator__(self):
         """
         Based on the scheduled_walking it creates a proper set of constraints from the given actions_dict
         """
-        sn = self.start_node
-        for action in self.scheduled_walking:
-            constraint_list = self.actions_dict[action[1]]
-            print "there are ", len(constraint_list), " constraints for action ", action[1]
+        sn = self.__start_node
+        for action in self.__scheduled_walking:
+            constraint_list = self.__actions_dict[action[1]]
             for cons in constraint_list:
                 gk, g_mink, g_maxk = constraint(cons, sn, sn+1)
                 self.set_constraint(gk, g_mink, g_maxk)
             sn = sn + 1
+
+    def getStartingNode(self):
+        """
+        Get node from which the walking starts
+        Returns:
+            start node
+        """
+        return self.__start_node
+
+    def getEndingNode(self):
+        """
+        Get node which the walking ends
+        Returns:
+            end node
+        """
+        return self.__end_node
+
+    def getNumberOfWalkingNode(self):
+        """
+        Get the total number of walking nodes
+        Returns:
+            number of walking ndoes
+        """
+        return self.__walking_nodes
+
+    def getActionsPerWalkingPhase(self):
+        """
+        Return the list of actions per walking phase
+        Returns:
+            list of actions per walking phase
+            NOTE: this consider as well the number of specified nodes per action
+        """
+        return self.__actions_per_walking_phase
+
+    def getNodesPerWalkingPhase(self):
+        """
+        Get the number of nodes a walking phase leasts
+        Returns:
+            number of nodes per walking phase
+        """
+        return len(self.__actions_per_walking_phase)
+
+    def getScheduledWalking(self):
+        """
+        The final scheduled walking as a list
+        Returns:
+            list of shceduled walking
+            NOTE: len(scheduled_walking) == getNumberOfWalkingNodes
+        """
+        return self.__scheduled_walking
+
+    def printInfo(self):
+        """
+        Print information
+        """
+        print "Total walking nodes: ", self.getNumberOfWalkingNode()
+        print "Starting from node ", self.getStartingNode(), " to node ", self.getEndingNode()
+        print 'Actions per walking phase: ', self.getActionsPerWalkingPhase()
+        print 'Number of nodes for single walking phase: ', self.getNodesPerWalkingPhase()
+        print 'Scheduled walking: ', self.getScheduledWalking()
+
