@@ -15,8 +15,9 @@ class replay_trajectory:
             joint_list:
             q_replay:
             contact_dict: dictionary containing:
-                force frame
-                force resampled values
+                'frame': force
+                TODO: BUG! force expressed in world should be rotated from frame to world! We need to add a setter to provide the possibility to specify forces expressed in world or local
+
         """
         self.dt = dt
         self.joint_list = joint_list
