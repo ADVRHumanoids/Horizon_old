@@ -8,6 +8,16 @@ from utils.normalize_quaternion import *
 
 class replay_trajectory:
     def __init__(self, dt, joint_list, q_replay, contact_dict={}):
+        """
+        Contructor
+        Args:
+            dt:
+            joint_list:
+            q_replay:
+            contact_dict: dictionary containing:
+                force frame
+                force resampled values
+        """
         self.dt = dt
         self.joint_list = joint_list
         self.q_replay = q_replay

@@ -49,13 +49,13 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
-dt_min = 0.001
+dt_min = 0.01
 dt_max = 0.08 #0.08
 dt_init = dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
 
-foot_z_offset = 0.#0.5
+foot_z_offset = 0.5
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1+foot_z_offset,  # Contact 1
@@ -124,15 +124,48 @@ J = SX([0])
 min_qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
 
+#min_qddot = lambda k: 1000.*dot(Qddot[k][3:7], Qddot[k][3:7])
+#J += cost_function(min_qddot, 0, ns-1)
+#
+#min_F = lambda k: 1.*dot(F1[k]+F2[k]+FRope[k], F1[k]+F2[k]+FRope[k])
+#J += cost_function(min_F, 0, ns-1)
+#
+
+# K = 10.
+# min_qd = lambda k:  K*dot(Q[k][0]-q_init[0], Q[k][0]-q_init[0])# + K*dot(Q[k][3:7]-q_init[3:7], Q[k][3:7]-q_init[3:7])
+# J += cost_function(min_qd, 0, ns)
+
+
+
 
 # SET UP CONSTRAINTS
 G = constraint_handler()
 
 # INITIAL CONDITION CONSTRAINT
-x_init = q_init + qdot_init
-init = cons.initial_condition.initial_condition(X[0], x_init)
-g1, g_min1, g_max1 = constraint(init, 0, 1)
+# Initial velocity
+Qdot_init = cons.initial_condition.initial_condition(Qdot[0], qdot_init)
+g1, g_min1, g_max1 = constraint(Qdot_init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
+# We fix Y position of the base
+QY_init = cons.initial_condition.initial_condition(Q[0][1], [q_init[1]])
+g1, g_min1, g_max1 = constraint(QY_init, 0, 1)
+G.set_constraint(g1, g_min1, g_max1)
+# We fix the Roll and Yaw orientation
+QRoll_init = cons.initial_condition.initial_condition(Q[0][3], [q_init[3]])
+g1, g_min1, g_max1 = constraint(QRoll_init, 0, 1)
+G.set_constraint(g1, g_min1, g_max1)
+QYaw_init = cons.initial_condition.initial_condition(Q[0][5], [q_init[5]])
+g1, g_min1, g_max1 = constraint(QYaw_init, 0, 1)
+G.set_constraint(g1, g_min1, g_max1)
+
+
+# PROVA
+# QX = []
+# for k in range(ns):
+#     QX.append(Q[k][0:7])
+# const_q = cons.initial_condition.state_condition(QX, q_init[0:7])
+# g1, g_min1, g_max1 = constraint(const_q, 0, ns)
+# G.set_constraint(g1, g_min1, g_max1)
 
 # MULTIPLE SHOOTING CONSTRAINT
 integrator_dict = {'x0': X, 'p': Qddot, 'time': Dt}
@@ -163,12 +196,9 @@ g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
 # ROPE CONTACT CONSTRAINT
-contact_constr = cons.contact.contact(FKRope, Q, q_init)
-g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
-G.set_constraint(g5, g_min5, g_max5)
-
-
-#FOOSTEP SCHEDULER
+# contact_constr = cons.contact.contact(FKRope, Q, q_init)
+# g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
+# G.set_constraint(g5, g_min5, g_max5)
 
 # WALL
 mu = 0.5
@@ -177,37 +207,64 @@ R_wall[0, 2] = 1.0
 R_wall[1, 1] = 1.0
 R_wall[2, 0] = -1.0
 
-#ACTIONS
-stance_F1 = cons.contact.contact_handler(FKR, F1)
-stance_F1.setContactAndFrictionCone(Q, q_init, mu, R_wall)
-stance_F2 = cons.contact.contact_handler(FKL, F2)
-stance_F2.setContactAndFrictionCone(Q, q_init, mu, R_wall)
-
-fly_F1 = cons.contact.contact_handler(FKR, F1)
-fly_F1.removeContact()
-fly_F2 = cons.contact.contact_handler(FKL, F2)
-fly_F2.removeContact()
-
-actions_dict = collections.OrderedDict()
-actions_dict['S'] = [stance_F1, stance_F2] #Stance actions
-actions_dict['F'] = [fly_F1, fly_F2] #flight actions
+surface_dict = {'a': 1., 'd': -x_foot}
+Jac1 = Function.deserialize(kindyn.jacobian('Contact1', kindyn.LOCAL_WORLD_ALIGNED))
+Jac2 = Function.deserialize(kindyn.jacobian('Contact2', kindyn.LOCAL_WORLD_ALIGNED))
+JacRope = Function.deserialize(kindyn.jacobian('rope_anchor2', kindyn.LOCAL_WORLD_ALIGNED))
 
 
-start_node = 0
-action_phases = 2 # [['S' 'F'] ['S' 'F']]
-nodes_per_action = 10
+#FIRST 10 NODES THE ROBOT IS IN CONTACT
+initial_stance_nodes = 10
+
+contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
+contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
+g4, g_min4, g_max4 = constraint(contact_handler_F1, 0, ns-1)
+G.set_constraint(g4, g_min4, g_max4)
+
+contact_handler_F2 = cons.contact.contact_handler(FKL, F2)
+contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
+g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns-1)
+G.set_constraint(g5, g_min5, g_max5)
+
+contact_handler_FRope = cons.contact.contact_handler(FKRope, FRope)
+contact_handler_FRope.setSurfaceContact(surface_dict, Q, JacRope, Qdot)
+g6, g_min6, g_max6 = constraint(contact_handler_FRope, 0, ns)
+G.set_constraint(g6, g_min6, g_max6)
 
 
-footsep_scheduler = footsteps_scheduler(start_node, action_phases, nodes_per_action, ns, actions_dict)
-footsep_scheduler.printInfo()
-g, gmin, gmax = footsep_scheduler.get_constraints()
-G.set_constraint([g], gmin, gmax)
 
-# AFTER
-g, gmin, gmax = constraint(stance_F1, footsep_scheduler.getEndingNode()+1, ns-1)
-G.set_constraint(g, gmin, gmax)
-g, gmin, gmax = constraint(stance_F2, footsep_scheduler.getEndingNode()+1, ns-1)
-G.set_constraint(g, gmin, gmax)
+#
+# #ACTIONS
+# stance_F1 = cons.contact.contact_handler(FKR, F1)
+# stance_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
+# stance_F2 = cons.contact.contact_handler(FKL, F2)
+# stance_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
+#
+# fly_F1 = cons.contact.contact_handler(FKR, F1)
+# fly_F1.removeContact()
+# fly_F2 = cons.contact.contact_handler(FKL, F2)
+# fly_F2.removeContact()
+#
+# actions_dict = collections.OrderedDict()
+# actions_dict['S'] = [stance_F1, stance_F2] #Stance actions
+# actions_dict['F'] = [fly_F1, fly_F2] #flight actions
+#
+#
+# start_walking_node = initial_stance_nodes
+# action_phases = 2 # [['S' 'F'] ['S' 'F']]
+# nodes_per_action = 10
+#
+#
+# footsep_scheduler = footsteps_scheduler(start_walking_node, action_phases, nodes_per_action, ns, actions_dict)
+# footsep_scheduler.printInfo()
+# g, gmin, gmax = footsep_scheduler.get_constraints()
+# G.set_constraint([g], gmin, gmax)
+#
+# # AFTER
+# g, gmin, gmax = constraint(stance_F1, footsep_scheduler.getEndingNode()+1, ns-1)
+# G.set_constraint(g, gmin, gmax)
+# g, gmin, gmax = constraint(stance_F2, footsep_scheduler.getEndingNode()+1, ns-1)
+# G.set_constraint(g, gmin, gmax)
 #######
 
 
@@ -330,6 +387,7 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
               'rope_joint']
 
-contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
+#contact_dict = {'Contact1': {'frame': 'world_odom', 'values': F1_hist_res}, 'Contact2': {'frame': 'world_odom', 'values': F2_hist_res}}
+#replay_trajectory(dt, joint_list, q_hist_res, contact_dict).replay()
 
-replay_trajectory(dt, joint_list, q_hist_res, contact_dict).replay()
+replay_trajectory(dt, joint_list, q_hist_res).replay()
