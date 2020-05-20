@@ -35,7 +35,7 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 ID = Function.deserialize(kindyn.rnea())
 
 # OPTIMIZATION PARAMETERS
-ns = 80  # number of shooting nodes
+ns = 100  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -122,21 +122,33 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
-J += cost_function(min_qdot, 0, ns)
+# min_qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
+# J += cost_function(min_qdot, 0, ns)
 
 #min_qddot = lambda k: 1000.*dot(Qddot[k][3:7], Qddot[k][3:7])
 #J += cost_function(min_qddot, 0, ns-1)
-#
+
 #min_F = lambda k: 1.*dot(F1[k]+F2[k]+FRope[k], F1[k]+F2[k]+FRope[k])
 #J += cost_function(min_F, 0, ns-1)
-#
 
-K = 100.
+K = 1.
 min_qd = lambda k:  K*dot(Q[k][0:7]-q_init[0:7], Q[k][0:7]-q_init[0:7])# + K*dot(Q[k][3:7]-q_init[3:7], Q[k][3:7]-q_init[3:7])
 J += cost_function(min_qd, 0, ns)
 
-
+min_qdot = lambda k: 10.*dot(Qdot[k][6:-1], Qdot[k][6:-1])
+J += cost_function(min_qdot, 0, ns)
+#
+min_qddot_a = lambda k: 100.*dot(Qddot[k][6:-1], Qddot[k][6:-1])
+J += cost_function(min_qddot_a, 0, ns-1)
+#
+min_F1 = lambda k: 100.*dot(F1[k], F1[k])
+J += cost_function(min_F1, 0, ns-1)
+#
+min_F2 = lambda k: 100.*dot(F2[k], F2[k])
+J += cost_function(min_F2, 0, ns-1)
+#
+min_FRope = lambda k: 100.*dot(FRope[k]-FRope[k-1], FRope[k]-FRope[k-1])  # min Fdot
+J += cost_function(min_FRope, 1, ns-1)
 
 
 # SET UP CONSTRAINTS
@@ -145,7 +157,7 @@ G = constraint_handler()
 # INITIAL CONDITION CONSTRAINT
 x_init = cons.initial_condition.initial_condition(X[0], q_init + qdot_init)
 g1, g_min1, g_max1 = constraint(x_init, 0, 1)
-G.set_constraint(g1, g_min1, g_max1)
+# G.set_constraint(g1, g_min1, g_max1)
 
 
 # MULTIPLE SHOOTING CONSTRAINT
@@ -199,21 +211,18 @@ initial_stance_nodes = 10
 contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
 contact_handler_F1.setContact(Q, q_init)
 #contact_handler_F1.setContactAndFrictionCone(Q, q_init, mu, R_wall)
-#contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
+contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
 g4, g_min4, g_max4 = constraint(contact_handler_F1, 0, ns)
 G.set_constraint(g4, g_min4, g_max4)
 
 contact_handler_F2 = cons.contact.contact_handler(FKL, F2)
 contact_handler_F2.setContact(Q, q_init)
 #contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_wall)
-#contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
+contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
 g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
 
-
-
-#
 # #ACTIONS
 # stance_F1 = cons.contact.contact_handler(FKR, F1)
 # stance_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
