@@ -73,11 +73,11 @@ class surface_contact(constraint_class):
                 k: node
         """
         CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
-        CLink_jac = self.Jac(q=self.Q[k])['J'] #TODO: also orientations are locked!
+        CLink_jac = self.Jac(q=self.Q[k])['J'] #TODO: give possibility to lock position and/or orientation
 
-        self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac, self.Qdot[k])]
-        self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
-        self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+        self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3,:], self.Qdot[k])]
+        self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
+        self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
 
 
 class linearized_friction_cone(constraint_class):
