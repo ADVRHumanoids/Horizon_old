@@ -15,7 +15,7 @@ from utils.kinematics import *
 import matplotlib.pyplot as plt
 import decimal
 
-FREE_FALL = False
+FREE_FALL = True
 
 logger = []
 if FREE_FALL:
@@ -247,6 +247,40 @@ logger.add('tau_hist', tau_hist)
 
 time = np.arange(0.0, tf, tf/ns)
 logger.add('time', time)
+
+
+FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
+Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
+get_Contact1_pos = Function("get_Contact1_pos", [V], [Contact1_pos], ['V'], ['Contact1_pos'])
+Contact1_pos_hist = (get_Contact1_pos(V=w_opt)['Contact1_pos'].full().flatten()).reshape(ns, 3)
+
+Contact2_pos = FKcomputer.computeFK('Contact2', 'ee_pos', 0, ns)
+get_Contact2_pos = Function("get_Contact2_pos", [V], [Contact2_pos], ['V'], ['Contact2_pos'])
+Contact2_pos_hist = (get_Contact2_pos(V=w_opt)['Contact2_pos'].full().flatten()).reshape(ns, 3)
+
+Waist_pos = FKcomputer.computeFK('Waist', 'ee_pos', 0, ns)
+get_Waist_pos = Function("get_Waist_pos", [V], [Waist_pos], ['V'], ['Waist_pos'])
+Waist_pos_hist = (get_Waist_pos(V=w_opt)['Waist_pos'].full().flatten()).reshape(ns, 3)
+
+BaseLink_pos = FKcomputer.computeFK('base_link', 'ee_pos', 0, ns)
+get_BaseLink_pos = Function("base_link", [V], [BaseLink_pos], ['V'], ['BaseLink_pos'])
+BaseLink_pos_hist = (get_BaseLink_pos(V=w_opt)['BaseLink_pos'].full().flatten()).reshape(ns, 3)
+
+BaseLink_vel_angular = FKcomputer.computeDiffFK('base_link', 'ee_vel_angular', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_BaseLink_vel_angular = Function("get_BaseLink_vel_angular", [V], [BaseLink_vel_angular], ['V'], ['BaseLink_vel_angular'])
+BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_angular'].full().flatten()).reshape(ns, 3)
+
+BaseLink_vel_linear = FKcomputer.computeDiffFK('base_link', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
+BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linear'].full().flatten()).reshape(ns, 3)
+
+logger.add('Contact1_pos_hist', Contact1_pos_hist)
+logger.add('Contact2_pos_hist', Contact2_pos_hist)
+logger.add('Waist_pos', Waist_pos_hist)
+logger.add('BaseLink_pos_hist', BaseLink_pos_hist)
+logger.add('BaseLink_vel_ang_hist', BaseLink_vel_angular_hist)
+logger.add('BaseLink_vel_lin_hist', BaseLink_vel_linear_hist)
+
 
 del(logger)
 

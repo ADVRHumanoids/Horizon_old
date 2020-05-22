@@ -35,7 +35,7 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 ID = Function.deserialize(kindyn.rnea())
 
 # OPTIMIZATION PARAMETERS
-ns = 40  # number of shooting nodes
+ns = 60  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -50,12 +50,12 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
 dt_min = 0.01
-dt_max = 0.01 #0.08
+dt_max = 0.08
 dt_init = dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
 
-foot_z_offset = 0.0#0.5
+foot_z_offset = 0.5
 
 q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -0.3, -0.1, -0.1+foot_z_offset,  # Contact 1
@@ -63,8 +63,8 @@ q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -1.57, -1.57, -3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
-                  0.3, 0.05, 0.5+foot_z_offset,  # Contact 1
-                  0.3, 0.1, 0.5+foot_z_offset,  # Contact 2
+                  0.3, 0.05, 0.01 +foot_z_offset,  # Contact 1
+                  0.3, 0.1, 0.01 + foot_z_offset,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 alpha = 0.3# 0.3
@@ -122,30 +122,44 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_qdot = lambda k: 1000.*dot(Qdot[k], Qdot[k])
+min_qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
 
 min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
-J += cost_function(min_qddot, 0, ns-1)
-#
+# J += cost_function(min_qddot, 0, ns-1)
+
 #min_F = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
 #J += cost_function(min_F, 0, ns-1)
+
+# K = 1000.
+# min_qd = lambda k:  K*dot(Q[k][0:7]-q_init[0:7], Q[k][0:7]-q_init[0:7])# + K*dot(Q[k][3:7]-q_init[3:7], Q[k][3:7]-q_init[3:7])
+# J += cost_function(min_qd, 0, ns)
+
+# rope_init_lenght = 0.3
 #
+# jump_length = 2.0
+#
+# q_final = np.array([0.0, 0.0, -jump_length, 0.0, 0.0, 0.0, 1.0,
+#                    x_foot, 0., 0.+foot_z_offset,
+#                    x_foot, 0., 0.+foot_z_offset,
+#                    0., alpha, 0.,
+#                    rope_init_lenght+jump_length]).tolist()
 
-K = 100000.
-min_qd = lambda k:  K*dot(Q[k][0:7]-q_init[0:7], Q[k][0:7]-q_init[0:7])# + K*dot(Q[k][3:7]-q_init[3:7], Q[k][3:7]-q_init[3:7])
+
+q_trg_fb = np.array([-.6, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]).tolist()
+
+K = 50.
+min_qd = lambda k: K*dot(Q[k][0]-q_trg_fb[0], Q[k][0]-q_trg_fb[0]) + K*dot(Q[k][3:7]-q_trg_fb[3:7], Q[k][3:7]-q_trg_fb[3:7])
 J += cost_function(min_qd, 0, ns)
-
-
 
 
 # SET UP CONSTRAINTS
 G = constraint_handler()
 
 # INITIAL CONDITION CONSTRAINT
-#x_init = cons.initial_condition.initial_condition(X[0], q_init + qdot_init)
-#g1, g_min1, g_max1 = constraint(x_init, 0, 1)
-#G.set_constraint(g1, g_min1, g_max1)
+x_init = cons.initial_condition.initial_condition(X[0], q_init + qdot_init)
+g1, g_min1, g_max1 = constraint(x_init, 0, 1)
+G.set_constraint(g1, g_min1, g_max1)
 
 
 # MULTIPLE SHOOTING CONSTRAINT
@@ -195,21 +209,21 @@ JacRope = Function.deserialize(kindyn.jacobian('rope_anchor2', kindyn.LOCAL_WORL
 
 
 #FIRST 10 NODES THE ROBOT IS IN CONTACT
-initial_stance_nodes = 10
+initial_stance_nodes = 0
 
 contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
 #contact_handler_F1.setContact(Q, q_init)
 #contact_handler_F1.setContactAndFrictionCone(Q, q_init, mu, R_wall)
 contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
 g4, g_min4, g_max4 = constraint(contact_handler_F1, 0, ns)
-G.set_constraint(g4, g_min4, g_max4)
+# G.set_constraint(g4, g_min4, g_max4)
 
 contact_handler_F2 = cons.contact.contact_handler(FKL, F2)
 #contact_handler_F2.setContact(Q, q_init)
 #contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_wall)
 contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
 g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns)
-G.set_constraint(g5, g_min5, g_max5)
+# G.set_constraint(g5, g_min5, g_max5)
 
 contact_handler_FRope = cons.contact.contact_handler(FKRope, FRope)
 #contact_handler_F2.setContact(Q, q_init)
@@ -219,41 +233,40 @@ g5, g_min5, g_max5 = constraint(contact_handler_FRope, 0, ns)
 #G.set_constraint(g5, g_min5, g_max5)
 
 
+#ACTIONS
+stance_F1 = cons.contact.contact_handler(FKR, F1)
+stance_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
+stance_F2 = cons.contact.contact_handler(FKL, F2)
+stance_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
+
+fly_F1 = cons.contact.contact_handler(FKR, F1)
+fly_F1.removeContact()
+fly_F2 = cons.contact.contact_handler(FKL, F2)
+fly_F2.removeContact()
+
+actions_dict = collections.OrderedDict()
+actions_dict['S'] = [stance_F1, stance_F2] #double stance actions
+# actions_dict['S1'] = [stance_F1, fly_F2] #single stance actions
+actions_dict['F'] = [fly_F1, fly_F2] #flight actions
+# actions_dict['S2'] = [fly_F1, stance_F2] #single stance actions
 
 
-#
-# #ACTIONS
-# stance_F1 = cons.contact.contact_handler(FKR, F1)
-# stance_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
-# stance_F2 = cons.contact.contact_handler(FKL, F2)
-# stance_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
-#
-# fly_F1 = cons.contact.contact_handler(FKR, F1)
-# fly_F1.removeContact()
-# fly_F2 = cons.contact.contact_handler(FKL, F2)
-# fly_F2.removeContact()
-#
-# actions_dict = collections.OrderedDict()
-# actions_dict['S'] = [stance_F1, stance_F2] #Stance actions
-# actions_dict['F'] = [fly_F1, fly_F2] #flight actions
-#
-#
-# start_walking_node = initial_stance_nodes
-# action_phases = 2 # [['S' 'F'] ['S' 'F']]
-# nodes_per_action = 10
-#
-#
-# footsep_scheduler = footsteps_scheduler(start_walking_node, action_phases, nodes_per_action, ns, actions_dict)
-# footsep_scheduler.printInfo()
-# g, gmin, gmax = footsep_scheduler.get_constraints()
-# G.set_constraint([g], gmin, gmax)
-#
-# # AFTER
-# g, gmin, gmax = constraint(stance_F1, footsep_scheduler.getEndingNode()+1, ns-1)
-# G.set_constraint(g, gmin, gmax)
-# g, gmin, gmax = constraint(stance_F2, footsep_scheduler.getEndingNode()+1, ns-1)
-# G.set_constraint(g, gmin, gmax)
-#######
+start_walking_node = initial_stance_nodes
+action_phases = 1  # [['S' 'F'] ['S' 'F']]
+nodes_per_action = s0
+
+
+footsep_scheduler = footsteps_scheduler(start_walking_node, action_phases, nodes_per_action, ns, actions_dict)
+footsep_scheduler.printInfo()
+g, gmin, gmax = footsep_scheduler.get_constraints()
+G.set_constraint([g], gmin, gmax)
+
+# AFTER
+g, gmin, gmax = constraint(stance_F1, footsep_scheduler.getEndingNode()+1, ns-1)
+G.set_constraint(g, gmin, gmax)
+g, gmin, gmax = constraint(stance_F2, footsep_scheduler.getEndingNode()+1, ns-1)
+G.set_constraint(g, gmin, gmax)
+######
 
 
 g, gmin, gmax = G.get_constraints()
