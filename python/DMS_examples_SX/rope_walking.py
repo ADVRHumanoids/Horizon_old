@@ -148,10 +148,12 @@ min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
 
 q_trg_fb = np.array([-.6, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]).tolist()
 
-K = 50.
+K = 15.
 min_qd = lambda k: K*dot(Q[k][0]-q_trg_fb[0], Q[k][0]-q_trg_fb[0]) + K*dot(Q[k][3:7]-q_trg_fb[3:7], Q[k][3:7]-q_trg_fb[3:7])
 J += cost_function(min_qd, 0, ns)
 
+min_dt = lambda k: 1.*dot(Dt[k],Dt[k])
+#J += cost_function(min_dt, 0, ns-1)
 
 # SET UP CONSTRAINTS
 G = constraint_handler()
@@ -253,7 +255,7 @@ actions_dict['F'] = [fly_F1, fly_F2] #flight actions
 
 start_walking_node = initial_stance_nodes
 action_phases = 1  # [['S' 'F'] ['S' 'F']]
-nodes_per_action = s0
+nodes_per_action = 25
 
 
 footsep_scheduler = footsteps_scheduler(start_walking_node, action_phases, nodes_per_action, ns, actions_dict)
