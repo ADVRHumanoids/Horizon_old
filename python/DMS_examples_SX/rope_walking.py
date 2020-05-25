@@ -35,7 +35,7 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 ID = Function.deserialize(kindyn.rnea())
 
 # OPTIMIZATION PARAMETERS
-ns = 60  # number of shooting nodes
+ns = 70  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -49,7 +49,7 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
-dt_min = 0.01
+dt_min = 0.00001 #0.01
 dt_max = 0.08
 dt_init = dt_min
 
@@ -123,10 +123,10 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 J = SX([0])
 
 min_qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
-J += cost_function(min_qdot, 0, ns)
+#J += cost_function(min_qdot, 0, ns)
 
-min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
-# J += cost_function(min_qddot, 0, ns-1)
+min_qddot = lambda k: 1.*dot(Qddot[k], Qddot[k])
+#J += cost_function(min_qddot, 0, ns-1)
 
 #min_F = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
 #J += cost_function(min_F, 0, ns-1)
@@ -148,12 +148,13 @@ min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
 
 q_trg_fb = np.array([-.6, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]).tolist()
 
-K = 15.
+K = 1.#15.
 min_qd = lambda k: K*dot(Q[k][0]-q_trg_fb[0], Q[k][0]-q_trg_fb[0]) + K*dot(Q[k][3:7]-q_trg_fb[3:7], Q[k][3:7]-q_trg_fb[3:7])
 J += cost_function(min_qd, 0, ns)
 
-min_dt = lambda k: 1.*dot(Dt[k],Dt[k])
-#J += cost_function(min_dt, 0, ns-1)
+min_dt = lambda k: -1.*dot(Dt[k],Dt[k])
+J += cost_function(min_dt, 0, ns-1)
+J += -1.*sum(Dt)
 
 # SET UP CONSTRAINTS
 G = constraint_handler()
@@ -254,9 +255,8 @@ actions_dict['F'] = [fly_F1, fly_F2] #flight actions
 
 
 start_walking_node = initial_stance_nodes
-action_phases = 1  # [['S' 'F'] ['S' 'F']]
-nodes_per_action = 25
-
+action_phases = 2  # [['S' 'F'] ['S' 'F']]
+nodes_per_action = 15
 
 footsep_scheduler = footsteps_scheduler(start_walking_node, action_phases, nodes_per_action, ns, actions_dict)
 footsep_scheduler.printInfo()
@@ -275,7 +275,7 @@ g, gmin, gmax = G.get_constraints()
 
 opts = {'ipopt.tol': 0.001,
         'ipopt.constr_viol_tol': 0.001,
-        'ipopt.max_iter': 5000,
+        'ipopt.max_iter': 3000,
         'ipopt.linear_solver': 'ma57'}
 
 g_, g_min_, g_max_ = G.get_constraints()
@@ -284,7 +284,19 @@ solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
 x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_initRope, dt_init]}, ns)
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
-w_opt = sol['x'].full().flatten()
+w_opt_tmp = sol['x'].full().flatten()
+
+print "solver.stats()['return_status']: ", solver.stats()['return_status']
+
+w_opt = []
+if solver.stats()['return_status'] != 'Solve_Succeeded':
+    print "Try optimization with warm-start"
+    solver2 = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
+    sol2 = solver(x0=w_opt_tmp, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
+    w_opt = sol2['x'].full().flatten()
+else:
+    w_opt = w_opt_tmp
+
 
 # RETRIEVE SOLUTION AND LOGGING
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Dt': Dt}, w_opt)
@@ -347,6 +359,7 @@ BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linea
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
 #X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
+print"dt: ", dt_hist
 X_res, U_res, Tau_res = resample_integrator_with_controls(X, U, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
