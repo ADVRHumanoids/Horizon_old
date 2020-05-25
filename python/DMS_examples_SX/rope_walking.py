@@ -35,7 +35,7 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 ID = Function.deserialize(kindyn.rnea())
 
 # OPTIMIZATION PARAMETERS
-ns = 60  # number of shooting nodes
+ns = 100  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -50,7 +50,7 @@ nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
 dt_min = 0.01
-dt_max = 0.08
+dt_max = 0.03
 dt_init = dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
@@ -66,7 +66,7 @@ q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
                   0.3, 0.05, 0.01 +foot_z_offset,  # Contact 1
                   0.3, 0.1, 0.01 + foot_z_offset,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
-                  0.3]).tolist()  # rope
+                  4.0]).tolist()  # rope
 alpha = 0.3# 0.3
 rope_lenght = 0.3
 #x_foot = rope_lenght * np.sin(alpha)
@@ -146,11 +146,22 @@ min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
 #                    rope_init_lenght+jump_length]).tolist()
 
 
-q_trg_fb = np.array([-.6, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]).tolist()
+q_trg_fb = np.array([-.6, 0.0, -4.0, 0.0, 0.0, 0.0, 1.0]).tolist()
 
 K = 15.
-min_qd = lambda k: K*dot(Q[k][0]-q_trg_fb[0], Q[k][0]-q_trg_fb[0]) + K*dot(Q[k][3:7]-q_trg_fb[3:7], Q[k][3:7]-q_trg_fb[3:7])
+min_qd = lambda k: K*dot(Q[k][0:3]-q_trg_fb[0:3], Q[k][0:3]-q_trg_fb[0:3]) + K*dot(Q[k][3:7]-q_trg_fb[3:7], Q[k][3:7]-q_trg_fb[3:7])
+# J += cost_function(min_qd, 0, ns)
+
+q_trg = np.array([-.6, 0.0, -4.0, 0.0, 0.0, 0.0, 1.0,
+                  0.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0,
+                  3.0]).tolist()
+
+K = 10.
+min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + K*dot(Q[k][3:7]-q_trg_fb[3:7], Q[k][3:7]-q_trg_fb[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1])
 J += cost_function(min_qd, 0, ns)
+
 
 min_dt = lambda k: 1.*dot(Dt[k],Dt[k])
 #J += cost_function(min_dt, 0, ns-1)
@@ -254,8 +265,8 @@ actions_dict['F'] = [fly_F1, fly_F2] #flight actions
 
 
 start_walking_node = initial_stance_nodes
-action_phases = 1  # [['S' 'F'] ['S' 'F']]
-nodes_per_action = 25
+action_phases = 4  # [['S' 'F'] ['S' 'F']]
+nodes_per_action = 10
 
 
 footsep_scheduler = footsteps_scheduler(start_walking_node, action_phases, nodes_per_action, ns, actions_dict)
