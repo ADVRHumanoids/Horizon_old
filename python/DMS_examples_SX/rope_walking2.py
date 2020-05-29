@@ -35,7 +35,7 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 ID = Function.deserialize(kindyn.rnea())
 
 # OPTIMIZATION PARAMETERS
-ns = 80  # number of shooting nodes
+ns = 75  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -122,13 +122,13 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
+min_qdot = lambda k: .01*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
 
 min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
-# J += cost_function(min_qddot, 0, ns-1)
+#J += cost_function(min_qddot, 0, ns-1)
 
-#min_F = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
+min_F = lambda k: 10.*dot(F1[k]+F2[k], F1[k]+F2[k])
 #J += cost_function(min_F, 0, ns-1)
 
 # K = 1000.
@@ -147,13 +147,14 @@ min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
 
 
 
-q_trg = np.array([-.6, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0,
+q_trg = np.array([-.3, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0,
                   0.0, 0.0, 0.0,
                   0.0, 0.0, 0.0,
                   2.0]).tolist()
 
-K = 10.
+K = 1.
+#min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1])
 min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1])
 J += cost_function(min_qd, 0, ns)
 
@@ -217,7 +218,7 @@ JacRope = Function.deserialize(kindyn.jacobian('rope_anchor2', kindyn.LOCAL_WORL
 
 
 #FIRST 10 NODES THE ROBOT IS IN CONTACT
-initial_stance_nodes = 10
+initial_stance_nodes = 5
 
 contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
 #contact_handler_F1.setContact(Q, q_init)
@@ -270,9 +271,9 @@ g, gmin, gmax = footsep_scheduler.get_constraints()
 G.set_constraint([g], gmin, gmax)
 
 # AFTER
-g, gmin, gmax = constraint(stance_F1, footsep_scheduler.getEndingNode()+1, ns-1)
+g, gmin, gmax = constraint(stance_F1, footsep_scheduler.getEndingNode()+1, ns)
 G.set_constraint(g, gmin, gmax)
-g, gmin, gmax = constraint(stance_F2, footsep_scheduler.getEndingNode()+1, ns-1)
+g, gmin, gmax = constraint(stance_F2, footsep_scheduler.getEndingNode()+1, ns)
 G.set_constraint(g, gmin, gmax)
 ######
 
@@ -286,9 +287,13 @@ G.set_constraint(g, gmin, gmax)
 
 g, gmin, gmax = G.get_constraints()
 
-opts = {'ipopt.tol': 0.001,
-        'ipopt.constr_viol_tol': 0.001,
-        'ipopt.max_iter': 5000,
+opts = {#'ipopt.tol': 0.1,
+        #'ipopt.constr_viol_tol': 0.1,
+        'ipopt.hessian_approximation': 'exact',
+        'ipopt.max_iter': 4000,
+        #'ipopt.dual_inf_tol': 10,
+        'ipopt.linear_system_scaling': 'mc19',
+        'ipopt.nlp_scaling_method': 'gradient-based',
         'ipopt.linear_solver': 'ma57'}
 
 g_, g_min_, g_max_ = G.get_constraints()
@@ -297,7 +302,16 @@ solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
 x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_initRope, dt_init]}, ns)
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
-w_opt = sol['x'].full().flatten()
+w_opt_tmp = sol['x'].full().flatten()
+lam_g = sol['lam_g'].full().flatten()
+lam_x = sol['lam_x'].full().flatten()
+print (sol)
+
+solver2 = nlpsol('solver2', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
+sol2 = solver2(x0=w_opt_tmp, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_, lam_x0=lam_x, lam_g0=lam_g)
+w_opt = sol2['x'].full().flatten()
+
+
 
 # RETRIEVE SOLUTION AND LOGGING
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Dt': Dt}, w_opt)
@@ -307,6 +321,7 @@ q_hist = normalize_quaternion(q_hist)
 F1_hist = solution_dict['F1']
 F2_hist = solution_dict['F2']
 Qddot_hist = solution_dict['Qddot']
+
 
 dt_hist = solution_dict['Dt']
 
@@ -357,6 +372,16 @@ BaseLink_vel_linear = FKcomputer.computeDiffFK('base_link', 'ee_vel_linear', kin
 get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
 BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linear'].full().flatten()).reshape(ns, 3)
 
+AnchorPoint_pos = FKcomputer.computeFK('rope_anchor2', 'ee_pos', 0, ns)
+get_AnchorPoint_pos = Function('rope_anchor2', [V], [AnchorPoint_pos], ['V'], ['AnchorPoint_pos'])
+AnchorPoint_pos_hist = (get_AnchorPoint_pos(V=w_opt)['AnchorPoint_pos'].full().flatten()).reshape(ns, 3)
+
+AnchorPoint_vel = FKcomputer.computeDiffFK('rope_anchor2', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
+get_AnchorPoint_vel_lin = Function('get_rope_anchor2_vel_lin', [V], [AnchorPoint_vel], ['V'], ['AnchorPoint_vel'])
+AnchorPoint_vel_hist = (get_AnchorPoint_vel_lin(V=w_opt)['AnchorPoint_vel'].full().flatten()).reshape(ns, 3)
+
+
+
 # RESAMPLE STATE FOR REPLAY TRAJECTORY
 dt = 0.001
 #X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
@@ -364,6 +389,7 @@ X_res, U_res, Tau_res = resample_integrator_with_controls(X, U, Qddot, dt_hist, 
 get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
 x_hist_res = get_X_res(V=w_opt)['X_res'].full()
 q_hist_res = (x_hist_res[0:nq, :]).transpose()
+qdot_hist_res = (x_hist_res[nq:nq+nv, :]).transpose()
 
 get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
 tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
@@ -377,6 +403,7 @@ F2_hist_res = (u_hist_res[nv+3:nv+6, :]).transpose()
 
 
 logger.add('Q_res', q_hist_res)
+logger.add('Qdot_res', qdot_hist_res)
 logger.add('F1_res', F1_hist_res)
 logger.add('F2_res', F2_hist_res)
 logger.add('F1_hist', F1_hist)
@@ -391,7 +418,8 @@ logger.add('Waist_rot', Waist_rot_hist)
 logger.add('BaseLink_pos_hist', BaseLink_pos_hist)
 logger.add('BaseLink_vel_ang_hist', BaseLink_vel_angular_hist)
 logger.add('BaseLink_vel_lin_hist', BaseLink_vel_linear_hist)
-
+logger.add('AnchorPoint_pos_hist', AnchorPoint_pos_hist)
+logger.add('AnchorPoint_vel_hist', AnchorPoint_vel_hist)
 logger.add('qddot_hist', Qddot_hist)
 
 
