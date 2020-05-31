@@ -587,5 +587,6 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'rope_joint']
 
 contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
-
-replay_trajectory(dt, joint_list, q_hist_res, contact_dict).replay()
+dt = 0.001
+#replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn).replay()
+replay_trajectory(dt, joint_list, q_hist_res).replay()

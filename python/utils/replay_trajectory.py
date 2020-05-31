@@ -7,7 +7,7 @@ import rospy
 from utils.normalize_quaternion import *
 
 class replay_trajectory:
-    def __init__(self, dt, joint_list, q_replay, contact_dict={}):
+    def __init__(self, dt, joint_list, q_replay, contact_dict={}, kindyn=None):
         """
         Contructor
         Args:
@@ -16,7 +16,7 @@ class replay_trajectory:
             q_replay:
             contact_dict: dictionary containing:
                 'frame': force
-                TODO: BUG! force expressed in world should be rotated from frame to world! We need to add a setter to provide the possibility to specify forces expressed in world or local
+            kindyn: if passed the forces are rotated (only) in local frame
 
         """
         self.dt = dt
@@ -24,6 +24,7 @@ class replay_trajectory:
         self.q_replay = q_replay
         self.contact_dict = contact_dict
         self.force_pub = []
+        self.__kindyn = kindyn
 
 
     def publishContactForces(self, time, k):
@@ -33,11 +34,17 @@ class replay_trajectory:
             f_msg.header.stamp = time
             f_msg.header.frame_id = frame
 
-            f = self.contact_dict[frame]
+            f = self.contact_dict[frame][k]
 
-            f_msg.wrench.force.x = f[k][0]
-            f_msg.wrench.force.y = f[k][1]
-            f_msg.wrench.force.z = f[k][2]
+            FK = None
+            if self.__kindyn != None:
+                FK = Function.deserialize(self.__kindyn.fk(frame))
+                w_R_f = FK(q=self.q_replay[k])['ee_rot']
+                f = mtimes(w_R_f.T, self.contact_dict[frame][k])
+
+            f_msg.wrench.force.x = f[0]
+            f_msg.wrench.force.y = f[1]
+            f_msg.wrench.force.z = f[2]
 
             f_msg.wrench.torque.x = 0.
             f_msg.wrench.torque.y = 0.
