@@ -22,25 +22,33 @@ class replay_trajectory:
         self.dt = dt
         self.joint_list = joint_list
         self.q_replay = q_replay
-        self.contact_dict = contact_dict
         self.force_pub = []
         self.__kindyn = kindyn
 
+        self.__contact_dict = contact_dict
+        if self.__kindyn != None:
+            for frame in self.__contact_dict:
+                print "self.__contact_dict[frame].size(): ", self.__contact_dict[frame].size()
+                FK = None
+                for k in range(self.__contact_dict[frame].size()):
+                    FK = Function.deserialize(self.__kindyn.fk(frame))
+                    w_R_f = FK(q=self.q_replay[k])['ee_rot']
+                    self.__contact_dict[frame][k] = mtimes(w_R_f.T, self.__contact_dict[frame][k])
 
     def publishContactForces(self, time, k):
         i = 0
-        for frame in self.contact_dict:
+        for frame in self.__contact_dict:
             f_msg = geometry_msgs.msg.WrenchStamped()
             f_msg.header.stamp = time
             f_msg.header.frame_id = frame
 
-            f = self.contact_dict[frame][k]
+            f = self.__contact_dict[frame][k]
 
-            FK = None
-            if self.__kindyn != None:
-                FK = Function.deserialize(self.__kindyn.fk(frame))
-                w_R_f = FK(q=self.q_replay[k])['ee_rot']
-                f = mtimes(w_R_f.T, self.contact_dict[frame][k])
+            # FK = None
+            # if self.__kindyn != None:
+            #     FK = Function.deserialize(self.__kindyn.fk(frame))
+            #     w_R_f = FK(q=self.q_replay[k])['ee_rot']
+            #     f = mtimes(w_R_f.T, self.__contact_dict[frame][k])
 
             f_msg.wrench.force.x = f[0]
             f_msg.wrench.force.y = f[1]
@@ -72,7 +80,7 @@ class replay_trajectory:
 
         q_replay = normalize_quaternion(self.q_replay)
 
-        for key in self.contact_dict:
+        for key in self.__contact_dict:
             self.force_pub.append(rospy.Publisher(key+'_forces',geometry_msgs.msg.WrenchStamped, queue_size=1))
 
         while not rospy.is_shutdown():
