@@ -28,12 +28,11 @@ class replay_trajectory:
         self.__contact_dict = contact_dict
         if self.__kindyn != None:
             for frame in self.__contact_dict:
-                print "self.__contact_dict[frame].size(): ", self.__contact_dict[frame].size()
                 FK = None
-                for k in range(self.__contact_dict[frame].size()):
+                for k in range(len(self.__contact_dict[frame])):
                     FK = Function.deserialize(self.__kindyn.fk(frame))
                     w_R_f = FK(q=self.q_replay[k])['ee_rot']
-                    self.__contact_dict[frame][k] = mtimes(w_R_f.T, self.__contact_dict[frame][k])
+                    self.__contact_dict[frame][k] = mtimes(w_R_f.T, self.__contact_dict[frame][k]).T
 
     def publishContactForces(self, time, k):
         i = 0
