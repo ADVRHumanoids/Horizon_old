@@ -21,7 +21,7 @@ from utils.conversions_to_euler import *
 from utils.dt_RKF import *
 
 logger = []
-logger = matl.MatLogger2('/tmp/rope_walking_log')
+logger = matl.MatLogger2('/tmp/rope_climbing_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
 urdf = rospy.get_param('robot_description')
@@ -35,7 +35,7 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 ID = Function.deserialize(kindyn.rnea())
 
 # OPTIMIZATION PARAMETERS
-ns = 75  # number of shooting nodes
+ns = 95  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -63,12 +63,12 @@ q_min = np.array([-10.0, -10.0, -10.0, -1.0, -1.0, -1.0, -1.0,  # Floating base
                   -1.57, -1.57, -3.1415,  # rope_anchor
                   0.3]).tolist()  # rope
 q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
-                  0.3, 0.05, 0.01 +foot_z_offset,  # Contact 1
-                  0.3, 0.1, 0.01 + foot_z_offset,  # Contact 2
+                  0.3, 0.05, 0.1 +foot_z_offset,  # Contact 1
+                  0.3, 0.1, 0.1 + foot_z_offset,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
                   4.0]).tolist()  # rope
 alpha = 0.1# 0.3
-rope_lenght = 3.0
+rope_lenght = 2.0
 #x_foot = rope_lenght * np.sin(alpha)
 x_foot = 0.15
 q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
@@ -122,13 +122,13 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_qdot = lambda k: .01*dot(Qdot[k], Qdot[k])
+min_qdot = lambda k: 5000.*dot(Qdot[k][3:5], Qdot[k][3:5])
 J += cost_function(min_qdot, 0, ns)
 
-min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
+min_qddot = lambda k: 1.*dot(Qddot[k][3:5], Qddot[k][3:5])
 #J += cost_function(min_qddot, 0, ns-1)
 
-min_F = lambda k: 10.*dot(F1[k]+F2[k], F1[k]+F2[k])
+min_F = lambda k: 1.*dot(F1[k]+F2[k], F1[k]+F2[k])
 #J += cost_function(min_F, 0, ns-1)
 
 # K = 1000.
@@ -153,9 +153,9 @@ q_trg = np.array([-.3, 0.0, -1.0, 0.0, 0.0, 0.0, 1.0,
                   0.0, 0.0, 0.0,
                   0.3]).tolist()
 
-K = 1.
+K = 10000.
 #min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1])
-min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1])
+min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + 10.*K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1])
 J += cost_function(min_qd, 0, ns)
 
 
@@ -261,7 +261,7 @@ actions_dict['D2'] = [stance_F1, stance_F2] #double stance
 
 
 start_walking_node = initial_stance_nodes
-action_phases = 3  # [['R' 'D1' 'L' 'D2'] ...]
+action_phases = 4  # [['R' 'D1' 'L' 'D2'] ...]
 nodes_per_action = 5
 
 
