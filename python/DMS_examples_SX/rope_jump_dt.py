@@ -588,5 +588,7 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
 
 contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
 dt = 0.001
-replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn).replay()
+replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
+#replay.sleep(2.)
+replay.replay()
 #replay_trajectory(dt, joint_list, q_hist_res).replay()

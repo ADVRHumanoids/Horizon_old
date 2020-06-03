@@ -5,6 +5,7 @@ import tf as ros_tf
 import geometry_msgs.msg
 import rospy
 from utils.normalize_quaternion import *
+import time
 
 class replay_trajectory:
     def __init__(self, dt, joint_list, q_replay, contact_dict={}, kindyn=None):
@@ -33,6 +34,16 @@ class replay_trajectory:
                     FK = Function.deserialize(self.__kindyn.fk(frame))
                     w_R_f = FK(q=self.q_replay[k])['ee_rot']
                     self.__contact_dict[frame][k] = mtimes(w_R_f.T, self.__contact_dict[frame][k]).T
+
+        self.__sleep = 0.0
+
+    def sleep(self, secs):
+        '''
+        Set sleep time between trajectory sequences
+        Args:
+            secs: time to sleep in seconds
+        '''
+        self.__sleep = secs
 
     def publishContactForces(self, time, k):
         i = 0
@@ -107,3 +118,5 @@ class replay_trajectory:
                 pub.publish(joint_state_pub)
                 self.publishContactForces(t, k)
                 rate.sleep()
+            if self.__sleep > 0.:
+                time.sleep(self.__sleep)
