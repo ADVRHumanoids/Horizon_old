@@ -431,7 +431,11 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
               'rope_joint']
 
-#contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
-#replay_trajectory(dt, joint_list, q_hist_res, contact_dict).replay()
+contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
+dt = 0.001
+replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
+replay.sleep(2.)
+replay.replay()
+#replay_trajectory(dt, joint_list, q_hist_res).replay()
 
-replay_trajectory(dt, joint_list, q_hist_res).replay()
+
