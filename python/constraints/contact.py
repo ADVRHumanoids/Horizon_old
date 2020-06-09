@@ -120,6 +120,12 @@ class surface_contact_gap(constraint_class):
         if 'z_gap_max' in plane_dict:
             self.z_gap_max = plane_dict['z_gap_max']
 
+        if 'gap_inequality' in plane_dict:
+            self.gap_inequality = plane_dict['gap_inequality']
+
+        if 'gap_atan' in plane_dict:
+            self.gap_atan = plane_dict['gap_atan']
+
         self.FKlink = FKlink
         self.Jac = Jac
         self.Q = Q
@@ -134,12 +140,19 @@ class surface_contact_gap(constraint_class):
         CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
         CLink_jac = self.Jac(q=self.Q[k])['J'] #TODO: give possibility to lock position and/or orientation
 
-        self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3, :], self.Qdot[k]), (CLink_pos[2, :]-self.z_gap_min)*(CLink_pos[2, :]-self.z_gap_max)]
-        self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0]).tolist()
-        self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 10000.0]).tolist()
-        #self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac, self.Qdot[k])]
-        #self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
-        #self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+        if self.gap_inequality:
+
+            # GAP: inequality
+            self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3, :], self.Qdot[k]), (CLink_pos[2, :]-self.z_gap_max)*(CLink_pos[2, :]-self.z_gap_min)]
+            self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0]).tolist()
+            self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 10000.0]).tolist()
+
+        if self.gap_atan:
+            # GAP: atan
+            self.gk = [CLink_pos[0, :] - atan(1e6 * (CLink_pos[2, :] - self.z_gap_min)) + atan(1e6 * (CLink_pos[2, :] - self.z_gap_max)),
+                       mtimes(CLink_jac[0:3, :], self.Qdot[k])]
+            self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
+            self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
 
 
 
