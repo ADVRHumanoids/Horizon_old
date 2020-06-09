@@ -35,7 +35,7 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 ID = Function.deserialize(kindyn.rnea())
 
 # OPTIMIZATION PARAMETERS
-ns = 110  # number of shooting nodes
+ns = 80  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -83,9 +83,9 @@ jump_length = 4.
 q_trg = np.array([-0.3, 0.0, -jump_length, 0.0, 0.0, 0.0, 1.0,
                    x_foot, 0., 0.+foot_z_offset,
                    x_foot, 0., 0.+foot_z_offset,
-                   0., alpha, 0.,
+                   0., 0., 0.,
                    rope_lenght+jump_length]).tolist()
-print "q_final: ", q_trg
+print "q_target: ", q_trg
 
 
 qdot, Qdot = create_variable('Qdot', nv, ns, 'STATE', 'SX')
@@ -147,7 +147,8 @@ min_F = lambda k: 10.*dot(F1[k]+F2[k], F1[k]+F2[k])
 
 
 K = 1.
-min_qd = lambda k: K*dot(Q[k][0:3]-q_trg[0:3], Q[k][0:3]-q_trg[0:3]) + K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1])
+min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1]) \
+                   + 100.*(FKR(q=Q[k])['ee_pos'][2]+4.0) + 100.*(FKL(q=Q[k])['ee_pos'][2]+4.0) + K*dot(Q[k][2]-q_trg[2], Q[k][2]-q_trg[2])
 J += cost_function(min_qd, 0, ns)
 
 
@@ -164,7 +165,7 @@ G.set_constraint(g1, g_min1, g_max1)
 
 # TARGET CONDITION CONSTRAINT
 x_trg = cons.initial_condition.initial_condition(X[0], q_trg + qdot_init)
-g_trg, g_min_trg, g_max_trg = constraint(x_trg, ns-1, ns)
+g_trg, g_min_trg, g_max_trg = constraint(x_trg, ns-5, ns)
 # G.set_constraint(g_trg, g_min_trg, g_max_trg)
 
 
@@ -208,7 +209,7 @@ R_wall[0, 2] = 1.0
 R_wall[1, 1] = 1.0
 R_wall[2, 0] = -1.0
 
-surface_dict = {'a': 1., 'd': -x_foot, 'z_gap_min': -0.5, 'z_gap_max': -0.8}
+surface_dict = {'a': 1., 'd': -x_foot, 'z_gap_min': -2.5, 'z_gap_max': -1.5, 'gap_inequality': True, 'gap_atan': False}
 Jac1 = Function.deserialize(kindyn.jacobian('Contact1', kindyn.LOCAL_WORLD_ALIGNED))
 Jac2 = Function.deserialize(kindyn.jacobian('Contact2', kindyn.LOCAL_WORLD_ALIGNED))
 JacRope = Function.deserialize(kindyn.jacobian('rope_anchor2', kindyn.LOCAL_WORLD_ALIGNED))
@@ -261,7 +262,7 @@ actions_dict['D3'] = [stance_F1, stance_F2] #double stance
 
 start_walking_node = initial_stance_nodes
 action_phases = 3  # [['R' 'D1' 'L' 'D2'] ...]
-nodes_per_action = 5
+nodes_per_action = 3
 
 
 footsep_scheduler = footsteps_scheduler(start_walking_node, action_phases, nodes_per_action, ns, actions_dict)
@@ -288,7 +289,7 @@ g, gmin, gmax = G.get_constraints()
 
 opts = {'ipopt.tol': 0.01,
         'ipopt.constr_viol_tol': 0.01,
-        'ipopt.max_iter': 4000,
+        'ipopt.max_iter': 2000,
         'ipopt.linear_solver': 'ma57'}
 
 g_, g_min_, g_max_ = G.get_constraints()
