@@ -122,7 +122,7 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_qdot = lambda k: 5000.*dot(Qdot[k][3:5], Qdot[k][3:5])
+min_qdot = lambda k: 1000.*dot(Qdot[k][3:5], Qdot[k][3:5])
 J += cost_function(min_qdot, 0, ns)
 
 min_qddot = lambda k: 1.*dot(Qddot[k][3:5], Qddot[k][3:5])
@@ -205,7 +205,7 @@ g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
 # WALL
-mu = 1.0
+mu = 0.5#1.0
 R_wall = np.zeros([3, 3])
 R_wall[0, 2] = 1.0
 R_wall[1, 1] = 1.0
@@ -434,7 +434,9 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
               'rope_joint']
 
-#contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
-#replay_trajectory(dt, joint_list, q_hist_res, contact_dict).replay()
-
-replay_trajectory(dt, joint_list, q_hist_res).replay()
+contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
+dt = 0.001
+replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
+replay.sleep(2.)
+replay.replay()
+#replay_trajectory(dt, joint_list, q_hist_res).replay()

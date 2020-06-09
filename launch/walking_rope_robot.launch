@@ -20,6 +20,7 @@
         <param name="show_control_axis" type="bool" value="false"/>
         <rosparam param="position">[0.23, 0., 0.]</rosparam>
         <rosparam param="orientation">[0., 0., 0., 1.]</rosparam>
+	<rosparam param="rgba">[0.5, 0.5, 0.5, 0.5]</rosparam>
     </node>
 
 
