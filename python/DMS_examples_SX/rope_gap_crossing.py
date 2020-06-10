@@ -21,7 +21,7 @@ from utils.conversions_to_euler import *
 from utils.dt_RKF import *
 
 logger = []
-logger = matl.MatLogger2('/tmp/rope_walking_gap_log')
+logger = matl.MatLogger2('/tmp/rope_gap_crossing_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
 urdf = rospy.get_param('robot_description')
@@ -35,7 +35,7 @@ FKRope = Function.deserialize(kindyn.fk('rope_anchor2'))
 ID = Function.deserialize(kindyn.rnea())
 
 # OPTIMIZATION PARAMETERS
-ns = 80  # number of shooting nodes
+ns = 70  # number of shooting nodes
 
 nc = 3  # number of contacts
 
@@ -66,7 +66,7 @@ q_max = np.array([10.0,  10.0,  10.0,  1.0,  1.0,  1.0,  1.0,  # Floating base
                   0.3, 0.05, 0.01 +foot_z_offset,  # Contact 1
                   0.3, 0.1, 0.01 + foot_z_offset,  # Contact 2
                   1.57, 1.57, 3.1415,  # rope_anchor
-                  4.0]).tolist()  # rope
+                  10.0]).tolist()  # rope
 alpha = 0.3# 0.3
 rope_lenght = 0.3
 #x_foot = rope_lenght * np.sin(alpha)
@@ -132,7 +132,7 @@ v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_
 # SET UP COST FUNCTION
 J = SX([0])
 
-min_qdot = lambda k: .01*dot(Qdot[k], Qdot[k])
+min_qdot = lambda k: 0.1*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot, 0, ns)
 
 min_qddot = lambda k: 10.*dot(Qddot[k], Qddot[k])
@@ -146,9 +146,13 @@ min_F = lambda k: 10.*dot(F1[k]+F2[k], F1[k]+F2[k])
 # J += cost_function(min_qd, 0, ns)
 
 
-K = 1.
-min_qd = lambda k: K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) + K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7]) + K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1]) \
-                   + 100.*(FKR(q=Q[k])['ee_pos'][2]+4.0) + 100.*(FKL(q=Q[k])['ee_pos'][2]+4.0) + K*dot(Q[k][2]-q_trg[2], Q[k][2]-q_trg[2])
+K = 1000.
+min_qd = lambda k: K*dot(FKR(q=Q[k])['ee_pos'][2]+4.0, FKR(q=Q[k])['ee_pos'][2]+4.0) \
+                   + K*dot(FKL(q=Q[k])['ee_pos'][2]+4.0, FKL(q=Q[k])['ee_pos'][2]+4.0) \
+                   + 2.*K*dot(Q[k][0]-q_trg[0], Q[k][0]-q_trg[0]) \
+                   + 100.*K*dot(Q[k][3:7]-q_trg[3:7], Q[k][3:7]-q_trg[3:7])#\
+                   #+ K*dot(Q[k][-1]-q_trg[-1], Q[k][-1]-q_trg[-1]) \
+                   #+ K*dot(Q[k][2]-q_trg[2], Q[k][2]-q_trg[2])
 J += cost_function(min_qd, 0, ns)
 
 
@@ -203,7 +207,7 @@ g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
 # WALL
-mu = 1.0
+mu = 0.5
 R_wall = np.zeros([3, 3])
 R_wall[0, 2] = 1.0
 R_wall[1, 1] = 1.0
@@ -261,8 +265,8 @@ actions_dict['D3'] = [stance_F1, stance_F2] #double stance
 
 
 start_walking_node = initial_stance_nodes
-action_phases = 3  # [['R' 'D1' 'L' 'D2'] ...]
-nodes_per_action = 3
+action_phases = 2  # [['R' 'D1' 'L' 'D2'] ...]
+nodes_per_action = 5
 
 
 footsep_scheduler = footsteps_scheduler(start_walking_node, action_phases, nodes_per_action, ns, actions_dict)
@@ -287,10 +291,19 @@ G.set_constraint(g, gmin, gmax)
 
 g, gmin, gmax = G.get_constraints()
 
-opts = {'ipopt.tol': 0.01,
-        'ipopt.constr_viol_tol': 0.01,
+#opts = {'ipopt.tol': 0.01,
+#        'ipopt.constr_viol_tol': 0.01,
+#        'ipopt.max_iter': 2000,
+#        'ipopt.linear_solver': 'ma57'}
+
+opts = {#'ipopt.tol': 0.1,
+        #'ipopt.constr_viol_tol': 0.1,
+        'ipopt.hessian_approximation': 'exact',
         'ipopt.max_iter': 2000,
-        'ipopt.linear_solver': 'ma57'}
+        #'ipopt.dual_inf_tol': 10,
+        'ipopt.linear_system_scaling': 'mc19',
+        'ipopt.nlp_scaling_method': 'gradient-based',
+       'ipopt.linear_solver': 'ma57'}
 
 g_, g_min_, g_max_ = G.get_constraints()
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
@@ -298,16 +311,16 @@ solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
 x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_initRope, dt_init]}, ns)
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
-w_opt = sol['x'].full().flatten()
+#w_opt = sol['x'].full().flatten()
 
-# w_opt_tmp = sol['x'].full().flatten()
-# lam_g = sol['lam_g'].full().flatten()
-# lam_x = sol['lam_x'].full().flatten()
+w_opt_tmp = sol['x'].full().flatten()
+lam_g = sol['lam_g'].full().flatten()
+lam_x = sol['lam_x'].full().flatten()
 # print (sol)
 #
-# solver2 = nlpsol('solver2', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
-# sol2 = solver2(x0=w_opt_tmp, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_, lam_x0=lam_x, lam_g0=lam_g)
-# w_opt = sol2['x'].full().flatten()
+solver2 = nlpsol('solver2', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
+sol2 = solver2(x0=w_opt_tmp, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_, lam_x0=lam_x, lam_g0=lam_g)
+w_opt = sol2['x'].full().flatten()
 
 # RETRIEVE SOLUTION AND LOGGING
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Dt': Dt}, w_opt)
@@ -427,7 +440,9 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'rope_anchor1_1_x', 'rope_anchor1_2_y', 'rope_anchor1_3_z',
               'rope_joint']
 
-#contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
-#replay_trajectory(dt, joint_list, q_hist_res, contact_dict).replay()
-
-replay_trajectory(dt, joint_list, q_hist_res).replay()
+contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res}
+dt = 0.001
+replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
+replay.sleep(2.)
+replay.replay()
+#replay_trajectory(dt, joint_list, q_hist_res).replay()

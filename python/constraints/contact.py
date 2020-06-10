@@ -143,13 +143,15 @@ class surface_contact_gap(constraint_class):
         if self.gap_inequality:
 
             # GAP: inequality
-            self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3, :], self.Qdot[k]), (CLink_pos[2, :]-self.z_gap_max)*(CLink_pos[2, :]-self.z_gap_min)]
+            self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3, :], self.Qdot[k]), (CLink_pos[2]-self.z_gap_max)*0.01*(CLink_pos[2]-self.z_gap_min)]
             self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0]).tolist()
             self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 10000.0]).tolist()
 
+
+
         if self.gap_atan:
             # GAP: atan
-            self.gk = [CLink_pos[0, :] - atan(1e6 * (CLink_pos[2, :] - self.z_gap_min)) + atan(1e6 * (CLink_pos[2, :] - self.z_gap_max)),
+            self.gk = [CLink_pos[0] - atan(1e6 * (CLink_pos[2] - self.z_gap_min)) + atan(1e6 * (CLink_pos[2] - self.z_gap_max)),
                        mtimes(CLink_jac[0:3, :], self.Qdot[k])]
             self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
             self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
