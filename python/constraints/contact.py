@@ -82,6 +82,75 @@ class surface_contact(constraint_class):
         #self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
         #self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
 
+class surface_contact_gap(constraint_class):
+    """
+    TODO: consider a gap not only in z
+    Position constraint to lies into a plane: ax + by + cz +d = 0 with a gap, together with 0 Cartesian velocity of
+    the contact. The gap is modeled as:
+    (z-gap_min)w(z-gap_max) >= 0
+    """
+    def __init__(self, plane_dict, FKlink, Q, Jac, Qdot):
+        """
+        Constructor
+        Args:
+            plane_dict: which contains following variables:
+                a
+                b
+                c
+                d
+                    to define the plane ax + by + cz +d = 0
+                z_gap_min: min z coordinate of the gap
+                z_gap_max: max z coordinate of the gap
+                relaxation: gain to relax the constraint of the gap
+            FKlink: forward kinematics function of desired link
+            Q: position state variables
+            Jac: Jacobian function of the link
+            Qdot: velocity state variables
+        """
+        self.P = np.array([0., 0., 0.])
+        self.d = 0.
+
+        if 'a' in plane_dict:
+            self.P[0] = plane_dict['a']
+        if 'b' in plane_dict:
+            self.P[1] = plane_dict['b']
+        if 'c' in plane_dict:
+            self.P[2] = plane_dict['c']
+
+        if 'd' in plane_dict:
+            self.d = plane_dict['d']
+
+        if 'z_gap_min' in plane_dict:
+            self.z_gap_min = plane_dict['z_gap_min']
+
+        if 'z_gap_max' in plane_dict:
+            self.z_gap_max = plane_dict['z_gap_max']
+
+        self.FKlink = FKlink
+        self.Jac = Jac
+        self.Q = Q
+        self.Qdot = Qdot
+
+        self.__w = 1.
+        if 'relaxation' in plane_dict:
+            self.__w = plane_dict['relaxation']
+
+    def virtual_method(self, k):
+        """
+            Compute constraint at given node
+            Args:
+                k: node
+        """
+        CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
+        CLink_jac = self.Jac(q=self.Q[k])['J'] #TODO: give possibility to lock position and/or orientation
+
+        # GAP: inequality
+        self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3, :], self.Qdot[k]), (CLink_pos[2]-self.z_gap_max)*self.__w*(CLink_pos[2]-self.z_gap_min)]
+        self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0]).tolist()
+        self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 10000.0]).tolist()
+
+
+
 
 class linearized_friction_cone(constraint_class):
     """
@@ -188,6 +257,9 @@ class contact_handler(constraint_class):
     def setSurfaceContact(self, plane_dict, Q, Jac, Qdot):
         self.kinematic_contact = surface_contact(plane_dict, self.FKlink, Q, Jac, Qdot)
 
+    def setSurfaceContactGap(self, plane_dict, Q, Jac, Qdot):
+        self.kinematic_contact = surface_contact_gap(plane_dict, self.FKlink, Q, Jac, Qdot)
+
     def setFrictionCone(self, mu, Rot):
         self.friction_cone = linearized_friction_cone(self.Force, mu, Rot)
 
@@ -197,6 +269,10 @@ class contact_handler(constraint_class):
 
     def setSurfaceContactAndFrictionCone(self, Q, plane_dict, Jac, Qdot, mu, Rot): #TODO: remove Rot, can be extracted from plane_dict!
         self.setSurfaceContact(plane_dict, Q, Jac, Qdot)
+        self.setFrictionCone(mu, Rot)
+
+    def setSurfaceContactGapAndFrictionCone(self, Q, plane_dict, Jac, Qdot, mu, Rot): #TODO: remove Rot, can be extracted from plane_dict!
+        self.setSurfaceContactGap(plane_dict, Q, Jac, Qdot)
         self.setFrictionCone(mu, Rot)
 
     def removeContact(self):
