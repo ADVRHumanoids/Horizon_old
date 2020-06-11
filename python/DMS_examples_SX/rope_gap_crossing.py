@@ -213,7 +213,7 @@ R_wall[0, 2] = 1.0
 R_wall[1, 1] = 1.0
 R_wall[2, 0] = -1.0
 
-surface_dict = {'a': 1., 'd': -x_foot, 'z_gap_min': -2.5, 'z_gap_max': -1.5, 'gap_inequality': True, 'gap_atan': False}
+surface_dict = {'a': 1., 'd': -x_foot, 'z_gap_min': -2.5, 'z_gap_max': -1.5, 'relaxation': 0.01}
 Jac1 = Function.deserialize(kindyn.jacobian('Contact1', kindyn.LOCAL_WORLD_ALIGNED))
 Jac2 = Function.deserialize(kindyn.jacobian('Contact2', kindyn.LOCAL_WORLD_ALIGNED))
 JacRope = Function.deserialize(kindyn.jacobian('rope_anchor2', kindyn.LOCAL_WORLD_ALIGNED))

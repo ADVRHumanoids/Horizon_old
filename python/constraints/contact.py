@@ -84,7 +84,10 @@ class surface_contact(constraint_class):
 
 class surface_contact_gap(constraint_class):
     """
-    Position constraint to lies into a plane: ax + by + cz +d = 0 together with 0 Cartesian velocity of the contact
+    TODO: consider a gap not only in z
+    Position constraint to lies into a plane: ax + by + cz +d = 0 with a gap, together with 0 Cartesian velocity of
+    the contact. The gap is modeled as:
+    (z-gap_min)w(z-gap_max) >= 0
     """
     def __init__(self, plane_dict, FKlink, Q, Jac, Qdot):
         """
@@ -95,7 +98,10 @@ class surface_contact_gap(constraint_class):
                 b
                 c
                 d
-                to define the plane ax + by + cz +d = 0
+                    to define the plane ax + by + cz +d = 0
+                z_gap_min: min z coordinate of the gap
+                z_gap_max: max z coordinate of the gap
+                relaxation: gain to relax the constraint of the gap
             FKlink: forward kinematics function of desired link
             Q: position state variables
             Jac: Jacobian function of the link
@@ -120,16 +126,14 @@ class surface_contact_gap(constraint_class):
         if 'z_gap_max' in plane_dict:
             self.z_gap_max = plane_dict['z_gap_max']
 
-        if 'gap_inequality' in plane_dict:
-            self.gap_inequality = plane_dict['gap_inequality']
-
-        if 'gap_atan' in plane_dict:
-            self.gap_atan = plane_dict['gap_atan']
-
         self.FKlink = FKlink
         self.Jac = Jac
         self.Q = Q
         self.Qdot = Qdot
+
+        self.__w = 1.
+        if 'relaxation' in plane_dict:
+            self.__w = plane_dict['relaxation']
 
     def virtual_method(self, k):
         """
@@ -140,21 +144,11 @@ class surface_contact_gap(constraint_class):
         CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
         CLink_jac = self.Jac(q=self.Q[k])['J'] #TODO: give possibility to lock position and/or orientation
 
-        if self.gap_inequality:
+        # GAP: inequality
+        self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3, :], self.Qdot[k]), (CLink_pos[2]-self.z_gap_max)*self.__w*(CLink_pos[2]-self.z_gap_min)]
+        self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0]).tolist()
+        self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 10000.0]).tolist()
 
-            # GAP: inequality
-            self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3, :], self.Qdot[k]), (CLink_pos[2]-self.z_gap_max)*0.01*(CLink_pos[2]-self.z_gap_min)]
-            self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0]).tolist()
-            self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 10000.0]).tolist()
-
-
-
-        if self.gap_atan:
-            # GAP: atan
-            self.gk = [CLink_pos[0] - atan(1e6 * (CLink_pos[2] - self.z_gap_min)) + atan(1e6 * (CLink_pos[2] - self.z_gap_max)),
-                       mtimes(CLink_jac[0:3, :], self.Qdot[k])]
-            self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
-            self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
 
 
 
