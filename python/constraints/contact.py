@@ -1,5 +1,13 @@
 from horizon import *
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
+from enum import Enum
+
+class contact_type(Enum):
+    """
+    Enumeration class used to identify the type of contact
+    """
+    point = 0
+    flat = 1
 
 class contact(constraint_class):
     """
@@ -33,7 +41,7 @@ class surface_contact(constraint_class):
     """
     Position constraint to lies into a plane: ax + by + cz +d = 0 together with 0 Cartesian velocity of the contact
     """
-    def __init__(self, plane_dict, FKlink, Q, Jac, Qdot):
+    def __init__(self, plane_dict, FKlink, Q, Jac, Qdot, contact_type):
         """
         Constructor
         Args:
@@ -65,6 +73,7 @@ class surface_contact(constraint_class):
         self.Jac = Jac
         self.Q = Q
         self.Qdot = Qdot
+        self.__contact_type = contact_type
 
     def virtual_method(self, k):
         """
@@ -73,14 +82,18 @@ class surface_contact(constraint_class):
                 k: node
         """
         CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
-        CLink_jac = self.Jac(q=self.Q[k])['J'] #TODO: give possibility to lock position and/or orientation
+        CLink_jac = self.Jac(q=self.Q[k])['J']
 
-        self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3,:], self.Qdot[k])]
-        self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
-        self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
-        #self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac, self.Qdot[k])]
-        #self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
-        #self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+        if self.__contact_type is contact_type.point:
+            self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac[0:3,:], self.Qdot[k])]
+            self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
+            self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0]).tolist()
+        elif self.__contact_type is contact_type.flat:
+            self.gk = [dot(self.P, CLink_pos), mtimes(CLink_jac, self.Qdot[k])]
+            self.g_mink = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+            self.g_maxk = np.array([-self.d, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+        else:
+            raise ValueError('Specified contact type not implemented!')
 
 class surface_contact_gap(constraint_class):
     """
@@ -254,8 +267,8 @@ class contact_handler(constraint_class):
     def setContact(self, Q, q_contact):
         self.kinematic_contact = contact(self.FKlink, Q, q_contact)
 
-    def setSurfaceContact(self, plane_dict, Q, Jac, Qdot):
-        self.kinematic_contact = surface_contact(plane_dict, self.FKlink, Q, Jac, Qdot)
+    def setSurfaceContact(self, plane_dict, Q, Jac, Qdot, contact_type):
+        self.kinematic_contact = surface_contact(plane_dict, self.FKlink, Q, Jac, Qdot, contact_type)
 
     def setSurfaceContactGap(self, plane_dict, Q, Jac, Qdot):
         self.kinematic_contact = surface_contact_gap(plane_dict, self.FKlink, Q, Jac, Qdot)
@@ -267,8 +280,8 @@ class contact_handler(constraint_class):
         self.setContact(Q, q_contact)
         self.setFrictionCone(mu, Rot)
 
-    def setSurfaceContactAndFrictionCone(self, Q, plane_dict, Jac, Qdot, mu, Rot): #TODO: remove Rot, can be extracted from plane_dict!
-        self.setSurfaceContact(plane_dict, Q, Jac, Qdot)
+    def setSurfaceContactAndFrictionCone(self, Q, plane_dict, Jac, Qdot, contact_type, mu, Rot): #TODO: remove Rot, can be extracted from plane_dict!
+        self.setSurfaceContact(plane_dict, Q, Jac, Qdot, contact_type)
         self.setFrictionCone(mu, Rot)
 
     def setSurfaceContactGapAndFrictionCone(self, Q, plane_dict, Jac, Qdot, mu, Rot): #TODO: remove Rot, can be extracted from plane_dict!
