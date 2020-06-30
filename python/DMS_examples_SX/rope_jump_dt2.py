@@ -275,11 +275,11 @@ g13, g_min13, g_max13 = constraint(contact_handler_F2, lift_node+1, touch_down_n
 G.set_constraint(g13, g_min13, g_max13)
 
 # TOUCH DOWN
-contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
+contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, cons.contact.contact_type.flat, mu, R_wall)
 g14, g_min14, g_max14 = constraint(contact_handler_F1, touch_down_node, ns)
 G.set_constraint(g14, g_min14, g_max14)
 
-contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
+contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, cons.contact.contact_type.flat, mu, R_wall)
 g1111, g_min1111, g_max1111 = constraint(contact_handler_F2, touch_down_node, ns)
 G.set_constraint(g1111, g_min1111, g_max1111)
 
