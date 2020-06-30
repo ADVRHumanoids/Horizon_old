@@ -227,30 +227,30 @@ initial_stance_nodes = 0
 contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
 #contact_handler_F1.setContact(Q, q_init)
 #contact_handler_F1.setContactAndFrictionCone(Q, q_init, mu, R_wall)
-contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
+contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, cons.contact.contact_type.point, mu, R_wall)
 g4, g_min4, g_max4 = constraint(contact_handler_F1, 0, ns)
 # G.set_constraint(g4, g_min4, g_max4)
 
 contact_handler_F2 = cons.contact.contact_handler(FKL, F2)
 #contact_handler_F2.setContact(Q, q_init)
 #contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_wall)
-contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
+contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, cons.contact.contact_type.point, mu, R_wall)
 g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns)
 # G.set_constraint(g5, g_min5, g_max5)
 
 contact_handler_FRope = cons.contact.contact_handler(FKRope, FRope)
 #contact_handler_F2.setContact(Q, q_init)
 #contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_wall)
-contact_handler_FRope.setSurfaceContact(surface_dict, Q, JacRope, Qdot)
+contact_handler_FRope.setSurfaceContact(surface_dict, Q, JacRope, Qdot, cons.contact.contact_type.point)
 g5, g_min5, g_max5 = constraint(contact_handler_FRope, 0, ns)
 #G.set_constraint(g5, g_min5, g_max5)
 
 
 #ACTIONS
 stance_F1 = cons.contact.contact_handler(FKR, F1)
-stance_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
+stance_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, cons.contact.contact_type.point, mu, R_wall)
 stance_F2 = cons.contact.contact_handler(FKL, F2)
-stance_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
+stance_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, cons.contact.contact_type.point, mu, R_wall)
 
 fly_F1 = cons.contact.contact_handler(FKR, F1)
 fly_F1.removeContact()
