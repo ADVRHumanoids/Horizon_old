@@ -206,7 +206,7 @@ class linearized_friction_cone(constraint_class):
         A_fr_R = mtimes(A_fr, self.R)
 
         self.gk = [mtimes(A_fr_R, self.F[k])]
-        self.g_mink = np.array([-1000., -1000., -1000., -1000., -1000.]).tolist()
+        self.g_mink = np.array([-10000., -10000., -10000., -10000., -10000.]).tolist()
         self.g_maxk = np.array([0., 0., 0., 0., 0.]).tolist()
 
 class remove_contact(constraint_class):

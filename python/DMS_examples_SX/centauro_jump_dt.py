@@ -48,7 +48,7 @@ nf = 3  # Force DOfs
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
 dt_min = 0.03
-dt_max = 0.25
+dt_max = 0.15
 dt_init = dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
@@ -138,14 +138,24 @@ Dt_RKF = variable_time.compute_nodes(0, ns-1)
 
 q_fb_trg = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]).tolist()
 
-min_fb_pos = lambda k: 50.*dot(Q[k][2]-q_fb_trg[2], Q[k][2]-q_fb_trg[2])
+min_fb_pos = lambda k: 100.*dot(Q[k][2]-q_fb_trg[2], Q[k][2]-q_fb_trg[2])
 J += cost_function(min_fb_pos, lift_node+1, touch_down_node)
 
-min_fb_or = lambda k: 10.*dot(Q[k][3:7]-q_fb_trg[3:7], Q[k][3:7]-q_fb_trg[3:7])
+min_fb_or = lambda k: 100.*dot(Q[k][3:7]-q_fb_trg[3:7], Q[k][3:7]-q_fb_trg[3:7])
 J += cost_function(min_fb_or, 0, ns)
 
 min_qdot = lambda k: 10.*dot(Qdot[k], Qdot[k])
-J += cost_function(min_qdot,  lift_node+1, touch_down_node)
+J += cost_function(min_qdot,  0, ns)
+
+# min_qddot = lambda k: 1.*dot(Qddot[k], Qddot[k])
+# J += cost_function(min_qddot, touch_down_node+1, ns-1)
+
+min_jerk = lambda k: 0.0003*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
+J += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
+
+min_deltaFC = lambda k: 0.01*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1])+(F3[k]-F3[k-1])+(F4[k]-F4[k-1]),
+                                 (F1[k]-F1[k-1])+(F2[k]-F2[k-1])+(F3[k]-F3[k-1])+(F4[k]-F4[k-1]))  # min Fdot
+J += cost_function(min_deltaFC, touch_down_node+1, ns-1)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -169,16 +179,16 @@ dd = {'Contact1': F1, 'Contact2': F2, 'Contact3': F3, 'Contact4': F4}
 id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    -1000., -1000., -1000.,  # Contact 1
-                    -1000., -1000., -1000.,  # Contact 2
-                    -1000., -1000., -1000.,  # Contact 3
-                    -1000., -1000., -1000.]).tolist()  # Contact 4
+                    -10000., -10000., -10000.,  # Contact 1
+                    -10000., -10000., -10000.,  # Contact 2
+                    -10000., -10000., -10000.,  # Contact 3
+                    -10000., -10000., -10000.]).tolist()  # Contact 4
 
 tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    1000., 1000., 1000.,  # Contact 1
-                    1000., 1000., 1000.,  # Contact 2
-                    1000., 1000., 1000.,  # Contact 3
-                    1000., 1000., 1000.]).tolist()  # Contact 4
+                    10000., 10000., 10000.,  # Contact 1
+                    10000., 10000., 10000.,  # Contact 2
+                    10000., 10000., 10000.,  # Contact 3
+                    10000., 10000., 10000.]).tolist()  # Contact 4
 
 torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
@@ -186,7 +196,7 @@ G.set_constraint(g3, g_min3, g_max3)
 
 
 # WALL
-mu = 0.5
+mu = 0.1
 
 R_ground = np.identity(3, dtype=float)
 
@@ -388,7 +398,7 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
 
 contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res, 'Contact3': F3_hist_res, 'Contact4': F4_hist_res}
 dt = 0.001
-replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
-replay.sleep(2.)
-replay.replay()
-#replay_trajectory(dt, joint_list, q_hist_res).replay()
+# replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
+# replay.sleep(2.)
+# replay.replay()
+replay_trajectory(dt, joint_list, q_hist_res).replay()
