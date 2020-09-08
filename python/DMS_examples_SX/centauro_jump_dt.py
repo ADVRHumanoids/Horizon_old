@@ -136,21 +136,16 @@ dict = {'x0':X, 'p':Qddot, 'time':Dt}
 variable_time = dt_RKF(dict, F_integrator2)
 Dt_RKF = variable_time.compute_nodes(0, ns-1)
 
-q_fb_trg = np.array([0.0, 0.0, 1.0]).tolist()
+q_fb_trg = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]).tolist()
 
-K = 50.
-min_qd = lambda k: K*dot(Q[k][2]-q_fb_trg[2], Q[k][2]-q_fb_trg[2])
-# J += cost_function(min_qd, lift_node+1, touch_down_node)
+min_fb_pos = lambda k: 50.*dot(Q[k][2]-q_fb_trg[2], Q[k][2]-q_fb_trg[2])
+J += cost_function(min_fb_pos, lift_node+1, touch_down_node)
 
-min_qdot = lambda k: 1.*dot(Qdot[k][6:12], Qdot[k][6:12])
-# J += cost_function(min_qdot, lift_node+1, ns)
+min_fb_or = lambda k: 10.*dot(Q[k][3:7]-q_fb_trg[3:7], Q[k][3:7]-q_fb_trg[3:7])
+J += cost_function(min_fb_or, 0, ns)
 
-min_jerk = lambda k: 0.001*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
-# J += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
-
-min_deltaFC = lambda k: 1.*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1])+(F3[k]-F3[k-1])+(F4[k]-F4[k-1]),
-                               (F1[k]-F1[k-1])+(F2[k]-F2[k-1])+(F3[k]-F3[k-1])+(F4[k]-F4[k-1])) # min Fdot
-# J += cost_function(min_deltaFC, touch_down_node+1, ns-1)
+min_qdot = lambda k: 10.*dot(Qdot[k], Qdot[k])
+J += cost_function(min_qdot,  lift_node+1, touch_down_node)
 
 # CONSTRAINTS
 G = constraint_handler()
