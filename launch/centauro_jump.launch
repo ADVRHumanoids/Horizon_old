@@ -10,7 +10,7 @@
         <param name="publish_frequency" type="double" value="250.0" />
     </node>
 
-    <!--node name="mesh_viz_wall" pkg="mesh_viz" type="mesh_viz_node" output="screen">
+    <node name="mesh_viz_wall" pkg="mesh_viz" type="mesh_viz_node" output="screen">
         <param name="mesh_path" value="$(find Horizon)/configs/utils/simple_box.stl" />
         <param name="scale_x" type="double" value="0.1"/>
         <param name="scale_y" type="double" value="2.0"/>
@@ -18,10 +18,10 @@
         <param name="frame_id" value="world_odom"/>
         <param name="name_id" value="wall"/>
         <param name="show_control_axis" type="bool" value="false"/>
-        <rosparam param="position">[0.23, 0., 0.]</rosparam>
-        <rosparam param="orientation">[0., 0., 0., 1.]</rosparam>
+        <rosparam param="position">[0., 0., -0.77]</rosparam>
+        <rosparam param="orientation">[0., 0.7, 0., 0.7]</rosparam>
         <rosparam param="rgba">[0.5, 0.5, 0.5, 0.5]</rosparam>
-    </node-->
+    </node>
 
 
 </launch>
