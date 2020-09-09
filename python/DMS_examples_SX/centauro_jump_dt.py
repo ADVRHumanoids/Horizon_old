@@ -136,9 +136,9 @@ dict = {'x0':X, 'p':Qddot, 'time':Dt}
 variable_time = dt_RKF(dict, F_integrator2)
 Dt_RKF = variable_time.compute_nodes(0, ns-1)
 
-q_fb_trg = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]).tolist()
+q_fb_trg = np.array([0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 1.0]).tolist()
 
-min_fb_pos = lambda k: 100.*dot(Q[k][2]-q_fb_trg[2], Q[k][2]-q_fb_trg[2])
+min_fb_pos = lambda k: 1000.*dot(Q[k][2]-q_fb_trg[2], Q[k][2]-q_fb_trg[2])
 J += cost_function(min_fb_pos, lift_node+1, touch_down_node)
 
 min_fb_or = lambda k: 100.*dot(Q[k][3:7]-q_fb_trg[3:7], Q[k][3:7]-q_fb_trg[3:7])
@@ -146,9 +146,6 @@ J += cost_function(min_fb_or, 0, ns)
 
 min_qdot = lambda k: 10.*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot,  0, ns)
-
-# min_qddot = lambda k: 1.*dot(Qddot[k], Qddot[k])
-# J += cost_function(min_qddot, touch_down_node+1, ns-1)
 
 min_jerk = lambda k: 0.0003*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
 J += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
@@ -196,7 +193,7 @@ G.set_constraint(g3, g_min3, g_max3)
 
 
 # WALL
-mu = 0.1
+mu = 0.01
 
 R_ground = np.identity(3, dtype=float)
 
@@ -398,7 +395,7 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
 
 contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res, 'Contact3': F3_hist_res, 'Contact4': F4_hist_res}
 dt = 0.001
-# replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
-# replay.sleep(2.)
-# replay.replay()
-replay_trajectory(dt, joint_list, q_hist_res).replay()
+replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
+replay.sleep(2.)
+replay.replay()
+# replay_trajectory(dt, joint_list, q_hist_res).replay()
