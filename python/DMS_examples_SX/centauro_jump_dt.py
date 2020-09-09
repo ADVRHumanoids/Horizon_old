@@ -303,7 +303,7 @@ get_Contact2_pos = Function("get_Contact2_pos", [V], [Contact2_pos], ['V'], ['Co
 Contact2_pos_hist = (get_Contact2_pos(V=w_opt)['Contact2_pos'].full().flatten()).reshape(ns, 3)
 
 Contact3_pos = FKcomputer.computeFK('Contact3', 'ee_pos', 0, ns)
-get_Contact3_pos = Function("get_Contact3_pos", [V], [Contact1_pos], ['V'], ['Contact3_pos'])
+get_Contact3_pos = Function("get_Contact3_pos", [V], [Contact3_pos], ['V'], ['Contact3_pos'])
 Contact3_pos_hist = (get_Contact3_pos(V=w_opt)['Contact3_pos'].full().flatten()).reshape(ns, 3)
 
 Contact4_pos = FKcomputer.computeFK('Contact4', 'ee_pos', 0, ns)

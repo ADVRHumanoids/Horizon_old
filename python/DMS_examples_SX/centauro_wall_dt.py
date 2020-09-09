@@ -47,8 +47,8 @@ nf = 3  # Force DOfs
 
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
-dt_min = 0.01
-dt_max = 0.15
+dt_min = 0.03
+dt_max = 0.25
 dt_init = dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
@@ -136,10 +136,8 @@ dict = {'x0':X, 'p':Qddot, 'time':Dt}
 variable_time = dt_RKF(dict, F_integrator2)
 Dt_RKF = variable_time.compute_nodes(0, ns-1)
 
-q_fb_trg = np.array([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]).tolist()
-
-min_fb_or = lambda k: 1.*dot(Q[k][3:7]-q_fb_trg[3:7], Q[k][3:7]-q_fb_trg[3:7])
-#J += cost_function(min_fb_or, 0, ns)
+min_fb_pos = lambda k: 10.*dot(Q[k][0:7]-q_init[0:7], Q[k][0:7]-q_init[0:7])
+# J += cost_function(min_fb_pos, 0, ns)
 
 min_qdot = lambda k: 1.*dot(Qdot[k], Qdot[k])
 J += cost_function(min_qdot,  0, ns)
@@ -193,7 +191,7 @@ G.set_constraint(g3, g_min3, g_max3)
 
 
 # WALL
-mu = 0.5
+mu = 1.0
 
 R_ground = np.identity(3, dtype=float)
 
@@ -220,32 +218,32 @@ G.set_constraint(g7, g_min7, g_max7)
 
 # 2 STANCE PHASE
 contact_handler_F3.removeContact()
-g8, g_min8, g_max8 = constraint(contact_handler_F1, lift_node+1, touch_down_node)
+g8, g_min8, g_max8 = constraint(contact_handler_F3, lift_node+1, touch_down_node)
 G.set_constraint(g8, g_min8, g_max8)
 
 contact_handler_F4.removeContact()
-g9, g_min9, g_max9 = constraint(contact_handler_F2, lift_node+1, touch_down_node)
+g9, g_min9, g_max9 = constraint(contact_handler_F4, lift_node+1, touch_down_node)
 G.set_constraint(g9, g_min9, g_max9)
 
 # 4 STANCE PHASE
 R_wall = np.zeros([3, 3])
-R_wall[0,1] = -1.
-R_wall[1,2] = -1.
-R_wall[2,0] = 1.
+R_wall[0, 1] = -1.0
+R_wall[1, 2] = -1.0
+R_wall[2, 0] = 1.0
 
-wall_position = -0.35 - 0.15
+wall_position = -0.35-0.15
 surface_dict = {'a': 1., 'd': -wall_position}
 
 Jac3 = Function.deserialize(kindyn.jacobian('Contact3', kindyn.LOCAL_WORLD_ALIGNED))
 Jac4 = Function.deserialize(kindyn.jacobian('Contact4', kindyn.LOCAL_WORLD_ALIGNED))
 
 contact_handler_F3.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac3, Qdot, cons.contact.contact_type.point, mu, R_wall)
-g14, g_min14, g_max14 = constraint(contact_handler_F3, touch_down_node, ns)
-G.set_constraint(g14, g_min14, g_max14)
+g10, g_min10, g_max10 = constraint(contact_handler_F3, touch_down_node, ns)
+G.set_constraint(g10, g_min10, g_max10)
 
 contact_handler_F4.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac4, Qdot, cons.contact.contact_type.point, mu, R_wall)
-g15, g_min15, g_max15 = constraint(contact_handler_F4, touch_down_node, ns)
-G.set_constraint(g15, g_min15, g_max15)
+g11, g_min11, g_max11 = constraint(contact_handler_F4, touch_down_node, ns)
+G.set_constraint(g11, g_min11, g_max11)
 
 opts = {'ipopt.tol': 0.001,
         'ipopt.constr_viol_tol': 0.001,
@@ -298,7 +296,7 @@ get_Contact2_pos = Function("get_Contact2_pos", [V], [Contact2_pos], ['V'], ['Co
 Contact2_pos_hist = (get_Contact2_pos(V=w_opt)['Contact2_pos'].full().flatten()).reshape(ns, 3)
 
 Contact3_pos = FKcomputer.computeFK('Contact3', 'ee_pos', 0, ns)
-get_Contact3_pos = Function("get_Contact3_pos", [V], [Contact1_pos], ['V'], ['Contact3_pos'])
+get_Contact3_pos = Function("get_Contact3_pos", [V], [Contact3_pos], ['V'], ['Contact3_pos'])
 Contact3_pos_hist = (get_Contact3_pos(V=w_opt)['Contact3_pos'].full().flatten()).reshape(ns, 3)
 
 Contact4_pos = FKcomputer.computeFK('Contact4', 'ee_pos', 0, ns)
@@ -376,8 +374,6 @@ Dt_RKF_hist = get_Dt_RKF(V=w_opt)['Dt_RKF'].full().transpose()
 logger.add('Dt_RKF', Dt_RKF_hist)
 logger.add('qddot_hist', Qddot_hist)
 
-goal = q_fb_trg[2]*np.ones(ns)
-logger.add('goal', goal)
 
 del(logger)
 
@@ -390,8 +386,8 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
 
 contact_dict = {'Contact1': F1_hist_res, 'Contact2': F2_hist_res, 'Contact3': F3_hist_res, 'Contact4': F4_hist_res}
 dt = 0.001
-# replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
-replay = replay_trajectory(dt, joint_list, q_hist_res)
+replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
+# replay = replay_trajectory(dt, joint_list, q_hist_res)
 replay.sleep(2.)
 replay.replay()
 
