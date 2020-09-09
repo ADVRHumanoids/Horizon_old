@@ -6,6 +6,7 @@ import geometry_msgs.msg
 import rospy
 from utils.normalize_quaternion import *
 import time
+import visualization_msgs.msg
 
 class replay_trajectory:
     def __init__(self, dt, joint_list, q_replay, contact_dict={}, kindyn=None):
@@ -24,16 +25,21 @@ class replay_trajectory:
         self.joint_list = joint_list
         self.q_replay = q_replay
         self.force_pub = []
+        self.com_pub = []
         self.__kindyn = kindyn
 
         self.__contact_dict = contact_dict
         if self.__kindyn != None:
             for frame in self.__contact_dict:
                 FK = None
+                FK = Function.deserialize(self.__kindyn.fk(frame))
                 for k in range(len(self.__contact_dict[frame])):
-                    FK = Function.deserialize(self.__kindyn.fk(frame))
                     w_R_f = FK(q=self.q_replay[k])['ee_rot']
                     self.__contact_dict[frame][k] = mtimes(w_R_f.T, self.__contact_dict[frame][k]).T
+
+        self.__COM = []
+        if self.__kindyn != None:
+            self.__COM = Function.deserialize(self.__kindyn.centerOfMass())
 
         self.__sleep = 0.0
 
@@ -72,6 +78,36 @@ class replay_trajectory:
             i += 1
 
 
+    def publishCom(self, time, qk):
+        zeros = np.zeros(np.shape(self.q_replay)[1] - 1)
+        com_position = self.__COM (q=qk, v=zeros, a=zeros)['com']
+
+        sphere_msg = visualization_msgs.msg.Marker()
+        sphere_msg.header.stamp = time
+        sphere_msg.header.frame_id = "world_odom"
+
+        sphere_msg.id = 0
+        sphere_msg.type = 2 #SPHERE
+        sphere_msg.action = 0 #ADD
+        sphere_msg.pose.position.x = com_position[0]
+        sphere_msg.pose.position.y = com_position[1]
+        sphere_msg.pose.position.z = com_position[2]
+        sphere_msg.pose.orientation.x = 0.
+        sphere_msg.pose.orientation.y = 0.
+        sphere_msg.pose.orientation.z = 0.
+        sphere_msg.pose.orientation.w = 1.
+        sphere_msg.scale.x = 0.1
+        sphere_msg.scale.y = 0.1
+        sphere_msg.scale.z = 0.1
+        sphere_msg.color.a = 1.
+        sphere_msg.color.r = 0.
+        sphere_msg.color.g = 1.
+        sphere_msg.color.b = 0.
+        sphere_msg.text = "com"
+
+        self.com_pub.publish(sphere_msg)
+
+
     def replay(self):
         pub = rospy.Publisher('joint_states', JointState, queue_size=10)
         rospy.init_node('joint_state_publisher')
@@ -92,6 +128,8 @@ class replay_trajectory:
 
         for key in self.__contact_dict:
             self.force_pub.append(rospy.Publisher(key+'_forces',geometry_msgs.msg.WrenchStamped, queue_size=1))
+
+        self.com_pub = rospy.Publisher('com',visualization_msgs.msg.Marker, queue_size=1)
 
         while not rospy.is_shutdown():
             for k in range(int(round(n_res))):
@@ -117,6 +155,7 @@ class replay_trajectory:
                 joint_state_pub.effort = []
                 pub.publish(joint_state_pub)
                 self.publishContactForces(t, k)
+                self.publishCom(t, qk)
                 rate.sleep()
             if self.__sleep > 0.:
                 time.sleep(self.__sleep)
