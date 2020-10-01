@@ -6,32 +6,18 @@ import matplotlib.pyplot as plt
 # Solve a QP
 def qpsolve(H, g, lbx, ubx, A, lba, uba):
     # QP structure
-    qp = qpStruct(h=H.sparsity(), a=A.sparsity())
+    qp = {}
+    qp['h'] = H.sparsity()
+    qp['a'] = A.sparsity()
 
     # Create CasADi solver instance
-    if False:
-        solver = QpSolver("qpoases", qp)
-    else:
-        solver = QpSolver("nlp", qp)
-        solver.setOption("nlp_solver", "ipopt")
+    solver = conic('S', 'qpoases', qp)
+    print(solver)
 
-        # Initialize the solver
-    solver.init()
-
-    # Pass problem data
-    solver.setInput(H, "h")
-    solver.setInput(g, "g")
-    solver.setInput(A, "a")
-    solver.setInput(lbx, "lbx")
-    solver.setInput(ubx, "ubx")
-    solver.setInput(lba, "lba")
-    solver.setInput(uba, "uba")
-
-    # Solver the QP
-    solver.evaluate()
+    r = solver(h=H, g=g, a=A, lbx=lbx, ubx=ubx, lba=lba, uba=uba)
 
     # Return the solution
-    return solver.getOutput("x")
+    return r['x']
 
 
 N = 20  # Control discretization
@@ -43,7 +29,7 @@ x = SX.sym("x", 2)  # states
 
 # System dynamics
 xdot = vertcat(*[(1 - x[1] ** 2) * x[0] - x[1] + u, x[0]])
-f = Function('f', [x, u], [xdot])
+f = Function('f', {'x':x, 'u':u, 'xdot':xdot}, ['x', 'u'], ['xdot'])
 
 # RK4 with M steps
 U = MX.sym("U")
@@ -59,7 +45,7 @@ for j in range(M):
     k3 = f(XF + DT / 2 * k2, U)
     k4 = f(XF + DT * k3, U)
     XF += DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-F = Function('F', [X, U], [XF])
+F = Function('F', {'X': X, 'U': U, 'XF': XF}, ['X', 'U'], ['XF'])
 
 # Formulate NLP (use matrix graph)
 nv = 1 * N + 2 * (N + 1)
@@ -114,15 +100,15 @@ gmax = concatenate(gmax)
 r = v
 
 # Form function for calculating the Gauss-Newton objective
-r_fcn = Function('r_fcn', [v], [r])
+r_fcn = Function('r_fcn', {'v':v, 'r':r}, ['v'], ['r'])
 
 # Form function for calculating the constraints
-g_fcn = Function('g_fcn', [v], [g])
+g_fcn = Function('g_fcn', {'v':v, 'g':g}, ['v'], ['g'])
 
 
 # Generate functions for the Jacobians
-Jac_r_fcn = r_fcn.jacobian()
-Jac_g_fcn = g_fcn.jacobian()
+Jac_r_fcn = r_fcn.jac()
+Jac_g_fcn = g_fcn.jac()
 
 # Objective value history
 obj_history = []
@@ -131,20 +117,19 @@ obj_history = []
 con_history = []
 
 # Gauss-Newton SQP
-v_opt = matrix(v0)
 N_iter = 10
+v_opt = v0
 for k in range(N_iter):
     # Form quadratic approximation of objective
-    Jac_r_fcn.setInput(v_opt)
-    Jac_r_fcn.evaluate()
-    J_r_k = Jac_r_fcn.getOutput(0)
-    r_k = Jac_r_fcn.getOutput(1)
+    Jac_r_fcn_value = Jac_r_fcn(v=v_opt) # evaluate in v_opt
+    J_r_k = Jac_r_fcn_value['DrDv']
+    r_k = r_fcn(v=v_opt)['r']
+
 
     # Form quadratic approximation of constraints
-    Jac_g_fcn.setInput(v_opt)
-    Jac_g_fcn.evaluate()
-    J_g_k = Jac_g_fcn.getOutput(0)
-    g_k = Jac_g_fcn.getOutput(1)
+    Jac_g_fcn_value = Jac_g_fcn(v=v_opt)  # evaluate in v_opt
+    J_g_k = Jac_g_fcn_value['DgDv']
+    g_k = g_fcn(v=v_opt)['g']
 
     # Gauss-Newton Hessian
     H_k = mtimes(J_r_k.T, J_r_k)
