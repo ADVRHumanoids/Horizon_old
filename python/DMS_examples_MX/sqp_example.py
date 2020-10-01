@@ -34,7 +34,7 @@ f = Function('f', {'x':x, 'u':u, 'xdot':xdot}, ['x', 'u'], ['xdot'])
 # RK4 with M steps
 U = MX.sym("U")
 X = MX.sym("X", 2)
-M = 10;
+M = 10
 DT = T / (N * M)
 XF = X
 QF = 0
@@ -145,7 +145,7 @@ for k in range(N_iter):
     dv = qpsolve(H_k, Grad_obj_k, dv_min, dv_max, J_g_k, -g_k, -g_k)
 
     # Take the full step
-    v_opt += dv
+    v_opt += dv.toarray().flatten()
 
 # Print result
 print "solution found: ", v_opt
