@@ -1,6 +1,7 @@
 from casadi import *
 from numpy import *
 import matplotlib.pyplot as plt
+import time as time
 
 
 # Solve a QP
@@ -34,7 +35,7 @@ f = Function('f', {'x':x, 'u':u, 'xdot':xdot}, ['x', 'u'], ['xdot'])
 # RK4 with M steps
 U = MX.sym("U")
 X = MX.sym("X", 2)
-M = 10
+M = 1
 DT = T / (N * M)
 XF = X
 QF = 0
@@ -116,6 +117,8 @@ obj_history = []
 # Constraint violation history
 con_history = []
 
+t = time.time()
+
 # Gauss-Newton SQP
 N_iter = 10
 v_opt = v0
@@ -153,6 +156,9 @@ for k in range(N_iter):
     con_history.append(float(norm_2(g_k)))
 
 # Print result
+elapsed = time.time() - t
+print "elapsed: ", elapsed
+
 print "solution found: ", v_opt
 
 # Retrieve the solution
