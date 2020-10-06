@@ -88,10 +88,25 @@ print "g: ", g
 print "g_min: ", g_max
 print "g_max: ", g_min
 
-opts = {'max_iter': 10, "qpsolver": "osqp"}
+opts = {'max_iter': 10,
+        'qpoases.sparse': True,
+        'qpoases.linsol_plugin': 'ma57',
+        'qpoases.enableRamping': False,
+        'qpoases.enableFarBounds': False,
+        'qpoases.enableFlippingBounds': False,
+        'qpoases.enableFullLITests': False,
+        'qpoases.enableNZCTests': False,
+        'qpoases.enableDriftCorrection': 0,
+        'qpoases.enableCholeskyRefactorisation': 0,
+        'qpoases.enableEqualities': True,
+        'qpoases.initialStatusBounds': 'inactive',
+        'qpoases.numRefinementSteps': 0,
+        'qpoases.terminationTolerance': 1e9*np.finfo(float).eps,
+        'qpoases.enableInertiaCorrection': False}
+
 
 t = time.time()
-solver = sqp('solver', {'f': V, 'x': V, 'g': g}, opts)
+solver = sqp('solver', "qpoases", {'f': V, 'x': V, 'g': g}, opts)
 solution = solver(x0=v0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 elapsed = time.time() - t
 print "elapsed: ", elapsed

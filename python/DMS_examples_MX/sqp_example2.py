@@ -101,7 +101,7 @@ gmax = concatenate(gmax)
 r = v
 
 opts = {'max_iter': 10}
-solver = sqp('solver', {'f': r, 'x': v, 'g': g}, opts)
+solver = sqp('solver', 'qpoases', {'f': r, 'x': v, 'g': g}, opts)
 print "v0: ", v0
 solution = solver(x0=v0, lbx=vmin, ubx=vmax, lbg=gmin, ubg=gmax)
 

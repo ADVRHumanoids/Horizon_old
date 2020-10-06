@@ -1,24 +1,42 @@
 from casadi import *
 from numpy import *
 
-def sqpsol(name, problem_dict, options_dict):
+def sqpsol(name, qp_solver, problem_dict, options_dict):
     """
     sqpsol creates a sqp solver
     Args:
         name: name of the solver (not used at the moment)
+        qp_solver: internal qp solver name
         problem_dict: {'f': cost_function, 'g': constraints, 'x': variables}
-        options_dict: {'max_iter': iterations, 'qpsolver': internal_qpsolver
+        options_dict: {'max_iter': iterations}
 
     Returns: a sqp object
 
     """
-    return sqp(name, problem_dict, options_dict)
+    return sqp(name, qp_solver, problem_dict, options_dict)
+
+def qpoasesMPCOptions()
+    opts = {'qpoases.sparse': True,
+            'qpoases.linsol_plugin': 'ma57',
+            'qpoases.enableRamping': False,
+            'qpoases.enableFarBounds': False,
+            'qpoases.enableFlippingBounds': False,
+            'qpoases.enableFullLITests': False,
+            'qpoases.enableNZCTests': False,
+            'qpoases.enableDriftCorrection': 0,
+            'qpoases.enableCholeskyRefactorisation': 0,
+            'qpoases.enableEqualities': True,
+            'qpoases.initialStatusBounds': 'inactive',
+            'qpoases.numRefinementSteps': 0,
+            'qpoases.terminationTolerance': 1e9 * np.finfo(float).eps,
+            'qpoases.enableInertiaCorrection': False}
+    return opts
 
 class sqp(object):
     """
     Implements a sqp solver
     """
-    def __init__(self, name, problem_dict, options_dict):
+    def __init__(self, name, qp_solver, problem_dict, options_dict):
         """
 
         Args:
@@ -29,18 +47,24 @@ class sqp(object):
         self.__name = name
         self.__problem_dict = problem_dict
         self.__options_dict = options_dict
+        self.__qpsolver = qp_solver
+
+        self.__qpsolver_options = self.qpsolver_option_parser(self.__qpsolver, self.__options_dict)
 
         self.__f = self.__problem_dict['f']
         self.__g = self.__problem_dict['g']
         self.__x = self.__problem_dict['x']
 
         self.__max_iter = 1000
-        if 'max_iter' in options_dict:
-            self.__max_iter = options_dict['max_iter']
+        if 'max_iter' in self.__options_dict:
+            self.__max_iter = self.__options_dict['max_iter']
 
-        self.__qpsolver = "qpoases"
-        if 'qpsolver' in options_dict:
-            self.__qpsolver = options_dict['qpsolver']
+        self.__reinitialize_qpsolver = False
+        if 'reinitialize_qpsolver' in self.__options_dict:
+            self.__reinitialize_qpsolver = self.__options_dict['reinitialize_qpsolver']
+
+
+
 
         # Form function for calculating the Gauss-Newton objective
         self.__r_fcn = Function('r_fcn', {'v': self.__x, 'r': self.__f}, ['v'], ['r'])
@@ -62,7 +86,10 @@ class sqp(object):
         self.__obj = []
         self.__constr = []
 
-    def qpsolve(self, H, g, lbx, ubx, A, lba, uba):
+        self.__solver = []
+        self.__qp = {}
+
+    def qpsolve(self, H, g, lbx, ubx, A, lba, uba, init=True):
         """
         Internal qp solver to solve differential problem
         Args:
@@ -78,15 +105,16 @@ class sqp(object):
 
         """
 
-        # QP structure
-        qp = {}
-        qp['h'] = H.sparsity()
-        qp['a'] = A.sparsity()
+        if init:
+            # QP structure
+            self.__qp['h'] = H.sparsity()
+            self.__qp['a'] = A.sparsity()
 
-        # Create CasADi solver instance
-        solver = conic('S', self.__qpsolver, qp)
 
-        r = solver(h=H, g=g, a=A, lbx=lbx, ubx=ubx, lba=lba, uba=uba)
+            # Create CasADi solver instance
+            self.__solver = conic('S', self.__qpsolver, self.__qp, self.__qpsolver_options)
+
+        r = self.__solver(h=H, g=g, a=A, lbx=lbx, ubx=ubx, lba=lba, uba=uba)
 
         # Return the solution
         return r['x']
@@ -113,6 +141,11 @@ class sqp(object):
 
         self.__v_opt = self.__v0
         for k in range(self.__max_iter):
+
+            init = self.__reinitialize_qpsolver
+            if k == 0:
+                init = True
+
             # Form quadratic approximation of objective
             Jac_r_fcn_value = self.__Jac_r_fcn(v=self.__v_opt)  # evaluate in v_opt
             J_r_k = Jac_r_fcn_value['DrDv']
@@ -134,7 +167,7 @@ class sqp(object):
             dv_max = self.__vmax - self.__v_opt
 
             # Solve the QP
-            dv = self.qpsolve(H_k, Grad_obj_k, dv_min, dv_max, J_g_k, -g_k, -g_k)
+            dv = self.qpsolve(H_k, Grad_obj_k, dv_min, dv_max, J_g_k, -g_k, -g_k, init)
 
             # Take the full step
             self.__v_opt += dv.toarray().flatten()
@@ -143,3 +176,11 @@ class sqp(object):
 
         solution_dict = {'x': self.__v_opt, 'f': self.__obj, 'g': self.__constr}
         return solution_dict
+
+    def qpsolver_option_parser(self, qpsolver, options):
+        parsed_options = {}
+        for key in options:
+            list = key.split(".")
+            if list[0] == qpsolver:
+                parsed_options[list[1]] = options[key]
+        return parsed_options
