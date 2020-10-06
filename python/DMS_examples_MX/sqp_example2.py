@@ -2,22 +2,11 @@ from casadi import *
 from numpy import *
 import matplotlib.pyplot as plt
 
+import sys
+from os import path
+sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
 
-# Solve a QP
-def qpsolve(H, g, lbx, ubx, A, lba, uba):
-    # QP structure
-    qp = {}
-    qp['h'] = H.sparsity()
-    qp['a'] = A.sparsity()
-
-    # Create CasADi solver instance
-    solver = conic('S', 'qpoases', qp)
-    print(solver)
-
-    r = solver(h=H, g=g, a=A, lbx=lbx, ubx=ubx, lba=lba, uba=uba)
-
-    # Return the solution
-    return r['x']
+from solvers.sqp import *
 
 
 N = 20  # Control discretization
@@ -99,58 +88,13 @@ gmax = concatenate(gmax)
 # Gauss-Newton objective
 r = v
 
-# Form function for calculating the Gauss-Newton objective
-r_fcn = Function('r_fcn', {'v':v, 'r':r}, ['v'], ['r'])
+opts = {'max_iter': 10}
+solver = sqp('solver', {'f': r, 'x': v, 'g': g}, opts)
+solution = solver(x0=v0, lbx=vmin, ubx=vmax, lbg=gmin, ubg=gmax)
 
-# Form function for calculating the constraints
-g_fcn = Function('g_fcn', {'v':v, 'g':g}, ['v'], ['g'])
-
-
-# Generate functions for the Jacobians
-Jac_r_fcn = r_fcn.jac()
-Jac_g_fcn = g_fcn.jac()
-
-# Objective value history
-obj_history = []
-
-# Constraint violation history
-con_history = []
-
-# Gauss-Newton SQP
-N_iter = 10
-v_opt = v0
-for k in range(N_iter):
-    # Form quadratic approximation of objective
-    Jac_r_fcn_value = Jac_r_fcn(v=v_opt) # evaluate in v_opt
-    J_r_k = Jac_r_fcn_value['DrDv']
-    r_k = r_fcn(v=v_opt)['r']
-
-
-
-    # Form quadratic approximation of constraints
-    Jac_g_fcn_value = Jac_g_fcn(v=v_opt)  # evaluate in v_opt
-    J_g_k = Jac_g_fcn_value['DgDv']
-    g_k = g_fcn(v=v_opt)['g']
-
-    # Gauss-Newton Hessian
-    H_k = mtimes(J_r_k.T, J_r_k)
-
-    # Gradient of the objective function
-    Grad_obj_k = mtimes(J_r_k.T, r_k)
-
-    # Bounds on delta_v
-    dv_min = vmin - v_opt
-    dv_max = vmax - v_opt
-
-    # Solve the QP
-    dv = qpsolve(H_k, Grad_obj_k, dv_min, dv_max, J_g_k, -g_k, -g_k)
-
-    # Take the full step
-    v_opt += dv.toarray().flatten()
-
-    # Save objective and constraint violation
-    obj_history.append(float(dot(r_k.T, r_k) / 2))
-    con_history.append(float(norm_2(g_k)))
+obj_history = solution['f']
+con_history = solution['g']
+v_opt = solution['x']
 
 # Print result
 print "solution found: ", v_opt

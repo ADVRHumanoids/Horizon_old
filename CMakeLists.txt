@@ -30,5 +30,6 @@ install(PROGRAMS
    python/utils/integrator.py
    python/utils/replay_trajectory.py
    python/utils/inverse_dynamics.py
+   python/solvers/sqp.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
