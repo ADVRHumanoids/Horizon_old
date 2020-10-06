@@ -1,5 +1,4 @@
 from casadi import *
-from numpy import *
 
 def sqpsol(name, qp_solver, problem_dict, options_dict):
     """
@@ -15,7 +14,7 @@ def sqpsol(name, qp_solver, problem_dict, options_dict):
     """
     return sqp(name, qp_solver, problem_dict, options_dict)
 
-def qpoasesMPCOptions()
+def qpoasesMPCOptions():
     opts = {'qpoases.sparse': True,
             'qpoases.linsol_plugin': 'ma57',
             'qpoases.enableRamping': False,
@@ -132,6 +131,7 @@ class sqp(object):
         Returns: solution dict {'x': nlp_solution, 'f': value_cost_function, 'g': value_constraints}
 
         """
+        from numpy import *
 
         self.__v0 = x0
         self.__vmin = lbx

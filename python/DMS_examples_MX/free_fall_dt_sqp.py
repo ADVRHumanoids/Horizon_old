@@ -12,6 +12,8 @@ from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
 from utils.integrator import *
 
+from solvers.sqp import *
+
 logger = matl.MatLogger2('/tmp/free_fall_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
@@ -166,21 +168,49 @@ contact_constr = cons.contact.contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
-
-opts = {'ipopt.tol': 1e-3,
-        'ipopt.max_iter': 2000,
-        'ipopt.linear_solver': 'ma57'}
+# opts = {'ipopt.tol': 1e-3,
+#         'ipopt.max_iter': 2000,
+#         'ipopt.linear_solver': 'ma57'}
+#
+# g, g_min, g_max = G.get_constraints()
+# solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts)
+#
+# x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_initRope, dt_init]}, ns)
+#
+# sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
+# w_opt = sol['x'].full().flatten()
 
 g, g_min, g_max = G.get_constraints()
-solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts)
-
 x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_initRope, dt_init]}, ns)
 
+opts = {'max_iter': 1,
+        'qpoases.sparse': True,
+        'qpoases.linsol_plugin': 'ma57',
+        'qpoases.enableRamping': False,
+        'qpoases.enableFarBounds': False,
+        'qpoases.enableFlippingBounds': False,
+        'qpoases.enableFullLITests': False,
+        'qpoases.enableNZCTests': False,
+        'qpoases.enableDriftCorrection': 0,
+        'qpoases.enableCholeskyRefactorisation': 0,
+        'qpoases.enableEqualities': True,
+        'qpoases.initialStatusBounds': 'inactive',
+        'qpoases.numRefinementSteps': 0,
+        'qpoases.terminationTolerance': 1e9*np.finfo(float).eps,
+        'qpoases.enableInertiaCorrection': False,
+        'qpoases.printLevel': 'none'}
+
+
 t = time.time()
-sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
+solver = sqp('solver', "osqp", {'f': V, 'x': V, 'g': g}, opts)
+solution = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 elapsed = time.time() - t
 print "elapsed: ", elapsed
-w_opt = sol['x'].full().flatten()
+
+obj_history = solution['f']
+print "obj_history: ", obj_history
+con_history = solution['g']
+w_opt = solution['x']
 
 # RETRIEVE SOLUTION AND LOGGING
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'FRope': FRope, 'Dt': Dt}, w_opt)
