@@ -102,11 +102,13 @@ opts = {'max_iter': 10,
         'qpoases.initialStatusBounds': 'inactive',
         'qpoases.numRefinementSteps': 0,
         'qpoases.terminationTolerance': 1e9*np.finfo(float).eps,
-        'qpoases.enableInertiaCorrection': False}
+        'qpoases.enableInertiaCorrection': False,
+        'qpoases.printLevel': 'none',
+        'osqp.verbose': False}
 
 
 t = time.time()
-solver = sqp('solver', "qpoases", {'f': V, 'x': V, 'g': g}, opts)
+solver = sqp('solver', "osqp", {'f': V, 'x': V, 'g': g}, opts)
 solution = solver(x0=v0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 elapsed = time.time() - t
 print "elapsed: ", elapsed

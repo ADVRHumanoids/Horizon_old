@@ -28,7 +28,8 @@ def qpoasesMPCOptions():
             'qpoases.initialStatusBounds': 'inactive',
             'qpoases.numRefinementSteps': 0,
             'qpoases.terminationTolerance': 1e9 * np.finfo(float).eps,
-            'qpoases.enableInertiaCorrection': False}
+            'qpoases.enableInertiaCorrection': False,
+            'qpoases.printLevel': 'none'}
     return opts
 
 class sqp(object):
