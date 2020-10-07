@@ -176,7 +176,6 @@ g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
 # INVERSE DYNAMICS CONSTRAINT
-# dd = {'rope_anchor2': FRope}
 dd = {'Contact1': F1, 'Contact2': F2, 'Contact3': F3, 'Contact4': F4}
 id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 
@@ -269,10 +268,9 @@ solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
 
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
 w_opt_ipopt = sol['x'].full().flatten()
-
 # SQP
-opts = {'max_iter': 10,
-        'qpoases.sparse': True} #,
+opts = {'max_iter': 1}#,
+        # 'qpoases.sparse': True} #,
         # 'qpoases.linsol_plugin': 'ma57',
         # 'qpoases.enableRamping': False,
         # 'qpoases.enableFarBounds': False,
@@ -289,9 +287,19 @@ opts = {'max_iter': 10,
         # 'qpoases.printLevel': 'none',
         # 'osqp.verbose': False}
 
+J_sqp = V-w_opt_ipopt
+
+G_sqp = constraint_handler()
+g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
+G_sqp.set_constraint(g3, g_min3, g_max3)
+
+g_sqp, g_min_sqp, g_max_sqp = G_sqp.get_constraints()
+
 t = time.time()
-solver = sqp('solver', "qpoases", {'f': V, 'x': V, 'g': g_}, opts)
-solution = solver(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
+solver = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': []}, opts)
+solution = solver(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=[], ubg=[])
+# solver = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': g_sqp}, opts)
+# solution = solver(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min_sqp, ubg=g_max_sqp)
 elapsed = time.time() - t
 print "elapsed: ", elapsed
 
