@@ -19,7 +19,6 @@ class replay_trajectory:
             contact_dict: dictionary containing:
                 'frame': force
             kindyn: if passed the forces are rotated (only) in local frame
-
         """
         self.dt = dt
         self.joint_list = joint_list

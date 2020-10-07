@@ -16,6 +16,8 @@ from utils.normalize_quaternion import *
 from utils.conversions_to_euler import *
 from utils.dt_RKF import *
 
+from solvers.sqp import *
+
 logger = matl.MatLogger2('/tmp/centauro_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
@@ -158,10 +160,13 @@ J += cost_function(min_deltaFC, touch_down_node+1, ns-1)
 G = constraint_handler()
 
 # INITIAL CONDITION CONSTRAINT
-x_init = q_init + qdot_init
-init = cons.initial_condition.initial_condition(X[0], x_init)
-g1, g_min1, g_max1 = constraint(init, 0, 1)
-G.set_constraint(g1, g_min1, g_max1)
+# x_init = q_init + qdot_init
+# init = cons.initial_condition.initial_condition(X[0], x_init)
+# g1, g_min1, g_max1 = constraint(init, 0, 1)
+# G.set_constraint(g1, g_min1, g_max1)
+
+v_min[0:nq] = v_max[0:nq] = q_init
+v_min[nq:nq+nv] = v_max[nq:nq+nv] = qdot_init
 
 # MULTIPLE SHOOTING CONSTRAINT
 integrator_dict = {'x0': X, 'p': Qddot, 'time': Dt}
@@ -252,18 +257,48 @@ contact_handler_F4.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g15, g_min15, g_max15 = constraint(contact_handler_F4, touch_down_node, ns)
 G.set_constraint(g15, g_min15, g_max15)
 
+g_, g_min_, g_max_ = G.get_constraints()
+x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_init3, f_init4, dt_init]}, ns)
+
 opts = {'ipopt.tol': 0.001,
         'ipopt.constr_viol_tol': 0.001,
         'ipopt.max_iter': 5000,
         'ipopt.linear_solver': 'ma57'}
 
-g_, g_min_, g_max_ = G.get_constraints()
 solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
 
-x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_init3, f_init4, dt_init]}, ns)
-
 sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
-w_opt = sol['x'].full().flatten()
+w_opt_ipopt = sol['x'].full().flatten()
+
+# SQP
+opts = {'max_iter': 10,
+        'qpoases.sparse': True} #,
+        # 'qpoases.linsol_plugin': 'ma57',
+        # 'qpoases.enableRamping': False,
+        # 'qpoases.enableFarBounds': False,
+        # 'qpoases.enableFlippingBounds': False,
+        # 'qpoases.enableFullLITests': False,
+        # 'qpoases.enableNZCTests': False,
+        # 'qpoases.enableDriftCorrection': 0,
+        # 'qpoases.enableCholeskyRefactorisation': 0,
+        # 'qpoases.enableEqualities': True,
+        # 'qpoases.initialStatusBounds': 'inactive',
+        # 'qpoases.numRefinementSteps': 0,
+        # 'qpoases.terminationTolerance': 1e9*np.finfo(float).eps,
+        # 'qpoases.enableInertiaCorrection': False,
+        # 'qpoases.printLevel': 'none',
+        # 'osqp.verbose': False}
+
+t = time.time()
+solver = sqp('solver', "qpoases", {'f': V, 'x': V, 'g': g_}, opts)
+solution = solver(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
+elapsed = time.time() - t
+print "elapsed: ", elapsed
+
+obj_history = solution['f']
+print "obj_history: ", obj_history
+con_history = solution['g']
+w_opt = solution['x']
 
 # RETRIEVE SOLUTION AND LOGGING
 solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'F3': F3, 'F4': F4, 'Dt': Dt}, w_opt)
@@ -398,4 +433,3 @@ dt = 0.001
 replay = replay_trajectory(dt, joint_list, q_hist_res, contact_dict, kindyn)
 replay.sleep(2.)
 replay.replay()
-# replay_trajectory(dt, joint_list, q_hist_res).replay()
