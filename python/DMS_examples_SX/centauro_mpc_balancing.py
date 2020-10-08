@@ -93,23 +93,23 @@ qddot_init = np.zeros(nv).tolist()
 qddot_init[2] = -9.8
 
 f1, F1 = create_variable('F1', nf, ns, 'CONTROL', 'SX')
-f_min1 = (-10000.*np.ones(nf)).tolist()
-f_max1 = (10000.*np.ones(nf)).tolist()
+f_min1 = (-1000.*np.ones(nf)).tolist()
+f_max1 = (1000.*np.ones(nf)).tolist()
 f_init1 = np.zeros(nf).tolist()
 
 f2, F2 = create_variable('F2', nf, ns, 'CONTROL', 'SX')
-f_min2 = (-10000.*np.ones(nf)).tolist()
-f_max2 = (10000.*np.ones(nf)).tolist()
+f_min2 = (-1000.*np.ones(nf)).tolist()
+f_max2 = (1000.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
 f3, F3 = create_variable('F3', nf, ns, 'CONTROL', 'SX')
-f_min3 = (-10000.*np.ones(nf)).tolist()
-f_max3 = (10000.*np.ones(nf)).tolist()
+f_min3 = (-1000.*np.ones(nf)).tolist()
+f_max3 = (1000.*np.ones(nf)).tolist()
 f_init3 = np.zeros(nf).tolist()
 
 f4, F4 = create_variable('F4', nf, ns, 'CONTROL', 'SX')
-f_min4 = (-10000.*np.ones(nf)).tolist()
-f_max4 = (10000.*np.ones(nf)).tolist()
+f_min4 = (-1000.*np.ones(nf)).tolist()
+f_max4 = (1000.*np.ones(nf)).tolist()
 f_init4 = np.zeros(nf).tolist()
 
 x, xdot = dynamic_model_with_floating_base(q, qdot, qddot)
@@ -144,6 +144,11 @@ J += cost_function(min_deltaFC, 0, ns-1)
 G = constraint_handler()
 
 # INITIAL CONDITION CONSTRAINT
+# x_init = q_init + qdot_init
+# init = cons.initial_condition.initial_condition(X[0], x_init)
+# g1, g_min1, g_max1 = constraint(init, 0, 1)
+# G.set_constraint(g1, g_min1, g_max1)
+
 v_min[0:nq] = v_max[0:nq] = q_init
 v_min[nq:nq+nv] = v_max[nq:nq+nv] = qdot_init
 
@@ -170,8 +175,8 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     10000., 10000., 10000.,  # Contact 3
                     10000., 10000., 10000.]).tolist()  # Contact 4
 
-torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
-g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
+torque_lims = cons.torque_limits.torque_lims(id, tau_min, tau_max)
+g3, g_min3, g_max3 = constraint(torque_lims, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
 
@@ -180,7 +185,7 @@ mu = 0.01
 
 R_ground = np.identity(3, dtype=float)
 
-# STANCE PHASE
+# STANCE ON 2 FEET
 contact_handler_F1 = cons.contact.contact_handler(FK1, F1)
 contact_handler_F1.removeContact()
 g8, g_min8, g_max8 = constraint(contact_handler_F1, 0, ns-1)
@@ -201,197 +206,139 @@ contact_handler_F4.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g7, g_min7, g_max7 = constraint(contact_handler_F4, 0, ns-1)
 G.set_constraint(g7, g_min7, g_max7)
 
-g_, g_min_, g_max_ = G.get_constraints()
+g, g_min, g_max = G.get_constraints()
 x0 = create_init({"x_init": [q_init, qdot_init], "u_init": [qddot_init, f_init1, f_init2, f_init3, f_init4, dt_init]}, ns)
 
-opts = {'ipopt.tol': 0.001,
-        'ipopt.constr_viol_tol': 0.001,
-        'ipopt.max_iter': 5000,
-        'ipopt.linear_solver': 'ma57'}
+# IPOPT
+opts_ipopt = \
+    {
+    'ipopt.tol': 0.001,
+    'ipopt.constr_viol_tol': 0.001,
+    'ipopt.max_iter': 5000,
+    'ipopt.linear_solver': 'ma57'
+    }
 
-solver = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g_}, opts)
+solver_ipopt = nlpsol('solver', 'ipopt', {'f': J, 'x': V, 'g': g}, opts_ipopt)
 t_ipopt = time.time()
-sol = solver(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
+sol_ipopt = solver_ipopt(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 elapsed_ipopt = time.time() - t_ipopt
-w_opt_ipopt = sol['x'].full().flatten()
+w_opt_ipopt = sol_ipopt['x'].full().flatten()
 
 # SQP
-opts = {'max_iter': 1}
+opts_sqp = {'max_iter': 1}
 
 J_sqp = V-w_opt_ipopt
 
-solver = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': []}, opts)
+solver_sqp = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': []}, opts_sqp)
 t_sqp = time.time()
-solution = solver(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=[], ubg=[])
+solution_sqp = solver_sqp(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=[], ubg=[])
 elapsed_sqp = time.time() - t_sqp
-
-print "elapsed_ipopt: ", elapsed_ipopt
-print "elapsed_sqp: ", elapsed_sqp
-
-obj_history = solution['f']
-print "obj_history: ", obj_history
-con_history = solution['g']
-w_opt = solution['x']
+w_opt_sqp = solution_sqp['x']
 
 # RETRIEVE SOLUTION AND LOGGING
-solution_dict = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'F3': F3, 'F4': F4, 'Dt': Dt}, w_opt)
+solution_dict_ipopt = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'F3': F3, 'F4': F4, 'Dt': Dt}, w_opt_ipopt)
 
-q_hist = solution_dict['Q']
-q_hist = normalize_quaternion(q_hist)
-F1_hist = solution_dict['F1']
-F2_hist = solution_dict['F2']
-F3_hist = solution_dict['F3']
-F4_hist = solution_dict['F4']
-Qddot_hist = solution_dict['Qddot']
-
-dt_hist = solution_dict['Dt']
-
-tf = 0.0
-
-for i in range(ns-1):
-    tf += dt_hist[i]
+Q_ipopt = solution_dict_ipopt['Q']
+Q_ipopt = normalize_quaternion(Q_ipopt)
+F1_ipopt = solution_dict_ipopt['F1']
+F2_ipopt = solution_dict_ipopt['F2']
+F3_ipopt = solution_dict_ipopt['F3']
+F4_ipopt = solution_dict_ipopt['F4']
+Qdot_ipopt = solution_dict_ipopt['Qdot']
+Qddot_ipopt = solution_dict_ipopt['Qddot']
+Dt_ipopt = solution_dict_ipopt['Dt']
 
 
-# GET ADDITIONAL VARIABLES
+solution_dict_sqp = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F1': F1, 'F2': F2, 'F3': F3, 'F4': F4, 'Dt': Dt}, w_opt_sqp)
+Q_sqp = solution_dict_sqp['Q']
+Q_sqp = normalize_quaternion(Q_sqp)
+F1_sqp = solution_dict_sqp['F1']
+F2_sqp = solution_dict_sqp['F2']
+F3_sqp = solution_dict_sqp['F3']
+F4_sqp = solution_dict_sqp['F4']
+Qdot_sqp = solution_dict_sqp['Qdot']
+Qddot_sqp = solution_dict_sqp['Qddot']
+Dt_sqp = solution_dict_sqp['Dt']
+
 Tau = id.compute_nodes(0, ns-1)
 get_Tau = Function("get_Tau", [V], [Tau], ['V'], ['Tau'])
-tau_hist = (get_Tau(V=w_opt)['Tau'].full().flatten()).reshape(ns-1, nv)
+Tau_ipopt = (get_Tau(V=w_opt_ipopt)['Tau'].full().flatten()).reshape(ns-1, nv)
+Tau_sqp = (get_Tau(V=w_opt_sqp)['Tau'].full().flatten()).reshape(ns-1, nv)
 
-# LOGGING
-for k in solution_dict:
-    logger.add(k, solution_dict[k])
+logger.add('Q_ipopt', Q_ipopt)
+logger.add('Qdot_ipopt', Qdot_ipopt)
+logger.add('Qddot_ipopt', Qddot_ipopt)
+logger.add('F1_ipopt', F1_ipopt)
+logger.add('F2_ipopt', F2_ipopt)
+logger.add('F3_ipopt', F3_ipopt)
+logger.add('F4_ipopt', F4_ipopt)
+logger.add('Tau_ipopt', Tau_ipopt)
+logger.add('Dt_ipopt', Dt_ipopt)
+logger.add('elapsed_ipopt', elapsed_ipopt)
 
-FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
-Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
-get_Contact1_pos = Function("get_Contact1_pos", [V], [Contact1_pos], ['V'], ['Contact1_pos'])
-Contact1_pos_hist = (get_Contact1_pos(V=w_opt)['Contact1_pos'].full().flatten()).reshape(ns, 3)
+logger.add('Q_sqp', Q_sqp)
+logger.add('Qdot_sqp', Qdot_sqp)
+logger.add('Qddot_sqp', Qddot_sqp)
+logger.add('F1_sqp', F1_sqp)
+logger.add('F2_sqp', F2_sqp)
+logger.add('F3_sqp', F3_sqp)
+logger.add('F4_sqp', F4_sqp)
+logger.add('Tau_sqp', Tau_sqp)
+logger.add('Dt_sqp', Dt_sqp)
+logger.add('elapsed_sqp', elapsed_sqp)
 
-Contact2_pos = FKcomputer.computeFK('Contact2', 'ee_pos', 0, ns)
-get_Contact2_pos = Function("get_Contact2_pos", [V], [Contact2_pos], ['V'], ['Contact2_pos'])
-Contact2_pos_hist = (get_Contact2_pos(V=w_opt)['Contact2_pos'].full().flatten()).reshape(ns, 3)
+# MPC LOOP
 
-Contact3_pos = FKcomputer.computeFK('Contact3', 'ee_pos', 0, ns)
-get_Contact3_pos = Function("get_Contact3_pos", [V], [Contact3_pos], ['V'], ['Contact3_pos'])
-Contact3_pos_hist = (get_Contact3_pos(V=w_opt)['Contact3_pos'].full().flatten()).reshape(ns, 3)
+mpc_iter = 50
 
-Contact4_pos = FKcomputer.computeFK('Contact4', 'ee_pos', 0, ns)
-get_Contact4_pos = Function("get_Contact4_pos", [V], [Contact4_pos], ['V'], ['Contact4_pos'])
-Contact4_pos_hist = (get_Contact4_pos(V=w_opt)['Contact4_pos'].full().flatten()).reshape(ns, 3)
+sol_mpc = w_opt_ipopt
 
-
-Waist_pos = FKcomputer.computeFK('Waist', 'ee_pos', 0, ns)
-get_Waist_pos = Function("get_Waist_pos", [V], [Waist_pos], ['V'], ['Waist_pos'])
-Waist_pos_hist = (get_Waist_pos(V=w_opt)['Waist_pos'].full().flatten()).reshape(ns, 3)
-
-Waist_rot = FKcomputer.computeFK('Waist', 'ee_rot', 0, ns)
-get_Waist_rot = Function("get_Waist_rot", [V], [Waist_rot], ['V'], ['Waist_rot'])
-Waist_rot_hist = (get_Waist_rot(V=w_opt)['Waist_rot'].full().flatten()).reshape(ns, 3, 3)
-# CONVERSION TO EULER ANGLES
-Waist_rot_hist = rotation_matrix_to_euler(Waist_rot_hist)
-
-
-BaseLink_pos = FKcomputer.computeFK('base_link', 'ee_pos', 0, ns)
-get_BaseLink_pos = Function("base_link", [V], [BaseLink_pos], ['V'], ['BaseLink_pos'])
-BaseLink_pos_hist = (get_BaseLink_pos(V=w_opt)['BaseLink_pos'].full().flatten()).reshape(ns, 3)
-
-BaseLink_vel_angular = FKcomputer.computeDiffFK('base_link', 'ee_vel_angular', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
-get_BaseLink_vel_angular = Function("get_BaseLink_vel_angular", [V], [BaseLink_vel_angular], ['V'], ['BaseLink_vel_angular'])
-BaseLink_vel_angular_hist = (get_BaseLink_vel_angular(V=w_opt)['BaseLink_vel_angular'].full().flatten()).reshape(ns, 3)
-
-BaseLink_vel_linear = FKcomputer.computeDiffFK('base_link', 'ee_vel_linear', kindyn.LOCAL_WORLD_ALIGNED, 0, ns)
-get_BaseLink_vel_linear = Function("get_BaseLink_vel_linear", [V], [BaseLink_vel_linear], ['V'], ['BaseLink_vel_linear'])
-BaseLink_vel_linear_hist = (get_BaseLink_vel_linear(V=w_opt)['BaseLink_vel_linear'].full().flatten()).reshape(ns, 3)
-
-# RESAMPLE STATE FOR REPLAY TRAJECTORY
-dt = 0.001
-#X_res, Tau_res = resample_integrator(X, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
-X_res, U_res, Tau_res = resample_integrator_with_controls(X, U, Qddot, dt_hist, dt, dae, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
-get_X_res = Function("get_X_res", [V], [X_res], ['V'], ['X_res'])
-x_hist_res = get_X_res(V=w_opt)['X_res'].full()
-q_hist_res = (x_hist_res[0:nq, :]).transpose()
-
-get_Tau_res = Function("get_Tau_res", [V], [Tau_res], ['V'], ['Tau_res'])
-tau_hist_res = get_Tau_res(V=w_opt)['Tau_res'].full().transpose()
-
-get_U_res = Function("get_U_res", [V], [U_res], ['V'], ['U_res'])
-u_hist_res = get_U_res(V=w_opt)['U_res'].full()
-F1_hist_res = (u_hist_res[nv:nv+3, :]).transpose()
-F2_hist_res = (u_hist_res[nv+3:nv+6, :]).transpose()
-F3_hist_res = (u_hist_res[nv+6:nv+9, :]).transpose()
-F4_hist_res = (u_hist_res[nv+9:nv+12, :]).transpose()
-
-
-logger.add('Q_res', q_hist_res)
-logger.add('F1_res', F1_hist_res)
-logger.add('F2_res', F2_hist_res)
-logger.add('F3_res', F3_hist_res)
-logger.add('F4_res', F4_hist_res)
-logger.add('F1_hist', F1_hist)
-logger.add('F2_hist', F2_hist)
-logger.add('F3_hist', F3_hist)
-logger.add('F4_hist', F4_hist)
-logger.add('Tau_hist', tau_hist)
-logger.add('Tau_res', tau_hist_res)
-logger.add('Tf', tf)
-logger.add('Contact1_pos_hist', Contact1_pos_hist)
-logger.add('Contact2_pos_hist', Contact2_pos_hist)
-logger.add('Contact3_pos_hist', Contact3_pos_hist)
-logger.add('Contact4_pos_hist', Contact4_pos_hist)
-logger.add('Waist_pos', Waist_pos_hist)
-logger.add('Waist_rot', Waist_rot_hist)
-logger.add('BaseLink_pos_hist', BaseLink_pos_hist)
-logger.add('BaseLink_vel_ang_hist', BaseLink_vel_angular_hist)
-logger.add('BaseLink_vel_lin_hist', BaseLink_vel_linear_hist)
-logger.add('qddot_hist', Qddot_hist)
-
-mpc_iter = 100
-
-sol_mpc = w_opt
-
-q_mpc = np.zeros((mpc_iter, nq))
+Q_mpc = np.zeros((mpc_iter, nq))
+Qdot_mpc = np.zeros((mpc_iter, nv))
+Qddot_mpc = np.zeros((mpc_iter, nv))
 F1_mpc = np.zeros((mpc_iter, nf))
 F2_mpc = np.zeros((mpc_iter, nf))
 F3_mpc = np.zeros((mpc_iter, nf))
 F4_mpc = np.zeros((mpc_iter, nf))
-Qddot_mpc = np.zeros((mpc_iter, nv))
-
+Dt_mpc = np.zeros((mpc_iter, 1))
+Tau_mpc = np.zeros((mpc_iter, nv))
 
 integrator_dict = {'x0': X, 'p': Qddot, 'time': Dt}
 multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
 
 G_mpc = constraint_handler()
-g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
-G_mpc.set_constraint(g2, g_min2, g_max2)
+
+g1, g_min1, g_max1 = constraint(multiple_shooting_constraint, 0, ns-1)
+G_mpc.set_constraint(g1, g_min1, g_max1)
+
+torque_lims = cons.torque_limits.torque_lims(id, tau_min, tau_max)
+g2, g_min2, g_max2 = constraint(torque_lims, 0, ns-1)
+# G_mpc.set_constraint(g2, g_min2, g_max2)
+
+contact_handler_F2 = cons.contact.contact_handler(FK2, F2)
+contact_handler_F2.setContactAndFrictionCone(Q, q_init, 1., R_ground)
+g3, g_min3, g_max3 = constraint(contact_handler_F2, 0, ns-1)
+# G_mpc.set_constraint(g3, g_min3, g_max3)
+
+contact_handler_F4 = cons.contact.contact_handler(FK4, F4)
+contact_handler_F4.setContactAndFrictionCone(Q, q_init, 1., R_ground)
+g4, g_min4, g_max4 = constraint(contact_handler_F4, 0, ns-1)
+# G_mpc.set_constraint(g4, g_min4, g_max4)
 
 g_mpc, g_min_mpc, g_max_mpc = G_mpc.get_constraints()
 
-opts_ipot_mpc = {'ipopt.tol': 0.001,
-             'ipopt.constr_viol_tol': 0.001,
-             'ipopt.max_iter': 10,
-             'ipopt.linear_solver': 'ma57'}
-
-# solver_mpc = nlpsol('solver', "ipopt", {'f': J, 'x': V, 'g': g_}, opts_ipot_mpc)
-
-opts_sqp_mpc = {'max_iter': 1}
-solver_mpc = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': g_mpc}, opts_sqp_mpc)
+solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  dot(J_sqp, J_sqp), 'x': V, 'g': g}, opts_ipopt)
+solver_sqp_mpc = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': g_mpc}, opts_sqp)
+# solver_sqp_mpc = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': g}, opts_sqp)
 
 for k in range(mpc_iter):
+
     print 'mpc iter', k
 
-    # dist = 0.1
-    #
-    # if k == 50:
-    #     sol_mpc[0] += dist
-    #     sol_mpc[7] -= dist
-    #     sol_mpc[10] -= dist
-    #     sol_mpc[13] -= dist
-    #     sol_mpc[16] -= dist
+    solution_mpc = solver_ipopt_mpc(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
+    # solution_mpc = solver_sqp_mpc(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
+    # solution_mpc = solver_sqp_mpc(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 
-    v_min[0:nq] = v_max[0:nq] = sol_mpc[0:nq]
-    # v_min[nq:nq + nv] = v_max[nq:nq + nv] = sol_mpc[nq:(nq+nv)]
-
-    solution_mpc = solver_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_, ubg=g_max_)
-    # solution_mpc = solver_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
     sol_mpc = solution_mpc['x']
 
     # RETRIEVE SOLUTION AND LOGGING
@@ -400,28 +347,47 @@ for k in range(mpc_iter):
 
     q_sol = solution_dict_mpc['Q']
     q_sol = normalize_quaternion(q_sol)
+    qdot_sol = solution_dict_mpc['Qdot']
+    qddot_sol = solution_dict_mpc['Qddot']
     F1_sol = solution_dict_mpc['F1']
     F2_sol = solution_dict_mpc['F2']
     F3_sol = solution_dict_mpc['F3']
     F4_sol = solution_dict_mpc['F4']
-    Qddot_sol = solution_dict_mpc['Qddot']
+    tau_sol = (get_Tau(V=sol_mpc)['Tau'].full().flatten()).reshape(ns - 1, nv)
 
-    q_mpc[k, :] = q_sol[1, :]
-    F1_mpc[k, :] = F1_sol[1, :]
-    F2_mpc[k, :] = F2_sol[1, :]
-    F3_mpc[k, :] = F3_sol[1, :]
-    F4_mpc[k, :] = F4_sol[1, :]
-    Qddot_mpc[k, :] = Qddot_sol[1, :]
+    Q_mpc[k, :] = q_sol[0, :]
+    Qdot_mpc[k, :] = qdot_sol[0, :]
+    Qddot_mpc[k, :] = qddot_sol[0, :]
+    F1_mpc[k, :] = F1_sol[0, :]
+    F2_mpc[k, :] = F2_sol[0, :]
+    F3_mpc[k, :] = F3_sol[0, :]
+    F4_mpc[k, :] = F4_sol[0, :]
+    Tau_mpc[k, :] = tau_sol[0, :]
+
+    # UPDATE
+    # v_min[0:nq] = v_max[0:nq] = q_sol[0, :]
+    # v_min[nq:nq + nv] = v_max[nq:nq + nv] = qdot_sol[0, :]
+
+    v_min[0:nq] = v_max[0:nq] = q_sol[1, :]
+    # v_min[nq:nq + nv] = v_max[nq:nq + nv] = qdot_sol[1, :]
+
+    # DISTURBANCE
+    dist = np.random.rand(3, 1)
+
+    v_min[0] = v_max[0] = q_sol[1, 0] - 0.1*(dist[0]-0.5)
+    v_min[1] = v_max[1] = q_sol[1, 1] - 0.1*(dist[1]-0.5)
+    v_min[2] = v_max[2] = q_sol[2, 0] - 0.1*(dist[2]-0.5)
 
 print 'END MPC'
 
-logger.add('q_mpc', q_mpc)
+logger.add('q_mpc', Q_mpc)
+logger.add('Qdot_mpc', Qdot_mpc)
+logger.add('Qddot_mpc', Qddot_mpc)
 logger.add('F1_mpc', F1_mpc)
 logger.add('F2_mpc', F2_mpc)
 logger.add('F3_mpc', F3_mpc)
 logger.add('F4_mpc', F4_mpc)
-logger.add('Qddot_mpc', Qddot_mpc)
-logger.add('F2_sol', F2_sol)
+logger.add('Tau_mpc', Tau_mpc)
 
 del(logger)
 
@@ -433,6 +399,6 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
 
 contact_dict = {'Contact1': F1_mpc, 'Contact2': F2_mpc, 'Contact3': F3_mpc, 'Contact4': F4_mpc}
 dt = 0.01
-replay = replay_trajectory(dt, joint_list, q_mpc, contact_dict, kindyn)
+replay = replay_trajectory(dt, joint_list, Q_mpc, contact_dict, kindyn)
 replay.sleep(2.)
 replay.replay()
