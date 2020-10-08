@@ -99,7 +99,7 @@ f_init1 = np.zeros(nf).tolist()
 
 f2, F2 = create_variable('F2', nf, ns, 'CONTROL', 'SX')
 f_min2 = (-1000.*np.ones(nf)).tolist()
-f_min2 = np.array([-1000., -1000., 150.]).tolist()
+f_min2 = np.array([-1000., -1000., 200.]).tolist()
 f_max2 = (1000.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
@@ -110,7 +110,7 @@ f_init3 = np.zeros(nf).tolist()
 
 f4, F4 = create_variable('F4', nf, ns, 'CONTROL', 'SX')
 f_min4 = (-1000.*np.ones(nf)).tolist()
-f_min4 = np.array([-1000., -1000., 150.]).tolist()
+f_min4 = np.array([-1000., -1000., 200.]).tolist()
 f_max4 = (1000.*np.ones(nf)).tolist()
 f_init4 = np.zeros(nf).tolist()
 
@@ -166,16 +166,16 @@ dd = {'Contact1': F1, 'Contact2': F2, 'Contact3': F3, 'Contact4': F4}
 id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    -1000., -1000., -1000.,  # Contact 1
-                    -1000., -1000., -1000.,  # Contact 2
-                    -1000., -1000., -1000.,  # Contact 3
-                    -1000., -1000., -1000.]).tolist()  # Contact 4
+                    -10000., -10000., -10000.,  # Contact 1
+                    -10000., -10000., -10000.,  # Contact 2
+                    -10000., -10000., -10000.,  # Contact 3
+                    -10000., -10000., -10000.]).tolist()  # Contact 4
 
 tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    1000., 1000., 1000.,  # Contact 1
-                    1000., 1000., 1000.,  # Contact 2
-                    1000., 1000., 1000.,  # Contact 3
-                    1000., 1000., 1000.]).tolist()  # Contact 4
+                    10000., 10000., 10000.,  # Contact 1
+                    10000., 10000., 10000.,  # Contact 2
+                    10000., 10000., 10000.,  # Contact 3
+                    10000., 10000., 10000.]).tolist()  # Contact 4
 
 torque_lims = cons.torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims, 0, ns-1)
@@ -302,8 +302,8 @@ F1_mpc = np.zeros((mpc_iter, nf))
 F2_mpc = np.zeros((mpc_iter, nf))
 F3_mpc = np.zeros((mpc_iter, nf))
 F4_mpc = np.zeros((mpc_iter, nf))
-Dt_mpc = np.zeros((mpc_iter, 1))
 Tau_mpc = np.zeros((mpc_iter, nv))
+elapsed_mpc = np.zeros((mpc_iter, 1))
 
 G_mpc = constraint_handler()
 
@@ -364,10 +364,12 @@ for k in range(mpc_iter):
 
     print 'mpc iter', k
 
+    t_mpc = time.time()
     # solution_mpc = solver_ipopt_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
     solution_mpc = solver_ipopt_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
     # solution_mpc = solver_sqp_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
     # solution_mpc = solver_sqp_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
+    elapsed_mpc[k] = time.time() - t_mpc
 
     sol_mpc = solution_mpc['x']
 
@@ -395,13 +397,17 @@ for k in range(mpc_iter):
     Tau_mpc[k, :] = tau_sol[0, :]
 
     # UPDATE
-    # v_min[0:nq] = v_max[0:nq] = q_sol[1, :]
     v_min[0:nq] = q_min
     v_max[0:nq] = q_max
-    v_min[nq:nq+nv] = v_max[nq:nq+nv] = qdot_sol[1, :]
+    # v_min[nq:nq+nv] = v_max[nq:nq+nv] = qdot_sol[0, :]
+    v_min[nq:nq + nv] = v_max[nq:nq + nv] = qdot_sol[1, :]
 
     # DISTURBANCE
     dist = np.random.rand(3, 1)
+
+    # v_min[nq] = v_max[nq] = qdot_sol[0, 0] + 0.1*(dist[0]-0.5)
+    # v_min[nq+1] = v_max[nq+1] = qdot_sol[0, 1] + 0.1*(dist[1]-0.5)
+    # v_min[nq+2] = v_max[nq+2] = qdot_sol[0, 2] + 0.1*(dist[2]-0.5)
 
     v_min[nq] = v_max[nq] = qdot_sol[1, 0] + 0.1*(dist[0]-0.5)
     v_min[nq+1] = v_max[nq+1] = qdot_sol[1, 1] + 0.1*(dist[1]-0.5)
@@ -417,6 +423,7 @@ logger.add('F2_mpc', F2_mpc)
 logger.add('F3_mpc', F3_mpc)
 logger.add('F4_mpc', F4_mpc)
 logger.add('Tau_mpc', Tau_mpc)
+logger.add('elapsed_mpc', elapsed_mpc)
 
 del(logger)
 
