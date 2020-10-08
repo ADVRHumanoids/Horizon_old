@@ -99,6 +99,7 @@ f_init1 = np.zeros(nf).tolist()
 
 f2, F2 = create_variable('F2', nf, ns, 'CONTROL', 'SX')
 f_min2 = (-1000.*np.ones(nf)).tolist()
+f_min2 = np.array([-1000., -1000., 150.]).tolist()
 f_max2 = (1000.*np.ones(nf)).tolist()
 f_init2 = np.zeros(nf).tolist()
 
@@ -109,6 +110,7 @@ f_init3 = np.zeros(nf).tolist()
 
 f4, F4 = create_variable('F4', nf, ns, 'CONTROL', 'SX')
 f_min4 = (-1000.*np.ones(nf)).tolist()
+f_min4 = np.array([-1000., -1000., 150.]).tolist()
 f_max4 = (1000.*np.ones(nf)).tolist()
 f_init4 = np.zeros(nf).tolist()
 
@@ -164,16 +166,16 @@ dd = {'Contact1': F1, 'Contact2': F2, 'Contact3': F3, 'Contact4': F4}
 id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    -10000., -10000., -10000.,  # Contact 1
-                    -10000., -10000., -10000.,  # Contact 2
-                    -10000., -10000., -10000.,  # Contact 3
-                    -10000., -10000., -10000.]).tolist()  # Contact 4
+                    -1000., -1000., -1000.,  # Contact 1
+                    -1000., -1000., -1000.,  # Contact 2
+                    -1000., -1000., -1000.,  # Contact 3
+                    -1000., -1000., -1000.]).tolist()  # Contact 4
 
 tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    10000., 10000., 10000.,  # Contact 1
-                    10000., 10000., 10000.,  # Contact 2
-                    10000., 10000., 10000.,  # Contact 3
-                    10000., 10000., 10000.]).tolist()  # Contact 4
+                    1000., 1000., 1000.,  # Contact 1
+                    1000., 1000., 1000.,  # Contact 2
+                    1000., 1000., 1000.,  # Contact 3
+                    1000., 1000., 1000.]).tolist()  # Contact 4
 
 torque_lims = cons.torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims, 0, ns-1)
@@ -289,7 +291,7 @@ logger.add('elapsed_sqp', elapsed_sqp)
 
 # MPC LOOP
 
-mpc_iter = 50
+mpc_iter = 100
 
 sol_mpc = w_opt_ipopt
 
@@ -303,41 +305,69 @@ F4_mpc = np.zeros((mpc_iter, nf))
 Dt_mpc = np.zeros((mpc_iter, 1))
 Tau_mpc = np.zeros((mpc_iter, nv))
 
-integrator_dict = {'x0': X, 'p': Qddot, 'time': Dt}
-multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
-
 G_mpc = constraint_handler()
 
-g1, g_min1, g_max1 = constraint(multiple_shooting_constraint, 0, ns-1)
-G_mpc.set_constraint(g1, g_min1, g_max1)
+g2, g_min2, g_max2 = constraint(multiple_shooting_constraint, 0, ns-1)
+G_mpc.set_constraint(g2, g_min2, g_max2)
 
 torque_lims = cons.torque_limits.torque_lims(id, tau_min, tau_max)
-g2, g_min2, g_max2 = constraint(torque_lims, 0, ns-1)
-# G_mpc.set_constraint(g2, g_min2, g_max2)
+g3, g_min3, g_max3 = constraint(torque_lims, 0, ns-1)
+G_mpc.set_constraint(g3, g_min3, g_max3)
+
+# STANCE ON 2 FEET
+contact_handler_F1 = cons.contact.contact_handler(FK1, F1)
+contact_handler_F1.removeContact()
+g8, g_min8, g_max8 = constraint(contact_handler_F1, 0, ns-1)
+G_mpc.set_constraint(g8, g_min8, g_max8)
 
 contact_handler_F2 = cons.contact.contact_handler(FK2, F2)
-contact_handler_F2.setContactAndFrictionCone(Q, q_init, 1., R_ground)
-g3, g_min3, g_max3 = constraint(contact_handler_F2, 0, ns-1)
-# G_mpc.set_constraint(g3, g_min3, g_max3)
+contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_ground)
+g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns-1)
+G_mpc.set_constraint(g5, g_min5, g_max5)
+
+contact_handler_F3 = cons.contact.contact_handler(FK3, F3)
+contact_handler_F3.removeContact()
+g10, g_min10, g_max10 = constraint(contact_handler_F3, 0, ns-1)
+G_mpc.set_constraint(g10, g_min10, g_max10)
 
 contact_handler_F4 = cons.contact.contact_handler(FK4, F4)
-contact_handler_F4.setContactAndFrictionCone(Q, q_init, 1., R_ground)
-g4, g_min4, g_max4 = constraint(contact_handler_F4, 0, ns-1)
-# G_mpc.set_constraint(g4, g_min4, g_max4)
+contact_handler_F4.setContactAndFrictionCone(Q, q_init, mu, R_ground)
+g7, g_min7, g_max7 = constraint(contact_handler_F4, 0, ns-1)
+G_mpc.set_constraint(g7, g_min7, g_max7)
 
 g_mpc, g_min_mpc, g_max_mpc = G_mpc.get_constraints()
 
-solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  dot(J_sqp, J_sqp), 'x': V, 'g': g}, opts_ipopt)
-solver_sqp_mpc = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': g_mpc}, opts_sqp)
-# solver_sqp_mpc = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': g}, opts_sqp)
+J_mpc = SX([0])
+
+# J_mpc = V - w_opt_ipopt
+
+min_q = lambda k: 10.0*dot(Q[k]-q_init, Q[k]-q_init)
+J_mpc += cost_function(min_q,  0, ns)
+
+min_qdot = lambda k: 10.*dot(Qdot[k], Qdot[k])
+J_mpc += cost_function(min_qdot,  0, ns)
+
+min_jerk = lambda k: 0.001*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
+J_mpc += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
+
+min_deltaFC = lambda k: 0.001*dot((F2[k]-F2[k-1])+(F4[k]-F4[k-1]),
+                                 +(F2[k]-F2[k-1])+(F4[k]-F4[k-1]))  # min Fdot
+J_mpc += cost_function(min_deltaFC, 0, ns-1)
+
+# solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  dot(J_mpc, J_mpc), 'x': V, 'g': g}, opts_ipopt)
+# solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  dot(J_mpc, J_mpc), 'x': V, 'g': g_mpc}, opts_ipopt)
+solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  J_mpc, 'x': V, 'g': g_mpc}, opts_ipopt)
+solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc, 'x': V, 'g': g_mpc}, opts_sqp)
+# solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc, 'x': V, 'g': g}, opts_sqp)
 
 for k in range(mpc_iter):
 
     print 'mpc iter', k
 
-    solution_mpc = solver_ipopt_mpc(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
-    # solution_mpc = solver_sqp_mpc(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
-    # solution_mpc = solver_sqp_mpc(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
+    # solution_mpc = solver_ipopt_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
+    solution_mpc = solver_ipopt_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
+    # solution_mpc = solver_sqp_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
+    # solution_mpc = solver_sqp_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 
     sol_mpc = solution_mpc['x']
 
@@ -365,22 +395,21 @@ for k in range(mpc_iter):
     Tau_mpc[k, :] = tau_sol[0, :]
 
     # UPDATE
-    # v_min[0:nq] = v_max[0:nq] = q_sol[0, :]
-    # v_min[nq:nq + nv] = v_max[nq:nq + nv] = qdot_sol[0, :]
-
-    v_min[0:nq] = v_max[0:nq] = q_sol[1, :]
-    # v_min[nq:nq + nv] = v_max[nq:nq + nv] = qdot_sol[1, :]
+    # v_min[0:nq] = v_max[0:nq] = q_sol[1, :]
+    v_min[0:nq] = q_min
+    v_max[0:nq] = q_max
+    v_min[nq:nq+nv] = v_max[nq:nq+nv] = qdot_sol[1, :]
 
     # DISTURBANCE
     dist = np.random.rand(3, 1)
 
-    v_min[0] = v_max[0] = q_sol[1, 0] - 0.1*(dist[0]-0.5)
-    v_min[1] = v_max[1] = q_sol[1, 1] - 0.1*(dist[1]-0.5)
-    v_min[2] = v_max[2] = q_sol[2, 0] - 0.1*(dist[2]-0.5)
+    v_min[nq] = v_max[nq] = qdot_sol[1, 0] + 0.1*(dist[0]-0.5)
+    v_min[nq+1] = v_max[nq+1] = qdot_sol[1, 1] + 0.1*(dist[1]-0.5)
+    v_min[nq+2] = v_max[nq+2] = qdot_sol[1, 2] + 0.1*(dist[2]-0.5)
 
 print 'END MPC'
 
-logger.add('q_mpc', Q_mpc)
+logger.add('Q_mpc', Q_mpc)
 logger.add('Qdot_mpc', Qdot_mpc)
 logger.add('Qddot_mpc', Qddot_mpc)
 logger.add('F1_mpc', F1_mpc)
@@ -391,14 +420,14 @@ logger.add('Tau_mpc', Tau_mpc)
 
 del(logger)
 
-# REPLAY TRAJECTORY
+# REPLAY TRAJECTORY MPC LOOP
 joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'Contact2_x', 'Contact2_y', 'Contact2_z',
               'Contact3_x', 'Contact3_y', 'Contact3_z',
               'Contact4_x', 'Contact4_y', 'Contact4_z']
 
 contact_dict = {'Contact1': F1_mpc, 'Contact2': F2_mpc, 'Contact3': F3_mpc, 'Contact4': F4_mpc}
-dt = 0.01
+dt = 0.4
 replay = replay_trajectory(dt, joint_list, Q_mpc, contact_dict, kindyn)
 replay.sleep(2.)
 replay.replay()
