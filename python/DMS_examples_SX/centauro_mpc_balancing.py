@@ -2,6 +2,7 @@
 
 import sys
 from os import path
+
 sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
 import horizon
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
@@ -289,6 +290,22 @@ logger.add('Tau_sqp', Tau_sqp)
 logger.add('Dt_sqp', Dt_sqp)
 logger.add('elapsed_sqp', elapsed_sqp)
 
+FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
+Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
+get_Contact1_pos = Function("get_Contact1_pos", [V], [Contact1_pos], ['V'], ['Contact1_pos'])
+
+Contact2_pos = FKcomputer.computeFK('Contact2', 'ee_pos', 0, ns)
+get_Contact2_pos = Function("get_Contact2_pos", [V], [Contact2_pos], ['V'], ['Contact2_pos'])
+
+Contact3_pos = FKcomputer.computeFK('Contact3', 'ee_pos', 0, ns)
+get_Contact3_pos = Function("get_Contact3_pos", [V], [Contact3_pos], ['V'], ['Contact3_pos'])
+
+Contact4_pos = FKcomputer.computeFK('Contact4', 'ee_pos', 0, ns)
+get_Contact4_pos = Function("get_Contact4_pos", [V], [Contact4_pos], ['V'], ['Contact4_pos'])
+
+com_pos = FKcomputer.computeCoM('com', 0, ns)
+get_com_pos = Function("get_com_pos", [V], [com_pos], ['V'], ['com_pos'])
+
 # MPC LOOP
 
 mpc_iter = 100
@@ -302,7 +319,12 @@ F1_mpc = np.zeros((mpc_iter, nf))
 F2_mpc = np.zeros((mpc_iter, nf))
 F3_mpc = np.zeros((mpc_iter, nf))
 F4_mpc = np.zeros((mpc_iter, nf))
+C1_mpc = np.zeros((mpc_iter, 3))
+C2_mpc = np.zeros((mpc_iter, 3))
+C3_mpc = np.zeros((mpc_iter, 3))
+C4_mpc = np.zeros((mpc_iter, 3))
 Tau_mpc = np.zeros((mpc_iter, nv))
+CoM_mpc = np.zeros((mpc_iter, 3))
 elapsed_mpc = np.zeros((mpc_iter, 1))
 
 G_mpc = constraint_handler()
@@ -357,9 +379,9 @@ min_deltaFC = lambda k: 10.*dot((F2[k]-F2[k-1])+(F4[k]-F4[k-1]),
                                   (F2[k]-F2[k-1])+(F4[k]-F4[k-1]))  # min Fdot
 J_mpc += cost_function(min_deltaFC, 0, ns-1)
 
-# solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  dot(J_mpc, J_mpc), 'x': V, 'g': g}, opts_ipopt)
-# solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  dot(J_mpc, J_mpc), 'x': V, 'g': g_mpc}, opts_ipopt)
+# IPOPT
 solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  J_mpc, 'x': V, 'g': g_mpc}, opts_ipopt)
+# SQP
 solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc, 'x': V, 'g': g_mpc}, opts_sqp)
 # solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc, 'x': V, 'g': g}, opts_sqp)
 
@@ -368,8 +390,9 @@ for k in range(mpc_iter):
     print 'mpc iter', k
 
     t_mpc = time.time()
-    # solution_mpc = solver_ipopt_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
+    # IPOPT
     solution_mpc = solver_ipopt_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
+    # SQP
     # solution_mpc = solver_sqp_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
     # solution_mpc = solver_sqp_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
     elapsed_mpc[k] = time.time() - t_mpc
@@ -390,6 +413,12 @@ for k in range(mpc_iter):
     F4_sol = solution_dict_mpc['F4']
     tau_sol = (get_Tau(V=sol_mpc)['Tau'].full().flatten()).reshape(ns - 1, nv)
 
+    C1_sol = (get_Contact1_pos(V=sol_mpc)['Contact1_pos'].full().flatten()).reshape(ns, 3)
+    C2_sol = (get_Contact2_pos(V=sol_mpc)['Contact2_pos'].full().flatten()).reshape(ns, 3)
+    C3_sol = (get_Contact3_pos(V=sol_mpc)['Contact3_pos'].full().flatten()).reshape(ns, 3)
+    C4_sol = (get_Contact4_pos(V=sol_mpc)['Contact4_pos'].full().flatten()).reshape(ns, 3)
+    CoM_sol = (get_com_pos(V=sol_mpc)['com_pos'].full().flatten()).reshape(ns, 3)
+
     Q_mpc[k, :] = q_sol[1, :]
     Qdot_mpc[k, :] = qdot_sol[1, :]
     Qddot_mpc[k, :] = qddot_sol[1, :]
@@ -397,7 +426,12 @@ for k in range(mpc_iter):
     F2_mpc[k, :] = F2_sol[1, :]
     F3_mpc[k, :] = F3_sol[1, :]
     F4_mpc[k, :] = F4_sol[1, :]
+    C1_mpc[k, :] = C1_sol[1, :]
+    C2_mpc[k, :] = C2_sol[1, :]
+    C3_mpc[k, :] = C3_sol[1, :]
+    C4_mpc[k, :] = C4_sol[1, :]
     Tau_mpc[k, :] = tau_sol[1, :]
+    CoM_mpc[k, :] = CoM_sol[1, :]
 
     # UPDATE
     v_min[nq:nq + nv] = v_max[nq:nq + nv] = qdot_sol[1, :]
@@ -408,9 +442,9 @@ for k in range(mpc_iter):
     dist_select = np.diag([0, 1, 0, 0, 0, 0])
 
     # if k % 20 == 0 and k > 0:
-    if k >= 20 and k <= 25:
+    if 20 <= k <= 25:
         v_min[nq:nq+6] = v_max[nq:nq+6] = qdot_sol[1, 0:6] + mtimes(dist_select, dist)
-    if k >= 40 and k <= 45:
+    if 40 <= k <= 45:
         v_min[nq:nq + 6] = v_max[nq:nq + 6] = qdot_sol[1, 0:6] - mtimes(dist_select, dist)
 
 print 'END MPC'
@@ -422,7 +456,12 @@ logger.add('F1_mpc', F1_mpc)
 logger.add('F2_mpc', F2_mpc)
 logger.add('F3_mpc', F3_mpc)
 logger.add('F4_mpc', F4_mpc)
+logger.add('C1_mpc', C1_mpc)
+logger.add('C2_mpc', C2_mpc)
+logger.add('C3_mpc', C3_mpc)
+logger.add('C4_mpc', C4_mpc)
 logger.add('Tau_mpc', Tau_mpc)
+logger.add('CoM_mpc', CoM_mpc)
 logger.add('elapsed_mpc', elapsed_mpc)
 
 del(logger)
