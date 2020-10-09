@@ -47,7 +47,7 @@ nv = kindyn.nv()  # Velocity DoFs
 
 nf = 3  # Force DOfs
 
-Time = 0.1
+Time = 0.5
 
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
@@ -399,19 +399,12 @@ for k in range(mpc_iter):
     # UPDATE
     v_min[0:nq] = q_min
     v_max[0:nq] = q_max
-    # v_min[nq:nq+nv] = v_max[nq:nq+nv] = qdot_sol[0, :]
     v_min[nq:nq + nv] = v_max[nq:nq + nv] = qdot_sol[1, :]
 
-    # DISTURBANCE
-    dist = np.random.rand(3, 1)
+    # DISTURBANCE ON FB TWIST
+    dist = np.random.rand(6)-0.5*np.ones(6)
 
-    # v_min[nq] = v_max[nq] = qdot_sol[0, 0] + 0.1*(dist[0]-0.5)
-    # v_min[nq+1] = v_max[nq+1] = qdot_sol[0, 1] + 0.1*(dist[1]-0.5)
-    # v_min[nq+2] = v_max[nq+2] = qdot_sol[0, 2] + 0.1*(dist[2]-0.5)
-
-    v_min[nq] = v_max[nq] = qdot_sol[1, 0] + 0.1*(dist[0]-0.5)
-    v_min[nq+1] = v_max[nq+1] = qdot_sol[1, 1] + 0.1*(dist[1]-0.5)
-    v_min[nq+2] = v_max[nq+2] = qdot_sol[1, 2] + 0.1*(dist[2]-0.5)
+    v_min[nq:nq+6] = v_max[nq:nq+6] = qdot_sol[1, 0:6] + 0.1*dist
 
 print 'END MPC'
 
