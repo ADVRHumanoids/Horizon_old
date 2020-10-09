@@ -151,7 +151,7 @@ G = constraint_handler()
 # g1, g_min1, g_max1 = constraint(init, 0, 1)
 # G.set_constraint(g1, g_min1, g_max1)
 
-v_min[0:nq] = v_max[0:nq] = q_init
+# v_min[0:nq] = v_max[0:nq] = q_init
 v_min[nq:nq+nv] = v_max[nq:nq+nv] = qdot_init
 
 # MULTIPLE SHOOTING CONSTRAINT
@@ -166,16 +166,16 @@ dd = {'Contact1': F1, 'Contact2': F2, 'Contact3': F3, 'Contact4': F4}
 id = inverse_dynamics(Q, Qdot, Qddot, ID, dd, kindyn, kindyn.LOCAL_WORLD_ALIGNED)
 
 tau_min = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    -10000., -10000., -10000.,  # Contact 1
-                    -10000., -10000., -10000.,  # Contact 2
-                    -10000., -10000., -10000.,  # Contact 3
-                    -10000., -10000., -10000.]).tolist()  # Contact 4
+                    -1000., -1000., -1000.,  # Contact 1
+                    -1000., -1000., -1000.,  # Contact 2
+                    -1000., -1000., -1000.,  # Contact 3
+                    -1000., -1000., -1000.]).tolist()  # Contact 4
 
 tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
-                    10000., 10000., 10000.,  # Contact 1
-                    10000., 10000., 10000.,  # Contact 2
-                    10000., 10000., 10000.,  # Contact 3
-                    10000., 10000., 10000.]).tolist()  # Contact 4
+                    1000., 1000., 1000.,  # Contact 1
+                    1000., 1000., 1000.,  # Contact 2
+                    1000., 1000., 1000.,  # Contact 3
+                    1000., 1000., 1000.]).tolist()  # Contact 4
 
 torque_lims = cons.torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims, 0, ns-1)
@@ -341,17 +341,20 @@ J_mpc = SX([0])
 
 # J_mpc = V - w_opt_ipopt
 
-min_q = lambda k: 10.0*dot(Q[k]-q_init, Q[k]-q_init)
+min_q = lambda k: 100.0*dot(Q[k]-Q_ipopt[0], Q[k]-Q_ipopt[0])
 J_mpc += cost_function(min_q,  0, ns)
 
-min_qdot = lambda k: 10.*dot(Qdot[k], Qdot[k])
+min_qdot = lambda k: 100.*dot(Qdot[k][0:6], Qdot[k][0:6])
 J_mpc += cost_function(min_qdot,  0, ns)
 
-min_jerk = lambda k: 0.001*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
+min_qddot = lambda k: 0.001*dot(Qddot[k][7:-1], Qddot[k][7:-1])
+# J_mpc += cost_function(min_qddot,  0, ns-1)
+
+min_jerk = lambda k: 0.01*dot(Qddot[k]-Qddot[k-1], Qddot[k]-Qddot[k-1])
 J_mpc += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
 
-min_deltaFC = lambda k: 0.001*dot((F2[k]-F2[k-1])+(F4[k]-F4[k-1]),
-                                 +(F2[k]-F2[k-1])+(F4[k]-F4[k-1]))  # min Fdot
+min_deltaFC = lambda k: 10.*dot((F2[k]-F2[k-1])+(F4[k]-F4[k-1]),
+                                  (F2[k]-F2[k-1])+(F4[k]-F4[k-1]))  # min Fdot
 J_mpc += cost_function(min_deltaFC, 0, ns-1)
 
 # solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  dot(J_mpc, J_mpc), 'x': V, 'g': g}, opts_ipopt)
@@ -387,24 +390,28 @@ for k in range(mpc_iter):
     F4_sol = solution_dict_mpc['F4']
     tau_sol = (get_Tau(V=sol_mpc)['Tau'].full().flatten()).reshape(ns - 1, nv)
 
-    Q_mpc[k, :] = q_sol[0, :]
-    Qdot_mpc[k, :] = qdot_sol[0, :]
-    Qddot_mpc[k, :] = qddot_sol[0, :]
-    F1_mpc[k, :] = F1_sol[0, :]
-    F2_mpc[k, :] = F2_sol[0, :]
-    F3_mpc[k, :] = F3_sol[0, :]
-    F4_mpc[k, :] = F4_sol[0, :]
-    Tau_mpc[k, :] = tau_sol[0, :]
+    Q_mpc[k, :] = q_sol[1, :]
+    Qdot_mpc[k, :] = qdot_sol[1, :]
+    Qddot_mpc[k, :] = qddot_sol[1, :]
+    F1_mpc[k, :] = F1_sol[1, :]
+    F2_mpc[k, :] = F2_sol[1, :]
+    F3_mpc[k, :] = F3_sol[1, :]
+    F4_mpc[k, :] = F4_sol[1, :]
+    Tau_mpc[k, :] = tau_sol[1, :]
 
     # UPDATE
-    v_min[0:nq] = q_min
-    v_max[0:nq] = q_max
     v_min[nq:nq + nv] = v_max[nq:nq + nv] = qdot_sol[1, :]
 
     # DISTURBANCE ON FB TWIST
-    dist = np.random.rand(6)-0.5*np.ones(6)
+    # dist = np.random.rand(6)-0.5*np.ones(6)
+    dist = 0.1*np.array([1, 1, 1, 1, 1, 1])
+    dist_select = np.diag([0, 1, 0, 0, 0, 0])
 
-    v_min[nq:nq+6] = v_max[nq:nq+6] = qdot_sol[1, 0:6] + 0.1*dist
+    # if k % 20 == 0 and k > 0:
+    if k >= 20 and k <= 25:
+        v_min[nq:nq+6] = v_max[nq:nq+6] = qdot_sol[1, 0:6] + mtimes(dist_select, dist)
+    if k >= 40 and k <= 45:
+        v_min[nq:nq + 6] = v_max[nq:nq + 6] = qdot_sol[1, 0:6] - mtimes(dist_select, dist)
 
 print 'END MPC'
 
@@ -427,7 +434,7 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
               'Contact4_x', 'Contact4_y', 'Contact4_z']
 
 contact_dict = {'Contact1': F1_mpc, 'Contact2': F2_mpc, 'Contact3': F3_mpc, 'Contact4': F4_mpc}
-dt = 0.4
+dt = dt_init
 replay = replay_trajectory(dt, joint_list, Q_mpc, contact_dict, kindyn)
 replay.sleep(2.)
 replay.replay()
