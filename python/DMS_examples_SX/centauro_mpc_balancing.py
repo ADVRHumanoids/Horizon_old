@@ -382,8 +382,6 @@ g_mpc_sqp, g_min_mpc_sqp, g_max_mpc_sqp = G_mpc_sqp.get_constraints()
 
 J_mpc_sqp = []
 
-J_mpc_sqp = 1000.*(V-w_opt_ipopt)
-
 J1 = 1e5*(vertcat(*g1)-vertcat(*g_min1))
 J_mpc_sqp = vertcat(J_mpc_sqp, J1)
 
@@ -419,6 +417,15 @@ J7 = 100.*vertcat(*Qdot)
 
 J8 = 100.*vertcat(*Qddot)
 # J_mpc_sqp = vertcat(J_mpc_sqp, J8)
+
+J9 = 1000.*(vertcat(*Q) - vertcat(*Q_ipopt))
+J_mpc_sqp = vertcat(J_mpc_sqp, J9)
+
+J10 = 1000.*(vertcat(*Qdot) - vertcat(*Qdot_ipopt))
+J_mpc_sqp = vertcat(J_mpc_sqp, J10)
+
+J11 = 1.*((vertcat(*F2) - vertcat(*F2_ipopt)) + (vertcat(*F4) - vertcat(*F4_ipopt)))
+J_mpc_sqp = vertcat(J_mpc_sqp, J11)
 
 solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc_sqp, 'x': V, 'g': g_mpc_sqp}, opts_sqp)
 
