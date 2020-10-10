@@ -162,7 +162,7 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     1000., 1000., 1000.,  # Contact 3
                     1000., 1000., 1000.]).tolist()  # Contact 4
 
-torque_lims = cons.torque_limits.torque_lims(id, tau_min, tau_max)
+torque_lims = cons.torque_limits.torque_lims_fb(id)
 g2, g_min2, g_max2 = constraint(torque_lims, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
@@ -291,8 +291,6 @@ get_Waist_rot = Function("get_Waist_rot", [V], [Waist_rot], ['V'], ['Waist_rot']
 
 mpc_iter = 100
 
-sol_mpc = w_opt_ipopt
-
 Q_mpc = np.zeros((mpc_iter, nq))
 Qdot_mpc = np.zeros((mpc_iter, nv))
 Qddot_mpc = np.zeros((mpc_iter, nv))
@@ -310,32 +308,32 @@ Waist_pos_mpc = np.zeros((mpc_iter, 3))
 Waist_rot_mpc = np.zeros((mpc_iter, 3))
 elapsed_mpc = np.zeros((mpc_iter, 1))
 
-G_mpc = constraint_handler()
+# IPOPT
+G_mpc_ipopt = constraint_handler()
 
 g1, g_min1, g_max1 = constraint(multiple_shooting_constraint, 0, ns-1)
-G_mpc.set_constraint(g1, g_min1, g_max1)
+G_mpc_ipopt.set_constraint(g1, g_min1, g_max1)
 
 g2, g_min2, g_max2 = constraint(torque_lims, 0, ns-1)
-G_mpc.set_constraint(g2, g_min2, g_max2)
+G_mpc_ipopt.set_constraint(g2, g_min2, g_max2)
 
 # STANCE ON 2 FEET
 g3, g_min3, g_max3 = constraint(C1_ws, 0, ns-1)
-G_mpc.set_constraint(g3, g_min3, g_max3)
+G_mpc_ipopt.set_constraint(g3, g_min3, g_max3)
 
 g4, g_min4, g_max4 = constraint(C3_ws, 0, ns-1)
-G_mpc.set_constraint(g4, g_min4, g_max4)
+G_mpc_ipopt.set_constraint(g4, g_min4, g_max4)
 
 contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns-1)
-G_mpc.set_constraint(g5, g_min5, g_max5)
+G_mpc_ipopt.set_constraint(g5, g_min5, g_max5)
 
 contact_handler_F4.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g6, g_min6, g_max6 = constraint(contact_handler_F4, 0, ns-1)
-G_mpc.set_constraint(g6, g_min6, g_max6)
+G_mpc_ipopt.set_constraint(g6, g_min6, g_max6)
 
-g_mpc, g_min_mpc, g_max_mpc = G_mpc.get_constraints()
+g_mpc_ipopt, g_min_mpc_ipopt, g_max_mpc_ipopt = G_mpc_ipopt.get_constraints()
 
-# IPOPT
 J_mpc_ipopt = SX([0])
 
 min_q = lambda k: 100.0*dot(Q[k]-Q_ipopt[0], Q[k]-Q_ipopt[0])
@@ -354,13 +352,77 @@ min_deltaFC = lambda k: 10.*dot((F2[k]-F2[k-1])+(F4[k]-F4[k-1]),
                                 (F2[k]-F2[k-1])+(F4[k]-F4[k-1]))  # min Fdot
 J_mpc_ipopt += cost_function(min_deltaFC, 0, ns-1)
 
-# IPOPT
-solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  J_mpc_ipopt, 'x': V, 'g': g_mpc}, opts_ipopt)
+solver_ipopt_mpc = nlpsol('solver', "ipopt", {'f':  J_mpc_ipopt, 'x': V, 'g': g_mpc_ipopt}, opts_ipopt)
 
 # SQP
-J_mpc_sqp = V-w_opt_ipopt
+G_mpc_sqp = constraint_handler()
 
-solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc_sqp, 'x': V, 'g': g_mpc}, opts_sqp)
+g1, g_min1, g_max1 = constraint(multiple_shooting_constraint, 0, ns-1)
+G_mpc_sqp.set_constraint(g1, g_min1, g_max1)
+
+g2, g_min2, g_max2 = constraint(torque_lims, 0, ns-1)
+G_mpc_sqp.set_constraint(g2, g_min2, g_max2)
+
+# STANCE ON 2 FEET
+g3, g_min3, g_max3 = constraint(C1_ws, 0, ns-1)
+# G_mpc_sqp.set_constraint(g3, g_min3, g_max3)
+
+g4, g_min4, g_max4 = constraint(C3_ws, 0, ns-1)
+# G_mpc_sqp.set_constraint(g4, g_min4, g_max4)
+
+contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_ground)
+g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns-1)
+# G_mpc_sqp.set_constraint(g5, g_min5, g_max5)
+
+contact_handler_F4.setContactAndFrictionCone(Q, q_init, mu, R_ground)
+g6, g_min6, g_max6 = constraint(contact_handler_F4, 0, ns-1)
+# G_mpc_sqp.set_constraint(g6, g_min6, g_max6)
+
+g_mpc_sqp, g_min_mpc_sqp, g_max_mpc_sqp = G_mpc_sqp.get_constraints()
+
+J_mpc_sqp = []
+
+# J_mpc_sqp = 100.*(V-w_opt_ipopt)
+
+J1 = 1e5*(vertcat(*g1)-vertcat(*g_min1))
+J_mpc_sqp = vertcat(J_mpc_sqp, J1)
+
+J2 = 1e5*(vertcat(*g2)-vertcat(*g_min2))
+# J_mpc_sqp = vertcat(J_mpc_sqp, J2)
+
+C1_init = FK2(q=q_init)['ee_pos']
+C1_ws = cons.position.position(FK1, Q, [C1_init[0], C1_init[1], C1_init[2]], [C1_init[0], C1_init[1],  C1_init[2]])
+g3, g_min3, g_max3 = constraint(C1_ws, 0, ns)
+J3 = 1e1*(vertcat(*g3)-vertcat(*g_min3))
+J_mpc_sqp = vertcat(J_mpc_sqp, J3)
+
+C2_init = FK2(q=q_init)['ee_pos']
+C2_ws = cons.position.position(FK2, Q, C2_init, C2_init)
+g4, g_min4, g_max4 = constraint(C2_ws, 0, ns)
+J4 = 1e5*(vertcat(*g4)-vertcat(*g_min4))
+J_mpc_sqp = vertcat(J_mpc_sqp, J4)
+
+C3_init = FK3(q=q_init)['ee_pos']
+C3_ws = cons.position.position(FK3, Q, [C3_init[0], C3_init[1], C3_init[2]], [C3_init[0], C3_init[1],  C3_init[2]])
+g5, g_min5, g_max5 = constraint(C3_ws, 0, ns)
+J5 = 1e1*(vertcat(*g5)-vertcat(*g_min5))
+J_mpc_sqp = vertcat(J_mpc_sqp, J5)
+
+C4_init = FK4(q=q_init)['ee_pos']
+C4_ws = cons.position.position(FK4, Q, C4_init, C4_init)
+g6, g_min6, g_max6 = constraint(C4_ws, 0, ns)
+J6 = 1e5*(vertcat(*g6)-vertcat(*g_min6))
+J_mpc_sqp = vertcat(J_mpc_sqp, J6)
+
+J7 = 100.*vertcat(*Qdot)
+J_mpc_sqp = vertcat(J_mpc_sqp, J7)
+
+J8 = 100.*vertcat(*Qddot)
+J_mpc_sqp = vertcat(J_mpc_sqp, J8)
+
+solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc_sqp, 'x': V, 'g': g_mpc_sqp}, opts_sqp)
+
+sol_mpc = w_opt_ipopt
 
 print 'START MPC LOOP'
 
@@ -370,9 +432,9 @@ for k in range(mpc_iter):
 
     t_mpc = time.time()
     # IPOPT
-    solution_mpc = solver_ipopt_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
+    # solution_mpc = solver_ipopt_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc_ipopt, ubg=g_max_mpc_ipopt)
     # SQP
-    # solution_mpc = solver_sqp_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc, ubg=g_max_mpc)
+    solution_mpc = solver_sqp_mpc(x0=sol_mpc, lbx=v_min, ubx=v_max, lbg=g_min_mpc_sqp, ubg=g_max_mpc_sqp)
     elapsed_mpc[k] = time.time() - t_mpc
 
     sol_mpc = solution_mpc['x']
