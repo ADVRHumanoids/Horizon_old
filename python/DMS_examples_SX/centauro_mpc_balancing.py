@@ -362,9 +362,11 @@ J_mpc_sqp = V-w_opt_ipopt
 
 solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc_sqp, 'x': V, 'g': g_mpc}, opts_sqp)
 
+print 'START MPC LOOP'
+
 for k in range(mpc_iter):
 
-    print 'mpc iter', k
+    print 'MPC ITER', k
 
     t_mpc = time.time()
     # IPOPT
@@ -425,7 +427,7 @@ for k in range(mpc_iter):
     if 40 <= k <= 45:
         v_min[nq:nq + 6] = v_max[nq:nq + 6] = qdot_sol[1, 0:6] - mtimes(dist_select, dist)
 
-print 'END MPC'
+print 'END MPC LOOP'
 
 logger.add('Q_mpc', Q_mpc)
 logger.add('Qdot_mpc', Qdot_mpc)

@@ -138,23 +138,41 @@ title('tau joints','Interpreter','latex');
 fig=figure;
 fig.Units='centimeters';
 fig.Position=[10 10 30 30];
-plot(CoM_mpc(:,1), CoM_mpc(:,2),'LineWidth', 1.5)
+h1 = plot(CoM_mpc(:,1), CoM_mpc(:,2),'LineWidth', 1.);
 hold on
-plot(C1_mpc(:,1), C1_mpc(:,2), 'LineWidth', 1.5)
+h2 = plot(Waist_pos_mpc(:,1), Waist_pos_mpc(:,2),'LineWidth', 1.);
 hold on
-plot(C2_mpc(:,1), C2_mpc(:,2), 'o', 'LineWidth', 1.5)
+h3 = plot(C1_mpc(:,1), C1_mpc(:,2), 'LineWidth', 1.);
 hold on
-plot(C3_mpc(:,1), C3_mpc(:,2), 'LineWidth', 1.5)
+h4 = plot(C2_mpc(:,1), C2_mpc(:,2), 'o', 'MarkerSize', 15, 'LineWidth', 1.);
+set(h4, 'markerfacecolor', get(h4, 'color'));
 hold on
-plot(C4_mpc(:,1), C4_mpc(:,2), 'o', 'LineWidth', 1.5)
+h5 = plot(C3_mpc(:,1), C3_mpc(:,2), 'LineWidth', 1.5);
+hold on
+h6 = plot(C4_mpc(:,1), C4_mpc(:,2), 'o', 'MarkerSize', 15, 'LineWidth', 1.);
+set(h6, 'markerfacecolor', get(h6, 'color'));
+hold on
+h7 = plot(CoM_mpc(1,1), CoM_mpc(1,2), 'o');
+set(h7, 'markerfacecolor', get(h1, 'color'), 'MarkerEdgeColor', get(h1, 'color'));
+hold on
+h8 = plot(Waist_pos_mpc(1,1), Waist_pos_mpc(1,2), 'o');
+set(h8, 'markerfacecolor', get(h2, 'color'), 'MarkerEdgeColor', get(h2, 'color'));
+hold on
+h9 = plot(C1_mpc(1,1), C1_mpc(1,2), 'o');
+set(h9, 'markerfacecolor', get(h3, 'color'), 'MarkerEdgeColor', get(h3, 'color'));
+hold on
+h10 = plot(C3_mpc(1,1), C3_mpc(1,2), 'o');
+set(h10, 'markerfacecolor', get(h5, 'color'), 'MarkerEdgeColor', get(h5, 'color'));
 xlim([-0.6 0.6]); ylim([-0.6 0.6]);
 set(gca,'xtick', [-0.6:0.1:0.6]);
 set(gca,'ytick', [-0.6:0.1:0.6]);
 set(gca,'TickLabelInterpreter','latex');grid on
-legend('CoM','C1','C2','C3', 'C4','Interpreter','latex');
+legend('CoM','waist','C1','C2','C3', 'C4','Interpreter','latex');
 xlabel('x [m]','Interpreter','latex');
 ylabel('y [m]','Interpreter','latex');
+title('ground projection of Cartesian quantities','Interpreter','latex');
 
+% waist pose history
 fig=figure;
 fig.Units='centimeters';
 fig.Position=[10 10 30 30];
@@ -166,6 +184,7 @@ set(gca,'TickLabelInterpreter','latex');grid on
 xlabel('time [s]','Interpreter','latex');
 title('waist pose history','Interpreter','latex');
 
+% elapsed time
 fig=figure;
 fig.Units='centimeters';
 fig.Position=[10 10 30 30];
