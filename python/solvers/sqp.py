@@ -173,7 +173,7 @@ class sqp(object):
             # Take the full step
             self.__v_opt += 0.5*dv.toarray().flatten()
             self.__obj.append(float(dot(r_k.T, r_k) / 2.))
-            # self.__constr.append(float(norm_2(g_k)))
+            self.__constr.append(float(norm_2(g_k)))
 
         solution_dict = {'x': self.__v_opt, 'f': self.__obj, 'g': self.__constr}
         return solution_dict

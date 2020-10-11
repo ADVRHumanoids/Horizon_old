@@ -166,10 +166,7 @@ torque_lims = cons.torque_limits.torque_lims_fb(id)
 g2, g_min2, g_max2 = constraint(torque_lims, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
-
-# WALL
 mu = 0.01
-
 R_ground = np.identity(3, dtype=float)
 
 # STANCE ON 2 FEET
@@ -210,17 +207,6 @@ sol_ipopt = solver_ipopt(x0=x0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 elapsed_ipopt = time.time() - t_ipopt
 w_opt_ipopt = sol_ipopt['x'].full().flatten()
 
-# SQP
-opts_sqp = {'max_iter': 1}
-
-J_sqp = V-w_opt_ipopt
-
-solver_sqp = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': []}, opts_sqp)
-t_sqp = time.time()
-solution_sqp = solver_sqp(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=[], ubg=[])
-elapsed_sqp = time.time() - t_sqp
-w_opt_sqp = solution_sqp['x']
-
 # RETRIEVE SOLUTION AND LOGGING
 solution_dict_ipopt = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F2': F2, 'F4': F4, 'Dt': Dt}, w_opt_ipopt)
 
@@ -232,20 +218,9 @@ Qdot_ipopt = solution_dict_ipopt['Qdot']
 Qddot_ipopt = solution_dict_ipopt['Qddot']
 Dt_ipopt = solution_dict_ipopt['Dt']
 
-
-solution_dict_sqp = retrieve_solution(V, {'Q': Q, 'Qdot': Qdot, 'Qddot': Qddot, 'F2': F2,'F4': F4, 'Dt': Dt}, w_opt_sqp)
-Q_sqp = solution_dict_sqp['Q']
-Q_sqp = normalize_quaternion(Q_sqp)
-F2_sqp = solution_dict_sqp['F2']
-F4_sqp = solution_dict_sqp['F4']
-Qdot_sqp = solution_dict_sqp['Qdot']
-Qddot_sqp = solution_dict_sqp['Qddot']
-Dt_sqp = solution_dict_sqp['Dt']
-
 Tau = id.compute_nodes(0, ns-1)
 get_Tau = Function("get_Tau", [V], [Tau], ['V'], ['Tau'])
 Tau_ipopt = (get_Tau(V=w_opt_ipopt)['Tau'].full().flatten()).reshape(ns-1, nv)
-Tau_sqp = (get_Tau(V=w_opt_sqp)['Tau'].full().flatten()).reshape(ns-1, nv)
 
 logger.add('Q_ipopt', Q_ipopt)
 logger.add('Qdot_ipopt', Qdot_ipopt)
@@ -255,15 +230,6 @@ logger.add('F4_ipopt', F4_ipopt)
 logger.add('Tau_ipopt', Tau_ipopt)
 logger.add('Dt_ipopt', Dt_ipopt)
 logger.add('elapsed_ipopt', elapsed_ipopt)
-
-logger.add('Q_sqp', Q_sqp)
-logger.add('Qdot_sqp', Qdot_sqp)
-logger.add('Qddot_sqp', Qddot_sqp)
-logger.add('F2_sqp', F2_sqp)
-logger.add('F4_sqp', F4_sqp)
-logger.add('Tau_sqp', Tau_sqp)
-logger.add('Dt_sqp', Dt_sqp)
-logger.add('elapsed_sqp', elapsed_sqp)
 
 FKcomputer = kinematics(kindyn, Q, Qdot, Qddot)
 Contact1_pos = FKcomputer.computeFK('Contact1', 'ee_pos', 0, ns)
@@ -289,7 +255,7 @@ get_Waist_rot = Function("get_Waist_rot", [V], [Waist_rot], ['V'], ['Waist_rot']
 
 # MPC LOOP
 
-mpc_iter = 100
+mpc_iter = 150
 
 Q_mpc = np.zeros((mpc_iter, nq))
 Qdot_mpc = np.zeros((mpc_iter, nv))
@@ -397,7 +363,7 @@ J_mpc_sqp = vertcat(J_mpc_sqp, J3)
 C2_init = FK2(q=q_init)['ee_pos']
 C2_ws = cons.position.position(FK2, Q, C2_init, C2_init)
 g4, g_min4, g_max4 = constraint(C2_ws, 0, ns)
-J4 = 1e8*(vertcat(*g4)-vertcat(*g_min4))
+J4 = 1e6*(vertcat(*g4)-vertcat(*g_min4))
 J_mpc_sqp = vertcat(J_mpc_sqp, J4)
 
 C3_init = FK3(q=q_init)['ee_pos']
@@ -409,7 +375,7 @@ J_mpc_sqp = vertcat(J_mpc_sqp, J5)
 C4_init = FK4(q=q_init)['ee_pos']
 C4_ws = cons.position.position(FK4, Q, C4_init, C4_init)
 g6, g_min6, g_max6 = constraint(C4_ws, 0, ns)
-J6 = 1e8*(vertcat(*g6)-vertcat(*g_min6))
+J6 = 1e6*(vertcat(*g6)-vertcat(*g_min6))
 J_mpc_sqp = vertcat(J_mpc_sqp, J6)
 
 J7 = 100.*vertcat(*Qdot)
@@ -426,6 +392,8 @@ J_mpc_sqp = vertcat(J_mpc_sqp, J10)
 
 J11 = 1.*((vertcat(*F2) - vertcat(*F2_ipopt)) + (vertcat(*F4) - vertcat(*F4_ipopt)))
 J_mpc_sqp = vertcat(J_mpc_sqp, J11)
+
+opts_sqp = {'max_iter': 1}
 
 solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc_sqp, 'x': V, 'g': g_mpc_sqp}, opts_sqp)
 
@@ -526,5 +494,5 @@ joint_list = ['Contact1_x', 'Contact1_y', 'Contact1_z',
 contact_dict = {'Contact1': F1_mpc, 'Contact2': F2_mpc, 'Contact3': F3_mpc, 'Contact4': F4_mpc}
 dt = dt_init
 replay = replay_trajectory(dt, joint_list, Q_mpc, contact_dict, kindyn)
-replay.sleep(2.)
+replay.sleep(1.)
 replay.replay()

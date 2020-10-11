@@ -50,6 +50,7 @@ fig.Position=[10 10 40 30];
 subplot(2,2,1);
 plot(time, C1_mpc(:,:),'LineWidth', 1.5)
 xlim([time(1) time(end)]);
+ylim([-0.7 0.4]);
 set(gca,'TickLabelInterpreter','latex');grid on
 ylabel('$m$','Interpreter','latex'); xlabel('time [s]','Interpreter','latex');
 legend('x','y','z','Interpreter','latex');
@@ -57,6 +58,7 @@ title('C1 (front left)','Interpreter','latex');
 subplot(2,2,2);
 plot(time, C2_mpc(:,:),'LineWidth', 1.5)
 xlim([time(1) time(end)]);
+ylim([-0.7 0.4]);
 set(gca,'TickLabelInterpreter','latex');grid on
 ylabel('$m$','Interpreter','latex'); xlabel('time [s]','Interpreter','latex');
 legend('x','y','z','Interpreter','latex');
@@ -64,6 +66,7 @@ title('C2 (front right)','Interpreter','latex');
 subplot(2,2,3);
 plot(time, C4_mpc(:,:),'LineWidth', 1.5)
 xlim([time(1) time(end)]);
+ylim([-0.7 0.4]);
 set(gca,'TickLabelInterpreter','latex');grid on
 ylabel('$m$','Interpreter','latex'); xlabel('time [s]','Interpreter','latex');
 legend('x','y','z','Interpreter','latex');
@@ -71,6 +74,7 @@ title('C4 (hind left)','Interpreter','latex');
 subplot(2,2,4);
 plot(time, C3_mpc(:,:),'LineWidth', 1.5)
 xlim([time(1) time(end)]);
+ylim([-0.7 0.4]);
 set(gca,'TickLabelInterpreter','latex');grid on
 ylabel('$m$','Interpreter','latex'); xlabel('time [s]','Interpreter','latex');
 legend('x','y','z','Interpreter','latex');
@@ -100,10 +104,11 @@ xlabel('time [s]','Interpreter','latex');
 title('qddot floating base','Interpreter','latex');
 subplot(2,2,4);
 plot(time, Tau_mpc(:,1:6),'LineWidth', 1.5)
-ylim([-10, 10]); xlim([time(1) time(end)]);
+ylim([-100, 100]); xlim([time(1) time(end)]);
 set(gca,'TickLabelInterpreter','latex');grid on
 xlabel('time [s]','Interpreter','latex');
 title('tau floating base','Interpreter','latex');
+
 
 % actuated joints
 fig=figure;
@@ -179,6 +184,7 @@ fig.Position=[10 10 30 30];
 plot(time, Waist_pos_mpc, 'LineWidth', 1.5)
 hold on
 plot(time, Waist_rot_mpc, 'LineWidth', 1.5)
+xlim([time(1) time(end)]);
 legend('x','y','z','roll','pitch','yaw','Interpreter','latex');
 set(gca,'TickLabelInterpreter','latex');grid on
 xlabel('time [s]','Interpreter','latex');
@@ -190,7 +196,7 @@ fig.Units='centimeters';
 fig.Position=[10 10 30 30];
 plot(time, elapsed_mpc, 'LineWidth', 1.5)
 xlim([time(1) time(end)]);
-set(gca,'TickLabelInterpreter','latex');grid on
+set(gca,'TickLabelInterpreter','latex','FontSize', 12);grid on
 xlabel('time [s]','Interpreter','latex');
 title('elapsed time mpc','Interpreter','latex');
 
