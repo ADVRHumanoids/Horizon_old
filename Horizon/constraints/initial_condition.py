@@ -1,4 +1,4 @@
-from horizon import *
+from Horizon.horizon import *
 
 class initial_condition(constraint_class):
     """

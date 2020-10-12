@@ -4,7 +4,7 @@ from std_msgs.msg import Header
 import tf as ros_tf
 import geometry_msgs.msg
 import rospy
-from utils.normalize_quaternion import *
+from Horizon.utils.normalize_quaternion import *
 import time
 import visualization_msgs.msg
 

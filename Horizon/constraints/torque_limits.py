@@ -1,5 +1,5 @@
-from horizon import *
-from utils.inverse_dynamics import *
+from Horizon.horizon import *
+from Horizon.utils.inverse_dynamics import *
 
 class torque_lims(constraint_class):
     def __init__(self, id, tau_min, tau_max):

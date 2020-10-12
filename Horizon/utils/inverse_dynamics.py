@@ -1,5 +1,5 @@
 from casadi import *
-from horizon import *
+from Horizon.horizon import *
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 
 

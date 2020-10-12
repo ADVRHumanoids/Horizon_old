@@ -1,5 +1,5 @@
 from casadi import *
-from horizon import *
+from Horizon.horizon import *
 
 class dt_RKF:
     def __init__(self, dict, F_integrator):

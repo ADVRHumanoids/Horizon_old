@@ -1,7 +1,7 @@
 from casadi import *
-from horizon import *
-from utils.integrator import *
-from utils.inverse_dynamics import *
+from Horizon.horizon import *
+from Horizon.utils.integrator import *
+from Horizon.utils.inverse_dynamics import *
 
 def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn, force_reference_frame = cas_kin_dyn.CasadiKinDyn.LOCAL):
     """

@@ -1,5 +1,5 @@
 from casadi import *
-from horizon import *
+from Horizon.horizon import *
 
 
 def EULER(dae, opts, casadi_type):

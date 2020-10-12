@@ -1,4 +1,4 @@
-from horizon import *
+from Horizon.horizon import *
 
 class footsteps_scheduler(constraint_handler):
     """

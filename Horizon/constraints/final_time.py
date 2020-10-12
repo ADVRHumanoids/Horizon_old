@@ -1,4 +1,4 @@
-from horizon import *
+from Horizon.horizon import *
 
 def final_time(T, T_min):
     g = [sum(T)]
