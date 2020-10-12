@@ -41,7 +41,7 @@ class sqp(object):
 
         Args:
             name: name of the solver (not used at the moment)
-            problem_dict: {'f': cost_function, 'g': constraints, 'x': variables}
+            problem_dict: {'f': residual of cost function, 'g': constraints, 'x': variables}
             options_dict: {'max_iter': iterations, 'qpsolver': internal_qpsolver
         """
         self.__name = name
@@ -185,3 +185,17 @@ class sqp(object):
             if list[0] == qpsolver:
                 parsed_options[list[1]] = options[key]
         return parsed_options
+
+    def plot(self):
+        import matplotlib.pyplot as plt
+        # Plot the results
+        plt.figure(1)
+
+        plt.title("SQP solver output")
+        plt.semilogy(self.__obj)
+        plt.semilogy(self.__constr)
+        plt.xlabel('iteration')
+        plt.legend(['Objective value', 'Constraint violation'], loc='center right')
+        plt.grid()
+
+        plt.show()
