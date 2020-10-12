@@ -1,18 +1,13 @@
 #!/usr/bin/env python
 
-import sys
-from os import path
-sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
-import horizon
-import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
-import matlogger2.matlogger as matl
-import constraints as cons
-from utils.resample_integrator import *
-from utils.inverse_dynamics import *
-from utils.replay_trajectory import *
-from utils.integrator import *
+import Horizon.horizon
+import Horizon.constraints as cons
+from Horizon.utils.resample_integrator import *
+from Horizon.utils.inverse_dynamics import *
+from Horizon.utils.replay_trajectory import *
+from Horizon.utils.integrator import *
 
-from solvers.sqp import *
+from Horizon.solvers.sqp import *
 
 import matplotlib.pyplot as plt
 
@@ -110,6 +105,8 @@ opts = {'max_iter': 10,
 t = time.time()
 solver = sqp('solver', "osqp", {'f': V, 'x': V, 'g': g}, opts)
 solution = solver(x0=v0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
+#solver = sqp('solver', "osqp", {'f': V, 'x': V}, opts)
+#solution = solver(x0=v0, lbx=v_min, ubx=v_max)
 elapsed = time.time() - t
 print "elapsed: ", elapsed
 

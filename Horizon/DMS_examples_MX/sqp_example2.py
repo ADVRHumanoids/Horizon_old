@@ -2,11 +2,7 @@ from casadi import *
 from numpy import *
 import matplotlib.pyplot as plt
 
-import sys
-from os import path
-sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
-
-from solvers.sqp import *
+from Horizon.solvers.sqp import *
 
 
 N = 20  # Control discretization
