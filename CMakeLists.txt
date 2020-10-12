@@ -5,6 +5,8 @@ find_package(catkin REQUIRED)
 
 catkin_package()
 
+catkin_python_setup()
+
 include_directories( )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
@@ -20,16 +22,16 @@ install(DIRECTORY configs/
 )  
 
 
-install(PROGRAMS
-   python/horizon.py
-   python/constraints/torque_limits.py
-   python/constraints/initial_condition.py
-   python/constraints/contact.py
-   python/constraints/final_time.py
-   python/utils/resample_integrator.py
-   python/utils/integrator.py
-   python/utils/replay_trajectory.py
-   python/utils/inverse_dynamics.py
-   python/solvers/sqp.py
-   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+#install(PROGRAMS
+#   python/horizon.py
+#   python/constraints/torque_limits.py
+#   python/constraints/initial_condition.py
+#   python/constraints/contact.py
+#   python/constraints/final_time.py
+#   python/utils/resample_integrator.py
+#   python/utils/integrator.py
+#   python/utils/replay_trajectory.py
+#   python/utils/inverse_dynamics.py
+#   python/solvers/sqp.py
+#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#)
