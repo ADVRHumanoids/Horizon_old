@@ -83,27 +83,27 @@ print "g: ", g
 print "g_min: ", g_max
 print "g_max: ", g_min
 
-opts = {'max_iter': 10,
-        'qpoases.sparse': True,
-        'qpoases.linsol_plugin': 'ma57',
-        'qpoases.enableRamping': False,
-        'qpoases.enableFarBounds': False,
-        'qpoases.enableFlippingBounds': False,
-        'qpoases.enableFullLITests': False,
-        'qpoases.enableNZCTests': False,
-        'qpoases.enableDriftCorrection': 0,
-        'qpoases.enableCholeskyRefactorisation': 0,
-        'qpoases.enableEqualities': True,
-        'qpoases.initialStatusBounds': 'inactive',
-        'qpoases.numRefinementSteps': 0,
-        'qpoases.terminationTolerance': 1e9*np.finfo(float).eps,
-        'qpoases.enableInertiaCorrection': False,
-        'qpoases.printLevel': 'none',
-        'osqp.verbose': False}
+opts = {'max_iter': 10}#,
+        #'qpoases.sparse': True,
+        #'qpoases.linsol_plugin': 'ma57',
+        #'qpoases.enableRamping': False,
+        #'qpoases.enableFarBounds': False,
+        #'qpoases.enableFlippingBounds': False,
+        #'qpoases.enableFullLITests': False,
+        #'qpoases.enableNZCTests': False,
+        #'qpoases.enableDriftCorrection': 0,
+        #'qpoases.enableCholeskyRefactorisation': 0,
+        #'qpoases.enableEqualities': True,
+        #'qpoases.initialStatusBounds': 'inactive',
+        #'qpoases.numRefinementSteps': 0,
+        #'qpoases.terminationTolerance': 1e9*np.finfo(float).eps,
+        #'qpoases.enableInertiaCorrection': False,
+        #'qpoases.printLevel': 'none',
+        #'osqp.verbose': False}
 
 
 t = time.time()
-solver = sqp('solver', "osqp", {'f': V, 'x': V, 'g': g}, opts)
+solver = sqp('solver', "qpoases", {'f': V, 'x': V, 'g': g}, opts)
 solution = solver(x0=v0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 #solver = sqp('solver', "osqp", {'f': V, 'x': V}, opts)
 #solution = solver(x0=v0, lbx=v_min, ubx=v_max)
@@ -113,6 +113,7 @@ print "elapsed: ", elapsed
 obj_history = solution['f']
 print "obj_history: ", obj_history
 con_history = solution['g']
+print "con_history: ", con_history
 v_opt = solution['x']
 
 # Print result

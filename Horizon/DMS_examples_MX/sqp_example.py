@@ -155,6 +155,8 @@ for k in range(N_iter):
     obj_history.append(float(dot(r_k.T, r_k) / 2))
     con_history.append(float(norm_2(g_k)))
 
+print("con_history: ", con_history)
+
 # Print result
 elapsed = time.time() - t
 print "elapsed: ", elapsed
