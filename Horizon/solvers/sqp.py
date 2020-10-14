@@ -33,6 +33,11 @@ def qpoasesMPCOptions():
             'qpoases.printLevel': 'none'}
     return opts
 
+def osqpOptions():
+    opts = {'osqp.osqp': {'verbose': False}}
+
+    return opts
+
 class sqp(object):
     """
     Implements a sqp solver
