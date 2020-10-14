@@ -110,6 +110,9 @@ solution = solver(x0=v0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 elapsed = time.time() - t
 print "elapsed: ", elapsed
 
+print "compute Hessian time: ", solver.get_hessian_computation_time()
+print "compute QP time: ", solver.get_qp_computation_time()
+
 obj_history = solution['f']
 print "obj_history: ", obj_history
 con_history = solution['g']

@@ -97,9 +97,6 @@ class sqp(object):
         self.__solver = []
         self.__qp = {}
 
-        self.__hessian_computation_time = []
-        self.__qp_computation_time = []
-
     def qpsolve(self, H, g, lbx, ubx, A, lba, uba, init=True):
         """
         Internal qp solver to solve differential problem
@@ -146,6 +143,9 @@ class sqp(object):
 
         """
         from numpy import *
+
+        self.__hessian_computation_time = []
+        self.__qp_computation_time = []
 
         self.__v0 = x0
         self.__vmin = lbx
@@ -232,7 +232,7 @@ class sqp(object):
 
         plt.show()
 
-    def get_qp_solver_time(self):
+    def get_qp_computation_time(self):
         """
 
         Returns: list of logged time to setup and solve a QP
