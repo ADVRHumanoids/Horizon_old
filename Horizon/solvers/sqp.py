@@ -132,7 +132,7 @@ class sqp(object):
         # Return the solution
         return r['x']
 
-    def __call__(self, x0, lbx, ubx, lbg = [], ubg = []):
+    def __call__(self, x0, lbx, ubx, lbg = [], ubg = [], alpha = 1.):
         """
         Compute solution of non linear problem
         Args:
@@ -194,7 +194,7 @@ class sqp(object):
             self.__qp_computation_time.append(elapsed)
 
             # Take the full step
-            self.__v_opt += 0.5*dv.toarray().flatten()
+            self.__v_opt += alpha*dv.toarray().flatten()
             self.__obj.append(float(dot(r_k.T, r_k) / 2.))
             if self.__g is not None:
                 self.__constr.append(float(norm_2(g_k)))
