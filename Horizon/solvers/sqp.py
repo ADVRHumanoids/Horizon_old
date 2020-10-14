@@ -1,4 +1,5 @@
 from casadi import *
+import time
 
 def sqpsol(name, qp_solver, problem_dict, options_dict):
     """
@@ -96,6 +97,9 @@ class sqp(object):
         self.__solver = []
         self.__qp = {}
 
+        self.__hessian_computation_time = []
+        self.__qp_computation_time = []
+
     def qpsolve(self, H, g, lbx, ubx, A, lba, uba, init=True):
         """
         Internal qp solver to solve differential problem
@@ -171,7 +175,10 @@ class sqp(object):
                 g_k = -self.__g_fcn(v=self.__v_opt)['g']
 
             # Gauss-Newton Hessian
+            t = time.time()
             H_k = mtimes(J_r_k.T, J_r_k)
+            elapsed = time.time() - t
+            self.__hessian_computation_time.append(elapsed)
 
             # Gradient of the objective function
             Grad_obj_k = mtimes(J_r_k.T, r_k)
@@ -181,12 +188,14 @@ class sqp(object):
             dv_max = self.__vmax - self.__v_opt
 
             # Solve the QP
+            t = time.time()
             dv = self.qpsolve(H_k, Grad_obj_k, dv_min, dv_max, J_g_k, g_k, g_k, init)
+            elapsed = time.time() - t
+            self.__qp_computation_time.append(elapsed)
 
             # Take the full step
             self.__v_opt += 0.5*dv.toarray().flatten()
             self.__obj.append(float(dot(r_k.T, r_k) / 2.))
-            self.__constr = []
             if self.__g is not None:
                 self.__constr.append(float(norm_2(g_k)))
 
@@ -201,7 +210,11 @@ class sqp(object):
                 parsed_options[list[1]] = options[key]
         return parsed_options
 
+
     def plot(self):
+        """
+        Shows plots of value of objective function and constraint violation
+        """
         import matplotlib.pyplot as plt
         # Plot the results
         plt.figure(1)
@@ -218,3 +231,19 @@ class sqp(object):
         plt.grid()
 
         plt.show()
+
+    def get_qp_solver_time(self):
+        """
+
+        Returns: list of logged time to setup and solve a QP
+
+        """
+        return self.__qp_computation_time
+
+    def get_hessian_computation_time(self):
+        """
+
+        Returns: list of logged time to compute the hessian
+
+        """
+        return self.__hessian_computation_time
