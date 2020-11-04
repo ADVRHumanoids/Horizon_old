@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<robot name="inv_pendulum">
+
+    <link name="world"/>
+
+    <link name="cart">
+        <visual>
+            <geometry>
+                <box size="0.6 0.3 0.3"/>
+            </geometry>
+        </visual>
+    </link>
+
+    <link name="pendulum">
+        <visual>
+            <geometry>
+                <cylinder length="1" radius="0.05"/>
+            </geometry>
+            <origin xyz="0 0 0.50"/>
+        </visual>
+    </link>
+
+    <link name="ball">
+        <visual>
+            <geometry>
+                <sphere radius="0.2"/>
+            </geometry>
+        </visual>
+    </link>
+
+    <joint name="cart_joint" type="prismatic">
+        <axis xyz="1 0 0"/>
+        <limit effort="1000.0" lower="-3.0" upper="3" velocity="0.5"/>
+        <!--<origin rpy="0 0 0" xyz="0.2 0.01 0"/>-->
+        <parent link="world"/>
+        <child link="cart"/>
+    </joint>
+
+    <joint name="pendulum_joint" type="continuous">
+        <axis xyz="0 1 0"/>
+        <!--<limit effort="1000.0" lower="0.0" upper="0.548" velocity="0.5"/>-->
+        <!--<origin rpy="0 0 0" xyz="0.2 0.01 0"/>-->
+        <parent link="cart"/>
+        <child link="pendulum"/>
+    </joint>
+
+    <joint name="ball_joint" type="fixed">
+        <parent link="pendulum"/>
+        <child link="ball"/>
+        <origin xyz="0 0 1"/>
+    </joint>
+
+
+</robot>
