@@ -207,6 +207,28 @@ class sqp(object):
         solution_dict = {'x': self.__v_opt, 'f': self.__obj, 'g': self.__constr}
         return solution_dict
 
+    def f(self, f):
+        """
+        Permits to update cost function
+        Args:
+            f: new cost function
+        """
+        self.__f = f
+        # Form function for calculating the Gauss-Newton objective
+        self.__r_fcn = Function('r_fcn', {'v': self.__x, 'r': self.__f}, ['v'], ['r'])
+        # Generate functions for the Jacobians
+        self.__Jac_r_fcn = self.__r_fcn.jac()
+
+    def g(self, g):
+        """
+        permits to update constraints
+        Args:
+            g: new constraints
+        """
+        self.__g = g
+        self.__g_fcn = Function('g_fcn', {'v': self.__x, 'g': self.__g}, ['v'], ['g'])
+        self.__Jac_g_fcn = self.__g_fcn.jac()
+
     def qpsolver_option_parser(self, qpsolver, options):
         parsed_options = {}
         for key in options:
