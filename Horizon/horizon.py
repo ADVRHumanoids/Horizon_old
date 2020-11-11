@@ -514,6 +514,37 @@ class constraint_handler(object):
 
         return vertcat(*self.g), self.g_min, self.g_max
 
+    def get_ordered_constraints(self, X, U):
+        """
+        Retrieve an ORDERED by node list of constraints
+        Args:
+            X: states
+            U: constraints
+
+        Returns:
+            g: vertical concatenation of all constraints g
+            g_min: list of lower bounds
+            g_max: list of upper bounds
+
+        """
+        copy_g = list(self.g)
+
+        ordered_g = []
+        ordered_g_min = []
+        ordered_g_max = []
+        acc = 0
+
+        for i in range(len(U)):
+            for g in copy_g:
+                if depends_on(g, X[i]) or depends_on(g, U[i]):
+                    ordered_g += [g]
+                    ordered_g_min += self.g_min[acc : acc+g.size()[0]]
+                    ordered_g_max += self.g_max[acc : acc+g.size()[0]]
+                    acc += g.size()[0]
+                    copy_g.remove(g) #pop constraint
+
+        return vertcat(*ordered_g), ordered_g_min, ordered_g_max
+
 
 def retrieve_solution(input, output_dict, solution):
     """
