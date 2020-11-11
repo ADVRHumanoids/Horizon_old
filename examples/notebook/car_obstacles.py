@@ -20,10 +20,8 @@
 
 import sys
 import os
-sys.path.insert(0, os.path.abspath('../../src'))
 
-
-import horizon.solvers.ilqr as ilqr
+from Horizon.solvers import ilqr
 import casadi as cs
 import numpy as np
 
@@ -114,10 +112,10 @@ np.random.seed(11311)
 solver._use_single_shooting_state_update = True
 # solver._use_second_order_dynamics = True
 solver.randomizeInitialGuess()
-solver.solve(0)
+solver.solve(10)
 
 
-if False:
+if True:
 
     import matplotlib.pyplot as plt
 
@@ -167,6 +165,8 @@ if False:
     plt.ylabel('State defect')
     plt.grid()
     plt.legend(lines, ['x', 'y', r'$\theta$'])
+
+    plt.show()
 
 print(solver._dcost)
 
