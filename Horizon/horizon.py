@@ -480,6 +480,65 @@ class unit_norm_quaternion(constraint_class):
         self.g_mink = [1.]
         self.g_maxk = [1.]
 
+class ordered_constraint_handler(object):
+    """
+    Handler class for constraints. It returns constraints ordered by NODE
+    """
+    def __init__(self):
+        self.__constraint_nodes = {} #dictionary of constraint : [node_start, node_goal]
+
+        self.__ordered_constraint = {} #dictionary of node : [constraint_1_node, constraint_2_node, ...]
+        self.__ordered_constraint_min = {}  # dictionary of node : [constraint_1_min_node, constraint_2_min_node, ...]
+        self.__ordered_constraint_max = {}  # dictionary of node : [constraint_1_max_node, constraint_2_max_node, ...]
+
+
+    def set_constraint(self, constraint, from_node, to_node):
+        """
+        Set a constraint to the handler with start and end node
+        Args:
+            constraint: class
+            from_node: starting node
+            to_node: ending node
+
+        Returns:
+
+        """
+        self.__constraint_nodes[constraint] = [from_node, to_node]
+
+    def get_constraints(self):
+        """
+        A list of ordered constraints by NODE
+        Returns:
+            gg: list of constraints by NODE
+            gg_min: list of lower bounds by NODE
+            gg_max: list of upper bounds by NODE
+        """
+        for constraint in self.__constraint_nodes:
+            nodes = self.__constraint_nodes[constraint]
+            start_node = nodes[0]
+            end_node = nodes[1]
+
+            for k in range(start_node, end_node):
+                g, gmin, gmax = constraint(k)
+                if k not in self.__ordered_constraint:
+                    self.__ordered_constraint[k] = vertcat(*g)
+                    self.__ordered_constraint_max[k] = gmax
+                    self.__ordered_constraint_min[k] = gmin
+                else:
+                    self.__ordered_constraint[k] = vertcat(self.__ordered_constraint[k], *g)
+                    self.__ordered_constraint_max[k] += gmax
+                    self.__ordered_constraint_min[k] += gmin
+
+        gg = []
+        gg_min = []
+        gg_max = []
+        for k in self.__ordered_constraint:
+            gg.append(self.__ordered_constraint[k])
+            gg_min.append(self.__ordered_constraint_min[k])
+            gg_max.append(self.__ordered_constraint_max[k])
+        return gg, gg_min, gg_max
+
+
 class constraint_handler(object):
     """Class to handle constraints for the optimal control problem
         Attributes:
@@ -513,55 +572,6 @@ class constraint_handler(object):
             """
 
         return vertcat(*self.g), self.g_min, self.g_max
-
-    def get_ordered_constraints(self, X, U):
-        """
-        Retrieve an ORDERED by node list of constraints
-        Args:
-            X: states
-            U: constraints
-
-        Returns:
-            g: vertical concatenation of all constraints g
-            g_min: list of lower bounds
-            g_max: list of upper bounds
-
-        """
-        copy_g = list(self.g)
-
-        ordered_g = []
-        ordered_g_min = []
-        ordered_g_max = []
-        acc = 0
-
-
-        for i in range(len(U)):
-            j = 0
-            while j < len(copy_g):
-                g = copy_g[j]
-                if depends_on(g, X[i]) or depends_on(g, U[i]):
-                    ordered_g += [g]
-                    ordered_g_min += self.g_min[acc : acc+g.size()[0]]
-                    ordered_g_max += self.g_max[acc : acc+g.size()[0]]
-                    acc += g.size()[0]
-                    del copy_g[j] #pop constraint
-                else:
-                    j += 1
-        j = 0
-        while j < len(copy_g):
-            g = copy_g[j]
-            if depends_on(g, X[-1]):
-                ordered_g += [g]
-                ordered_g_min += self.g_min[acc: acc + g.size()[0]]
-                ordered_g_max += self.g_max[acc: acc + g.size()[0]]
-                acc += g.size()[0]
-                del copy_g[j] #pop constraint
-            else:
-                j += 1
-
-
-        return vertcat(*ordered_g), ordered_g_min, ordered_g_max
-
 
 def retrieve_solution(input, output_dict, solution):
     """

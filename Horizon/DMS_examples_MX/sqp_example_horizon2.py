@@ -77,24 +77,34 @@ integrator_dict = {'x0': X, 'p': U}
 multiple_shooting_constraint = multiple_shooting(integrator_dict, F_integrator)
 g1, g_min1, g_max1 = constraint(multiple_shooting_constraint, 0, N-1)
 G.set_constraint(g1, g_min1, g_max1)
-print 'g1[3]: ', g1[3]
-print 'depends_on(g1[3], X[0]):', depends_on(g1[3], X[0])
-print 'depends_on(g1[3], X[3]):', depends_on(g1[3], X[3])
-
-
 
 # Gauss-Newton objective
 g, g_min, g_max = G.get_constraints()
-
-ord_g, ord_g_min, ord_g_max = G.get_ordered_constraints(X, U)
 
 print ("g: ", g)
 print ("g_min: ", g_min)
 print ("g_max: ", g_max)
 
+ordered_G = ordered_constraint_handler()
+ordered_G.set_constraint(multiple_shooting_constraint, 0, N-1)
+ord_g, ord_g_min, ord_g_max = ordered_G.get_constraints()
+
 print ("ord_g: ", ord_g)
 print ("ord_g_min: ", ord_g_min)
 print ("ord_g_max: ", ord_g_max)
+
+GG = constraint_handler()
+GG.set_constraint(ord_g, ord_g_min, ord_g_max)
+gg, gg_min, gg_max = G.get_constraints()
+
+print ("gg: ", gg)
+print ("gg_min: ", gg_min)
+print ("gg_max: ", gg_max)
+
+
+exit()
+#print ("ord_g_min: ", ord_g_min)
+#print ("ord_g_max: ", ord_g_max)
 
 #exit()
 
