@@ -110,13 +110,14 @@ opts = {'max_iter': 10,
 print 'V: ', V
 
 
-minX = lambda k: X[k]
-minU = lambda k: U[k]
+minV = lambda k: vertcat(X[k], U[k])
 FF = ordered_cost_function_handler()
-FF.set_cost_function(minX, 0, N)
-FF.set_cost_function(minU, 0, N-1)
+FF.set_cost_function(minV, 0, N-1)
+FF.set_cost_function(lambda k: X[-1], N-1, N)
 JJ = FF.get_cost_function()
 print 'JJ: ', JJ
+
+
 
 t = time.time()
 solver = sqp.sqp('solver', "osqp", {'f': vertcat(*JJ), 'x': V, 'g': g}, opts)
@@ -168,12 +169,10 @@ plt.grid()
 plt.show()
 
 Wx = 10.
-
-minX = lambda k: 10.*X[k]
-minU = lambda k: U[k]
+minV = lambda k: vertcat(Wx*X[k], U[k])
 FF = ordered_cost_function_handler()
-FF.set_cost_function(minX, 0, N)
-FF.set_cost_function(minU, 0, N-1)
+FF.set_cost_function(minV, 0, N-1)
+FF.set_cost_function(lambda k: Wx*X[-1], N-1, N)
 JJ = FF.get_cost_function()
 print 'JJ: ', JJ
 

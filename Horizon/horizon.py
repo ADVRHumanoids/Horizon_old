@@ -481,15 +481,30 @@ class unit_norm_quaternion(constraint_class):
         self.g_maxk = [1.]
 
 class ordered_cost_function_handler(object):
+    """
+    Handler class for cost function. It returns constraints ordered by NODE
+    """
     def __init__(self):
         self.__cost_function_nodes = {}  # dictionary of cost_function : [node_start, node_goal]
 
         self.__ordered_cost_function = {}  # dictionary of node : [cost_function_1_node, cost_function_2_node, ...]
 
     def set_cost_function(self, cost_function, from_node, to_node):
+        """
+        Set a cost_function to the handler with start and end node
+            Args:
+                cost_function: function
+                from_node: starting node
+                to_node: ending node
+                """
         self.__cost_function_nodes[cost_function] = [from_node, to_node]
 
     def get_cost_function(self):
+        """
+            A list of ordered intermediate costs by NODE
+            Returns:
+                J: list of intermediate costs by NODE
+        """
         for cost_function in self.__cost_function_nodes:
             nodes = self.__cost_function_nodes[cost_function]
             start_node = nodes[0]
@@ -498,9 +513,9 @@ class ordered_cost_function_handler(object):
             for k in range(start_node, end_node):
                 l = cost_function(k)
                 if k not in self.__ordered_cost_function:
-                    self.__ordered_cost_function[k] = vertcat(l)
+                    self.__ordered_cost_function[k] = l
                 else:
-                    self.__ordered_cost_function[k] = vertcat(self.__ordered_cost_function[k], l)
+                    self.__ordered_cost_function[k] += l
 
         J = []
         for k in self.__ordered_cost_function:
@@ -526,9 +541,6 @@ class ordered_constraint_handler(object):
             constraint: class
             from_node: starting node
             to_node: ending node
-
-        Returns:
-
         """
         self.__constraint_nodes[constraint] = [from_node, to_node]
 
