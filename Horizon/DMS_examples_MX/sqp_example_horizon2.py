@@ -96,7 +96,7 @@ print ("ord_g: ", ord_g)
 print ("ord_g_min: ", ord_g_min)
 print ("ord_g_max: ", ord_g_max)
 
-exit()
+#exit()
 
 d = {'verbose': False}
 opts = {'max_iter': 10,

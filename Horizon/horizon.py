@@ -534,14 +534,31 @@ class constraint_handler(object):
         ordered_g_max = []
         acc = 0
 
+
         for i in range(len(U)):
-            for g in copy_g:
+            j = 0
+            while j < len(copy_g):
+                g = copy_g[j]
                 if depends_on(g, X[i]) or depends_on(g, U[i]):
                     ordered_g += [g]
                     ordered_g_min += self.g_min[acc : acc+g.size()[0]]
                     ordered_g_max += self.g_max[acc : acc+g.size()[0]]
                     acc += g.size()[0]
-                    copy_g.remove(g) #pop constraint
+                    del copy_g[j] #pop constraint
+                else:
+                    j += 1
+        j = 0
+        while j < len(copy_g):
+            g = copy_g[j]
+            if depends_on(g, X[-1]):
+                ordered_g += [g]
+                ordered_g_min += self.g_min[acc: acc + g.size()[0]]
+                ordered_g_max += self.g_max[acc: acc + g.size()[0]]
+                acc += g.size()[0]
+                del copy_g[j] #pop constraint
+            else:
+                j += 1
+
 
         return vertcat(*ordered_g), ordered_g_min, ordered_g_max
 
