@@ -480,6 +480,33 @@ class unit_norm_quaternion(constraint_class):
         self.g_mink = [1.]
         self.g_maxk = [1.]
 
+class ordered_cost_function_handler(object):
+    def __init__(self):
+        self.__cost_function_nodes = {}  # dictionary of cost_function : [node_start, node_goal]
+
+        self.__ordered_cost_function = {}  # dictionary of node : [cost_function_1_node, cost_function_2_node, ...]
+
+    def set_cost_function(self, cost_function, from_node, to_node):
+        self.__cost_function_nodes[cost_function] = [from_node, to_node]
+
+    def get_cost_function(self):
+        for cost_function in self.__cost_function_nodes:
+            nodes = self.__cost_function_nodes[cost_function]
+            start_node = nodes[0]
+            end_node = nodes[1]
+
+            for k in range(start_node, end_node):
+                l = cost_function(k)
+                if k not in self.__ordered_cost_function:
+                    self.__ordered_cost_function[k] = vertcat(l)
+                else:
+                    self.__ordered_cost_function[k] = vertcat(self.__ordered_cost_function[k], l)
+
+        J = []
+        for k in self.__ordered_cost_function:
+            J.append(self.__ordered_cost_function[k])
+        return J
+
 class ordered_constraint_handler(object):
     """
     Handler class for constraints. It returns constraints ordered by NODE

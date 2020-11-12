@@ -102,28 +102,24 @@ print ("gg_min: ", gg_min)
 print ("gg_max: ", gg_max)
 
 
-exit()
-#print ("ord_g_min: ", ord_g_min)
-#print ("ord_g_max: ", ord_g_max)
-
-#exit()
-
 d = {'verbose': False}
 opts = {'max_iter': 10,
         'osqp.osqp': d}
 
-Jx = vertcat(*X)
-Ju = vertcat(*U)
-
-J = vertcat(Jx, Ju)
-print 'J: ', J
 
 print 'V: ', V
-#print 'J[2]:', J[2]
-#exit()
+
+
+minX = lambda k: X[k]
+minU = lambda k: U[k]
+FF = ordered_cost_function_handler()
+FF.set_cost_function(minX, 0, N)
+FF.set_cost_function(minU, 0, N-1)
+JJ = FF.get_cost_function()
+print 'JJ: ', JJ
 
 t = time.time()
-solver = sqp.sqp('solver', "osqp", {'f': J, 'x': V, 'g': g}, opts)
+solver = sqp.sqp('solver', "osqp", {'f': vertcat(*JJ), 'x': V, 'g': g}, opts)
 solution = solver(x0=v0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 #solver = sqp('solver', "osqp", {'f': V, 'x': V}, opts)
 #solution = solver(x0=v0, lbx=v_min, ubx=v_max)
@@ -172,10 +168,18 @@ plt.grid()
 plt.show()
 
 Wx = 10.
-J = vertcat(Wx*vertcat(*X), Ju)
+
+minX = lambda k: 10.*X[k]
+minU = lambda k: U[k]
+FF = ordered_cost_function_handler()
+FF.set_cost_function(minX, 0, N)
+FF.set_cost_function(minU, 0, N-1)
+JJ = FF.get_cost_function()
+print 'JJ: ', JJ
+
 
 tic = time.time()
-solver.f(J)
+solver.f(vertcat(*JJ))
 toc = time.time()
 print ("cost function update time: ", toc-tic)
 
