@@ -1,9 +1,9 @@
 import casadi as cs
 import numpy as np
-from Horizon.utils.integrator import *
+#from typing import List, Dict
+from scipy.special import comb
 
 
-#from typing import List
 
 class IterativeLQR:
     """
@@ -16,13 +16,13 @@ class IterativeLQR:
     class LinearDynamics:
 
         def __init__(self, nx, nu):
+            # type: (int, int) -> None
 
             self.A = np.zeros((nx, nx))
             self.B = np.zeros((nx, nu))
             self.Fxx = np.zeros((nx*nx, nx))
             self.Fuu = np.zeros((nx*nu, nu))
             self.Fux = np.zeros((nx*nu, nx))
-        #__init__.__annotations__ = {'nx': int, 'nu': int}
 
         def __repr__(self):
             return self.__dict__.__repr__()
@@ -30,11 +30,11 @@ class IterativeLQR:
     class LinearConstraint:
 
         def __init__(self, nx, nu, nc):
+            # type: (int, int, int) -> None
 
             self.C = np.zeros((nc, nx))
             self.D = np.zeros((nc, nu))
             self.g = np.zeros(nc)
-        #__init__.__annotations__ = {'nx': int, 'nu': int, 'nc': int}
 
         def __repr__(self):
             return self.__dict__.__repr__()
@@ -42,70 +42,159 @@ class IterativeLQR:
     class QuadraticCost:
 
         def __init__(self, nx, nu):
+            # type: (int, int) -> None
             self.qx = np.zeros(nx)
             self.Qxx = np.zeros((nx, nx))
             self.qu = np.zeros(nu)
             self.Quu = np.zeros((nu, nu))
             self.Qxu = np.zeros((nx, nu))
-        #__init__.__annotations__ = {'nx': int, 'nu': int}
 
         def __repr__(self):
             return self.__dict__.__repr__()
 
     def __init__(self,
-                 xdot,
-                 dt,
-                 N,
-                 diff_intermediate_cost,
-                 final_cost,
+                 x, u, xdot,
+                 dt, N,
+                 intermediate_cost, final_cost,
+                 intermediate_constraints=dict(),  # note: does not work currently
                  final_constraint=None,
-                 sym_t=cs.MX):
+                 sym_t=cs.SX):
+        # type: (cs.SX, cs.SX, cs.SX, float, int, cs.SX, cs.SX, Dict, cs.SX, cs.SX) -> None
+
         """
         Constructor
-        :param xdot: casadi.Function with inputs named x, u; output is named xdot.
-        This models the system continuous time dynamics
-        :param diff_intermediate_cost: casadi.Function with inputs named x, u; output is named l
-        :param final_cost: casadi.Function with input named x; output is named l
+        :param x: state variable
+        :param u: control variable
+        :param xdot: continuous-time dynamics -> xdot = f(x, u)
+        :param dt: discretization step
+        :param N: horizon length
+        :param intermediate_cost: intermediate cost -> l(x, u)
+        :param final_cost: final cost -> lf(x)
+        :param intermediate_constraints: dict constr_name -> hi(x, u) = 0
+        :param final_constraint: hf(x) = 0
+        :param sym_t: casadi symbol type (SX or MX)
         """
 
-        if diff_intermediate_cost.name_in(0) != 'x':
-            raise KeyError('First input of l must be named "x"')
-
-        if final_cost.name_in(0) != 'x':
-            raise KeyError('First input of lf must be named "x"')
-
-        if diff_intermediate_cost.name_in(1) != 'u':
-            raise KeyError('Second input of l must be named "u"')
-
-        self._nx = final_cost.size1_in('x')
-        self._nu = diff_intermediate_cost.size1_in('u')
-        self._jacobian_lf = final_cost.jac()
-        self._hessian_lf = self._jacobian_lf.jac()
-        self._N = N
+        # sym type
         self._sym_t = sym_t
+
+        # state and control dimension
+        self._nx = x.size1()
+        self._nu = u.size1()
+
+        # discretization & horizon
+        self._dt = dt
+        self._N = N
+
+        # dynamics
+        self._dynamics_ct = cs.Function('dynamics_ct',
+                                        {'x': x, 'u': u, 'xdot': xdot},
+                                        ['x', 'u'],
+                                        ['xdot'])
+
+        # cost terms
+        self._diff_inter_cost = cs.Function('intermediate_cost',
+                                            {'x': x, 'u': u, 'l': intermediate_cost},
+                                            ['x', 'u'],
+                                            ['l'])
+
+        self._final_cost = cs.Function('final_cost',
+                                       {'x': x, 'u': u, 'lf': final_cost},
+                                       ['x', 'u'],
+                                       ['lf'])
+
+        self._jacobian_lf = self._final_cost.jac()
+        self._hessian_lf = self._jacobian_lf.jac()
+
+        # discrete dynamics & intermediate cost
+        self._discretize()
+
+        # constraints
+        self._constrained = final_constraint is not None or len(intermediate_constraints) is not 0
+        self._final_constraint = None
+        self._constraint_to_go = None
+
+        if self._constrained:
+
+            self._constraint_to_go = self.LinearConstraint(self._nx, self._nu, 0)
+            self._inter_constraints = [self.LinearConstraint(self._nx, self._nu, 0) for _ in range(self._N)]
+
+        # final constraint
+        if final_constraint is not None:
+
+            self._final_constraint = cs.Function('final_constraint',
+                                                 {'x': x, 'u': u, 'hf': final_constraint},
+                                                 ['x', 'u'],
+                                                 ['hf'])
+
+            self._final_constraint_jac = self._final_constraint.jac()
+
+        # intermediate constraints
+        intermediate_constr_r_der = []  # list of intermediate constraint r-th derivatives
+        intermediate_constr_r_der_des = []  # list of intermediate constraint desired r-th derivative value
+
+        # loop over all defined constraints, fill above lists
+        for name, ic in intermediate_constraints.items():
+
+            rel_degree = 0
+            hi_derivatives = [ic]  # list of current constraint derivatives
+
+            while True:
+
+                inter_constraint = cs.Function('intermediate_constraint',
+                                               {'x': x, 'u': u, 'h': ic},
+                                               ['x', 'u'],
+                                               ['h'])
+
+                inter_constraint_jac = inter_constraint.jac()
+
+                # if constraint jacobian depends on u, break
+                if inter_constraint_jac(x=x, u=u)['DhDu'].nnz() > 0:
+                    break
+
+                # otherwise, increase relative degree and do time derivative
+                rel_degree += 1
+                ic = np.matmul(inter_constraint_jac(x=x, u=u)['DhDx'], xdot)
+                hi_derivatives.append(ic)
+
+            print('constraint "{}" relative degree is {}'.format(name, rel_degree))
+            rand_x = np.random.standard_normal(self._nx)
+            rand_u = np.random.standard_normal(self._nu)
+            r = np.linalg.matrix_rank(inter_constraint_jac(x=rand_x, u=rand_u)['DhDu'].toarray())
+            print('constraint "{}" rank at random (x, u) is {} vs dim(u) = {}'.format(name, r, self._nu))
+
+            intermediate_constr_r_der.append(ic)
+            hr_des = sym_t.zeros(ic.size1())
+            constr_lambda = 0.1
+            for i in range(rel_degree):
+                hr_des += comb(r, i) * hi_derivatives[i] * constr_lambda**(r-i)
+
+            intermediate_constr_r_der_des.append(hr_des)
+
+        self._inter_constr = cs.Function('intermediate_constraint',
+                                         {'x': x, 'u': u, 'h': cs.vertcat(*intermediate_constr_r_der)},
+                                         ['x', 'u'],
+                                         ['h'])
+
+        self._inter_constr_des = cs.Function('intermediate_constraint_desired',
+                                             {'x': x, 'u': u, 'hdes': cs.vertcat(*intermediate_constr_r_der_des)},
+                                             ['x', 'u'],
+                                             ['hdes'])
+
+        self._inter_constr_jac = self._inter_constr.jac()
+
+        self._has_inter_constr = self._inter_constr.size1_out('h') > 0
+
+        # initalization of all internal structures
         self._state_trj = [np.zeros(self._nx) for _ in range(self._N + 1)]
         self._ctrl_trj  = [np.zeros(self._nu) for _ in range(self._N)]
+        self._inter_constr_trj = [np.zeros(0) for _ in range(self._N)]
         self._lin_dynamics = [self.LinearDynamics(self._nx, self._nu) for _ in range(self._N)]
         self._inter_quad_cost = [self.QuadraticCost(self._nx, self._nu) for _ in range(self._N)]
         self._final_quad_cost = self.QuadraticCost(self._nx, 0)
         self._cost_to_go = [self.QuadraticCost(self._nx, self._nu) for _ in range(self._N)]
         self._value_function = [self.QuadraticCost(self._nx, self._nu) for _ in range(self._N)]
-        self._diff_inter_cost = diff_intermediate_cost
-        self._final_cost = final_cost
-        self._final_constraint = final_constraint
-        self._constraint_to_go = None
 
-        if final_constraint is not None:
-
-            if final_constraint.name_out(0) != 'gf':
-                raise KeyError('Final constraint output must be named "gf"')
-
-            self._nc = final_constraint.size1_out('gf')
-            self._constraint_to_go = self.LinearConstraint(self._nx, self._nu, self._nc)
-            self._final_constraint_jac = self._final_constraint.jac()
-
-        self._dynamics_ct = xdot
-        self._dt = dt
         self._fb_gain = [np.zeros((self._nu, self._nx)) for _ in range(self._N)]
         self._ff_u = [np.zeros(self._nu) for _ in range(self._N)]
         self._defect = [np.zeros(self._nx) for _ in range(self._N)]
@@ -117,11 +206,11 @@ class IterativeLQR:
 
         self._use_second_order_dynamics = False
         self._use_single_shooting_state_update = False
+        self._verbose = False
 
-        self._discretize()
-    #__init__.__annotations__ = {'xdot': cs.Function, 'dt': float, 'N': int, 'diff_intermediate_cost': cs.Function, 'final_cost': cs.Function}
-
+    @staticmethod
     def _make_jit_function(f):
+        # type: (cs.Function) -> cs.external
         """
         Compiles casadi function into a shared object and return it
         :return:
@@ -134,7 +223,7 @@ class IterativeLQR:
         f.generate(gen_code_path)
 
         gen_lib_path = 'ilqr_generated_{}.so'.format(f.name())
-        gcc_cmd = 'gcc {} -shared -fPIC -O3 -ffast-math -o {}'.format(gen_code_path, gen_lib_path)
+        gcc_cmd = 'gcc {} -shared -fPIC -O3 -o {}'.format(gen_code_path, gen_lib_path)
 
         if os.system(gcc_cmd) != 0:
             raise SystemError('Unable to compile function "{}"'.format(f.name()))
@@ -145,8 +234,6 @@ class IterativeLQR:
         os.remove(gen_lib_path)
 
         return jit_f
-    _make_jit_function.__annotations__ = {'f': cs.Function}
-
 
     def _discretize(self):
         """
@@ -164,15 +251,15 @@ class IterativeLQR:
                'quad': self._diff_inter_cost(x, u)}
 
         # self._F = cs.integrator('F', 'rk', dae, {'t0': 0, 'tf': self._dt})
-        # self._F = cs.Function('F',
-        #                       {'x0': x, 'p': u,
-        #                        'xf': x + self._dt * self._dynamics_ct(x, u),
-        #                        'qf': self._dt * self._diff_inter_cost(x, u)
-        #                        },
-        #                       ['x0', 'p'],
-        #                       ['xf', 'qf'])
+        self._F = cs.Function('F',
+                              {'x0': x, 'p': u,
+                               'xf': x + self._dt * self._dynamics_ct(x, u),
+                               'qf': self._dt * self._diff_inter_cost(x, u)
+                               },
+                              ['x0', 'p'],
+                              ['xf', 'qf'])
 
-        self._F = RK4(dae, {'tf': self._dt}, 'MX')
+        # self._F = integrator.RK4(dae, {'tf': self._dt}, 'SX')
         self._jacobian_F = self._F.jac()
         self._hessian_F = self._jacobian_F.jac()
 
@@ -185,8 +272,8 @@ class IterativeLQR:
         jl_value = self._jacobian_lf(x=self._state_trj[-1])
         hl_value = self._hessian_lf(x=self._state_trj[-1])
 
-        self._final_quad_cost.qx = jl_value['DlDx'].toarray().flatten()
-        self._final_quad_cost.Qxx = hl_value['DDlDxDx'].toarray()
+        self._final_quad_cost.qx = jl_value['DlfDx'].toarray().flatten()
+        self._final_quad_cost.Qxx = hl_value['DDlfDxDx'].toarray()
 
         for i in range(self._N):
 
@@ -205,20 +292,34 @@ class IterativeLQR:
             self._lin_dynamics[i].A = jode_value['DxfDx0'].toarray()
             self._lin_dynamics[i].B = jode_value['DxfDp'].toarray()
 
-            for j in range(self._nx):
-                nx = self._nx
-                nu = self._nu
-                self._lin_dynamics[i].Fxx[j*nx:(j+1)*nx, :] = hode_value['DDxfDx0Dx0'].toarray()[j::nx, :]
-                self._lin_dynamics[i].Fuu[j*nu:(j+1)*nu, :] = hode_value['DDxfDpDp'].toarray()[j::nx, :]
-                self._lin_dynamics[i].Fux[j*nu:(j+1)*nu, :] = hode_value['DDxfDpDx0'].toarray()[j::nx, :]
+            if self._use_second_order_dynamics:
+                for j in range(self._nx):
+                    nx = self._nx
+                    nu = self._nu
+                    self._lin_dynamics[i].Fxx[j*nx:(j+1)*nx, :] = hode_value['DDxfDx0Dx0'].toarray()[j::nx, :]
+                    self._lin_dynamics[i].Fuu[j*nu:(j+1)*nu, :] = hode_value['DDxfDpDp'].toarray()[j::nx, :]
+                    self._lin_dynamics[i].Fux[j*nu:(j+1)*nu, :] = hode_value['DDxfDpDx0'].toarray()[j::nx, :]
+
+            if self._constrained:
+
+                jconstr_value = self._inter_constr_jac(x=self._state_trj[i],
+                                                       u=self._ctrl_trj[i])
+
+                self._inter_constraints[i].C = jconstr_value['DhDx'].toarray()
+                self._inter_constraints[i].D = jconstr_value['DhDu'].toarray()
+                self._inter_constraints[i].g = self._inter_constr_des(x=self._state_trj[i],
+                                                                      u=self._ctrl_trj[i])['hdes'].toarray().flatten()
+                self._inter_constraints[i].g -= self._inter_constr(x=self._state_trj[i],
+                                                                   u=self._ctrl_trj[i])['h'].toarray().flatten()
 
         if self._final_constraint is not None:
 
             jgf_value = self._final_constraint_jac(x=self._state_trj[-1])
-            self._constraint_to_go = self.LinearConstraint(self._nx, self._nu, self._nc)
-            self._constraint_to_go.C = jgf_value['DgfDx'].toarray()
-            self._constraint_to_go.D = np.zeros((self._nc, self._nu))
-            self._constraint_to_go.g = self._final_constraint(x=self._state_trj[-1])['gf'].toarray().flatten()
+            nc = self._final_constraint.size1_out('hf')
+            self._constraint_to_go = self.LinearConstraint(self._nx, self._nu, nc)
+            self._constraint_to_go.C = jgf_value['DhfDx'].toarray()
+            self._constraint_to_go.D = np.zeros((nc, self._nu))
+            self._constraint_to_go.g = self._final_constraint(x=self._state_trj[-1])['hf'].toarray().flatten()
 
     def _backward_pass(self):
         """
@@ -249,18 +350,40 @@ class IterativeLQR:
             Fuu = self._lin_dynamics[i].Fuu.reshape((nx, nu, nu))
             Fux = self._lin_dynamics[i].Fux.reshape((nx, nu, nx))
 
-            # constraint handling
-            constrained = self._constraint_to_go is not None and self._constraint_to_go.g.size > 0
+            # intermediate constraint
+            # NOTE: constraint handling is experimental!
+            # NOTE: intermediate constraints don't seem to work well
+
+            # final constraint
             l_ff = np.zeros(self._nu)
             L_fb = np.zeros((self._nu, self._nx))
             Vns = np.eye(self._nu)
 
-            if constrained:
+            constr_to_process = self._constraint_to_go is not None or self._has_inter_constr
 
-                # back-propagate constraint to go from next time step
-                C = np.matmul(self._constraint_to_go.C, A)
-                D = np.matmul(self._constraint_to_go.C, B)
-                g = self._constraint_to_go.g - np.matmul(self._constraint_to_go.C, d)
+            if self._constrained and constr_to_process:
+
+                if self._constraint_to_go is not None:
+
+                    # back-propagate constraint to go from next time step
+                    C = np.matmul(self._constraint_to_go.C, A)
+                    D = np.matmul(self._constraint_to_go.C, B)
+                    g = self._constraint_to_go.g - np.matmul(self._constraint_to_go.C, d)
+
+                    # add intermediate constraint
+                    C = np.vstack((C, self._inter_constraints[i].C))
+                    D = np.vstack((D, self._inter_constraints[i].D))
+                    g = np.hstack((g, self._inter_constraints[i].g))
+
+                else:
+
+                    # we only have intermediate constraints
+                    C = self._inter_constraints[i].C
+                    D = self._inter_constraints[i].D
+                    g = self._inter_constraints[i].g
+
+
+
 
                 # svd of constraint input matrix
                 U, sv, V = np.linalg.svd(D)
@@ -284,7 +407,7 @@ class IterativeLQR:
                 # compute constraint component of control input uc = Lc*x + lc
                 l_ff = np.matmul(-V[:, 0:nsv], (inv_sv*rot_g[0:nsv]))
                 l_ff.flatten()
-                L_fb = np.matmul(np.matmul(-V[:, 0:nsv], np.diag(inv_sv)), rot_C[0:nsv, :])
+                L_fb = np.matmul(-V[:, 0:nsv], np.matmul(np.diag(inv_sv), rot_C[0:nsv, :]))
 
                 # update constraint to go
                 left_constraint_dim = nc - rank
@@ -312,20 +435,20 @@ class IterativeLQR:
 
                     tr_idx = (0, 2, 1)
 
-                    d += np.matmul(np.matmul(0.5*l_ff, Fuu), l_ff)
-                    A += np.matmul(np.matmul(l_ff, Fuu), L_fb) + np.matmul(l_ff, Fux)
-                    B += np.matmul(np.matmul(l_ff, Fuu), Vns)
+                    d += np.matmul(0.5*l_ff, np.matmul(Fuu, l_ff))
+                    A += np.matmul(l_ff, np.matmul(Fuu, L_fb)) + np.matmul(l_ff, Fux)
+                    B += np.matmul(l_ff, np.matmul(Fuu, Vns))
 
-                    Fxx = Fxx + np.matmul(L_fb.T, (np.matmul(Fuu, L_fb) + Fux)) + np.matmul(Fux.transpose(tr_idx), L_fb)
-                    Fux = np.matmul(Vns.T,  (Fux + np.matmul(Fuu, L_fb)))
-                    Fuu = np.matmul(np.matmul(Vns.T, Fuu), Vns)
+                    Fxx = Fxx + np.matmul(L_fb.T, (np.matmul(Fuu , L_fb) + Fux)) + np.matmul(Fux.transpose(tr_idx), L_fb)
+                    Fux = np.matmul(Vns.T, (Fux + np.matmul(Fuu, L_fb)))
+                    Fuu = np.matmul(Vns.T, np.matmul(Fuu, Vns))
 
                 q = q + np.matmul(L_fb.T, (r + np.matmul(R, l_ff))) + np.matmul(P.T, l_ff)
-                Q = Q + np.matmul(np.matmul(L_fb.T, R), L_fb) + np.matmul(L_fb.T, P) + np.matmul(P.T, L_fb)
+                Q = Q + np.matmul(L_fb.T, np.matmul(R, L_fb)) + np.matmul(L_fb.T, P) + np.matmul(P.T, L_fb)
                 P = np.matmul(Vns.T, (P + np.matmul(R, L_fb)))
 
                 r = np.matmul(Vns.T, (r + np.matmul(R, l_ff)))
-                R = np.matmul(np.matmul(Vns.T, R), Vns)
+                R = np.matmul(Vns.T, np.matmul(R, Vns))
 
             # intermediate quantities
             hx = q + np.matmul(A.T, (s + np.matmul(S, d)))
@@ -336,27 +459,11 @@ class IterativeLQR:
 
             if self._use_second_order_dynamics:
 
-                Huu += np.matmul((Fuu.T, (s + np.matmul(S, d))).T)
-                Hux += np.matmul((Fux.T, (s + np.matmul(S, d))).T)
-                Hxx += np.matmul((Fxx.T, (s + np.matmul(S, d))).T)
-
+                Huu += (np.matmul(Fuu.T, (s + np.matmul(S, d)))).T
+                Hux += (np.matmul(Fux.T, (s + np.matmul(S, d)))).T
+                Hxx += (np.matmul(Fxx.T, (s + np.matmul(S, d)))).T
 
             # nullspace gain and feedforward computation
-            lam_min = 0
-
-            if Huu.size > 0:
-                lam_Huu = np.linalg.eigvalsh(R)
-                cond_max = 1000
-                lam_min = lam_Huu.min()
-                lam_max = lam_Huu.max()
-
-            if lam_min < 0:
-                print(lam_Huu)
-                eps = (lam_max + abs(lam_min))/cond_max + abs(lam_min)
-                Huu += np.eye(nu) * eps
-                lam_min = 0
-                lam_Huu += lam_min
-
             l_Lz = -np.linalg.solve(Huu, np.hstack((hu.reshape((hu.size, 1)), Hux)))
             lz = l_Lz[:, 0]
             Lz = l_Lz[:, 1:]
@@ -366,12 +473,8 @@ class IterativeLQR:
             L_fb = L_fb + np.matmul(Vns, Lz)
 
             # value function update
-            # Atil = A + B@Lz
-            # dtil = d + B@lz
-            # s = q + Atil.T@(S@dtil + s) + Lz.T@(r + R@lz) + P.T@lz
-            # S = Q + Atil.T@S@Atil + Lz.T@R@Lz + Lz.T@P + P.T@Lz
-            s = hx - np.matmul(np.matmul(Lz.T, Huu), lz)
-            S = Hxx - np.matmul(np.matmul(Lz.T, Huu), Lz)
+            s = hx - np.matmul(Lz.T, np.matmul(Huu, lz))
+            S = Hxx - np.matmul(Lz.T, np.matmul(Huu, Lz))
 
             # save gain and ffwd
             self._fb_gain[i] = L_fb.copy()
@@ -388,13 +491,15 @@ class IterativeLQR:
             self.dx_norm = 0.0
             self.du_norm = 0.0
             self.cost = 0.0
+            self.inter_constr = []
+            self.final_constr = None
 
-    def _forward_pass(self): #TODO: is this in PropagateResult class?
+    def _forward_pass(self):
         """
         To be implemented
         :return:
         """
-        x_old = list(self._state_trj)
+        x_old = self._state_trj[:]
 
         defect_norm = 0
         du_norm = 0
@@ -419,14 +524,13 @@ class IterativeLQR:
             else:
                 xnext_upd = xnext + np.matmul((A + np.matmul(B, L)), dx) + np.matmul(B, l) + d
 
-
             self._state_trj[i+1] = xnext_upd.copy()
             self._ctrl_trj[i] = ui_upd.copy()
 
             defect_norm += np.linalg.norm(d, ord=1)
             du_norm += np.linalg.norm(l, ord=1)
             dx_norm += np.linalg.norm(dx, ord=1)
-
+            self._inter_constr_trj[i] = self._inter_constr(x=xi_upd, u=ui_upd)['h'].toarray().flatten()
 
         self._defect_norm.append(defect_norm)
         self._du_norm.append(du_norm)
@@ -434,6 +538,7 @@ class IterativeLQR:
         self._dcost.append(self._eval_cost(self._state_trj, self._ctrl_trj))
 
     def _propagate(self, xtrj, utrj, alpha=1):
+        # type: (List[np.array], List[np.array], int) -> PropagateResult
 
         N = len(utrj)
         ret = self.PropagateResult()
@@ -465,12 +570,12 @@ class IterativeLQR:
             ret.ctrl_trj[i] = ui_upd.copy()
             ret.dx_norm += np.linalg.norm(dx, ord=1)
             ret.du_norm += np.linalg.norm(ui_upd - ui, ord=1)
+            ret.inter_constr.append(self._inter_constr(x=xi_upd, u=ui_upd)['h'].toarray().flatten())
 
+        ret.final_constr = self._final_constraint(x=ret.state_trj[-1])['hf'].toarray().flatten()
         ret.cost = self._eval_cost(ret.state_trj, ret.ctrl_trj)
 
         return ret
-    #_propagate.__annotations__={'xtrj': List[np.array], 'utrj': List[np.array]}
-
 
     def _eval_cost(self, x_trj, u_trj):
 
@@ -480,27 +585,29 @@ class IterativeLQR:
 
             cost += self._F(x0=x_trj[i], p=u_trj[i])['qf'].__float__()
 
-        cost += self._final_cost(x=x_trj[-1])['l'].__float__()
+        cost += self._final_cost(x=x_trj[-1])['lf'].__float__()
 
         return cost
 
-
     def solve(self, niter):
+        # type: (int) -> None
 
         if len(self._dcost) == 0:
             self._dcost.append(self._eval_cost(self._state_trj, self._ctrl_trj))
 
-        for _ in range(niter):
+        for i in range(niter):
 
             self._linearize_quadratize()
             self._backward_pass()
             self._forward_pass()
-    solve.__annotations__ = {'niter': int}
+
+            if self._verbose:
+                print('Iter #{}: cost = {}'.format(i, self._dcost[-1]))
 
     def setInitialState(self, x0):
+        # type: (np.array) -> None
 
         self._state_trj[0] = np.array(x0)
-    #setInitialState.__annotations__ = {'x0': np.array}
 
     def randomizeInitialGuess(self):
 
@@ -510,7 +617,3 @@ class IterativeLQR:
         if self._use_single_shooting_state_update:
             for i in range(self._N):
                 self._state_trj[i+1] = self._F(x0=self._state_trj[i], p=self._ctrl_trj[i])['xf'].toarray().flatten()
-
-
-
-

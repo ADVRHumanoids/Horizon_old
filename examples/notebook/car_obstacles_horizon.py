@@ -1,77 +1,43 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# # Inverted pendulum on cart model
-# 
-# Equations:
-# 
-# $$
-# \begin{cases}
-# \ddot{x} + \alpha\cos\theta\,\ddot{\theta} + \alpha\sin\theta\,\dot{\theta}^2 &= u \\
-# -\cos\theta\,\ddot{x} + \ddot{\theta} &= \sin\theta
-# \end{cases},
-# $$
-# 
-# where $\alpha < 1$ is the ratio of the pendulum mass over the total system mass.
-# 
-# We now define the system dynamics in CasADi
-
-# In[18]:
-
-import sys
-import os
-
+import Horizon.horizon
+from Horizon.utils.integrator import *
 from Horizon.solvers import ilqr
+
 import casadi as cs
 import numpy as np
 
-# switch between MX and SX
-sym_t = cs.MX
 
-# define state
-x = sym_t.sym('x', 3)
-u = sym_t.sym('u', 2)
-xdot = cs.vertcat( u[0] * cs.cos(x[2]), 
-                   u[0] * cs.sin(x[2]),
-                   u[1])
-
-
-# ## Optimal control problem
-# 
-# We optimize the following cost
-# $$
-#     J(\boldsymbol{x}_0, \mathbf{U}) = \int_0^{t_f} u^2 \,\text{d}t \; + \; 1000\cdot\lVert \boldsymbol{x}_N - \boldsymbol{x}_f^\text{ref}  \rVert^2
-# $$
-# 
-# discretized with $N$ knots of duration $\text{d}t$.
-
-# In[19]:
+def barrier(x):
+    return 0.5 * (x + 0.001 * cs.sqrt((x * 1000) ** 2 + 1e-9))
 
 
 N = 50  # number of nodes
 dt = 0.1  # discretizaton step
 niter = 50  # ilqr iterations
-x0 = np.array([0, 0, 0])  # initial state (falling)
-xf = np.array([0, 1, 0])  # desired final state (upright)
+
+# CREATE VARIABLES
+x, X = create_variable('x', 3, N, "STATE", "MX")
+print 'x: ', x
+print 'X: ', X
+print 'size of x: ', x.size()
+print 'size of X: ', len(X)
+print 'size of X[i], ', X[0].size()
+u, U = create_variable('u', 2, N, "CONTROL", "MX")
+
+xdot = cs.vertcat( u[0] * cs.cos(x[2]),
+                   u[0] * cs.sin(x[2]),
+                   u[1])
+
+x0 = np.array([0, 0, 0])  # initial state
+xf = np.array([0, 1, 0])  # desired final state
 
 obs_center = np.array([0.05, 0.5])
 obs_r = 0.1
-obs = -cs.sumsqr(x[0:1] - obs_center) + obs_r  # obs(x) < 0
-
-
-def barrier(x):
-    
-    return 0.5*(x + 0.001*cs.sqrt((x*1000)**2 + 1e-9))
-    
+obs = -cs.sumsqr(x[0:1] - obs_center) + obs_r
 
 l = cs.sumsqr(u)  # intermediate cost
-lf = 100*cs.sumsqr(x - xf)  # final cost
+lf = 100.*cs.sumsqr(x - xf)  # final cost
 gf = x - xf
 
-
-# Costs and dynamics must be expressed as CasADi functions
-
-# In[20]:
 
 
 solver = ilqr.IterativeLQR(x = x, u = u, xdot=xdot,
@@ -149,9 +115,10 @@ for i in range(len(solver._ctrl_trj)):
     cost_est += dt* np.linalg.norm(solver._ctrl_trj[i])**2
 
 Lf = cs.Function('final_cost',
-                     {'x': x, 'l': lf},
-                     ['x'],
-                     ['l']
-                     )
+                {'x': x, 'l': lf},
+                ['x'],
+                ['l']
+                )
 
 cost_est += Lf(x=solver._state_trj[-1])['l'].__float__()
+
