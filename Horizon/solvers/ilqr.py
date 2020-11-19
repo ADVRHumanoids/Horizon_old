@@ -163,7 +163,7 @@ class IterativeLQR:
 
                 # otherwise, increase relative degree and do time derivative
                 rel_degree += 1
-                ic = np.matmul(inter_constraint_jac(x=x, u=u)['DhDx'], xdot)
+                ic = cs.matmul(inter_constraint_jac(x=x, u=u)['DhDx'], xdot)
                 hi_derivatives.append(ic)
 
             print('constraint "{}" relative degree is {}'.format(name, rel_degree))
