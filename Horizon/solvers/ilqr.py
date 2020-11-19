@@ -4,6 +4,15 @@ import numpy as np
 from scipy.special import comb
 
 
+import pkg_resources
+casadi_version = pkg_resources.get_distribution('casadi').version
+casadi_version_major = casadi_version[0]
+casadi_version_minor = casadi_version[2]
+casadi_version_patch = casadi_version[4]
+
+if(casadi_version_major != 3 or casadi_version_minor != 4 or casadi_version_patch != 5)
+    raise Exception("ilqr requires CASADI version 3.4.5")
+
 
 class IterativeLQR:
     """
