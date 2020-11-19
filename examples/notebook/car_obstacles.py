@@ -21,7 +21,7 @@
 import sys
 import os
 
-from Horizon.solvers import ilqr
+from Horizon.solvers import nilqr
 import casadi as cs
 import numpy as np
 
@@ -74,7 +74,7 @@ gf = x - xf
 # In[20]:
 
 
-solver = ilqr.IterativeLQR(x = x, u = u, xdot=xdot,
+solver = nilqr.nIterativeLQR(x = x, u = u, xdot=xdot,
                            dt=dt, N=N,
                            intermediate_cost=l,
                            final_cost=lf,
