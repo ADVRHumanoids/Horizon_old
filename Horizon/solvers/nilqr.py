@@ -2,6 +2,8 @@ import casadi as cs
 import numpy as np
 #from typing import List, Dict
 from scipy.special import comb
+import scipy as sc
+import time
 
 
 import pkg_resources
@@ -410,38 +412,24 @@ class nIterativeLQR:
                 Hux += (np.matmul(Fux.T, (s + np.matmul(S, d)))).T
                 Hxx += (np.matmul(Fxx.T, (s + np.matmul(S, d)))).T
 
-            # nullspace gain and feedforward computation
-            iH = np.linalg.pinv(Huu) # H^-1
-
-
+            # nullspace projector gain and feedforward computation
+            iH = np.linalg.pinv(Huu, rcond=1e-6) # H^-1
 
             if D is not None:
                 iHDt = np.matmul(iH, D.transpose()) # H^-1* D'
-                O = np.linalg.pinv(np.matmul(D, iHDt)) # (D*H^-1*D')^-1
-                pinvD = np.matmul(iHDt, O) # H^-1*D'*(D*H^-1*D')^-1
+                O = np.linalg.pinv(np.matmul(D, iHDt), rcond=1e-6) # (D*H^-1*D')^-1
+                pinvD = np.matmul(iHDt, O) # H^-1*D'*(D*H^-1*D')^-1 = D^#
 
-                pDD = np.matmul(pinvD, D)
+                pDD = np.matmul(pinvD, D) # D^# * D
                 I = np.eye(*pDD.shape)
-                NP = np.matmul(iH, (I - pDD))
-                lz = -np.matmul(pinvD, g) -np.matmul(NP, hu.transpose())
+                NP = np.matmul(iH, (I - pDD)) # H^-1 * (I - D^# * D)
 
-                Lz = -np.matmul(pinvD, C) -np.matmul(NP, Hux.transpose())
+                lz = -np.matmul(pinvD, g) -np.matmul(NP, hu.transpose()) # -D^#*g - H^-1 * (I - D^# * D)*hu'
+                Lz = -np.matmul(pinvD, C) -np.matmul(NP, Hux.transpose())# -D^#*C - H^-1 * (I - D^# * D)*Hux'
             else:
-                lz = -np.matmul(iH,hu.transpose())
-                Lz = -np.matmul(iH,Hux)
+                lz = -np.matmul(iH,hu.transpose()) # H^-1 * hu'
+                Lz = -np.matmul(iH,Hux.transpose())# H^-1 * Hux'
 
-
-
-
-
-            #l_Lz = -np.linalg.solve(Huu, np.hstack((hu.reshape((hu.size, 1)), Hux)))
-
-
-
-
-
-            #lz = l_Lz[:, 0]
-            #Lz = l_Lz[:, 1:]
 
             # overall gain and ffwd including constraint
             l_ff = l_ff + np.matmul(Vns, lz)

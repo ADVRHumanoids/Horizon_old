@@ -5,6 +5,7 @@ import casadi as cs
 import numpy as np
 
 
+
 casadi_version = pkg_resources.get_distribution('casadi').version
 print("CASADI MAJOR: ", casadi_version[0])
 print("CASADI MINOR: ", casadi_version[2])
@@ -46,11 +47,11 @@ u = sym_t.sym('u', 2)
 xdot = u
 N = 5  # number of nodes
 dt = 0.01  # discretizaton step
-niter = 10  # ilqr iterations
+niter = 1  # ilqr iterations
 x0 = np.array([0, 0])
 xf = np.array([1, 1])
 
-l = cs.sumsqr(u)  # intermediate cost
+l = 0.01*cs.sumsqr(u)  # intermediate cost
 lf = 200*cs.sumsqr(x - xf)  # final cost
 gf = x - xf
 
@@ -61,7 +62,7 @@ solver = nilqr.nIterativeLQR(x = x, u = u, xdot=xdot,
                            intermediate_cost=l,
                            final_cost=lf,
                            intermediate_constraints = constr,
-                           final_constraint=None#x[0]
+                           final_constraint=x[0]
                              )
 
 solver.setInitialState(x0)
