@@ -425,10 +425,10 @@ class nIterativeLQR:
                 NP = np.matmul(iH, (I - pDD)) # H^-1 * (I - D^# * D)
 
                 lz = -np.matmul(pinvD, g) -np.matmul(NP, hu.transpose()) # -D^#*g - H^-1 * (I - D^# * D)*hu'
-                Lz = -np.matmul(pinvD, C) -np.matmul(NP, Hux.transpose())# -D^#*C - H^-1 * (I - D^# * D)*Hux'
+                Lz = -np.matmul(pinvD, C) -np.matmul(NP, Hux)# -D^#*C - H^-1 * (I - D^# * D)*Hux
             else:
                 lz = -np.matmul(iH,hu.transpose()) # H^-1 * hu'
-                Lz = -np.matmul(iH,Hux.transpose())# H^-1 * Hux'
+                Lz = -np.matmul(iH,Hux)# H^-1 * Hux
 
 
             # overall gain and ffwd including constraint
