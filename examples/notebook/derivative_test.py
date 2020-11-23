@@ -51,7 +51,7 @@ niter = 1  # ilqr iterations
 x0 = np.array([0, 0])
 xf = np.array([1, 1])
 
-l = 0.01*cs.sumsqr(u)  # intermediate cost
+l = cs.sumsqr(u) + cs.sumsqr(x)   # intermediate cost
 lf = 200*cs.sumsqr(x - xf)  # final cost
 gf = x - xf
 
