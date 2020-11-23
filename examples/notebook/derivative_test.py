@@ -45,13 +45,13 @@ x = sym_t.sym('x', 2)
 u = sym_t.sym('u', 2)
 
 xdot = u
-N = 5  # number of nodes
-dt = 0.01  # discretizaton step
+N = 20  # number of nodes
+dt = 0.1  # discretizaton step
 niter = 1  # ilqr iterations
-x0 = np.array([0, 0])
+x0 = np.array([1, 0])
 xf = np.array([1, 1])
 
-l = cs.sumsqr(u) + cs.sumsqr(x)   # intermediate cost
+l = 0.1*cs.sumsqr(u) + 100.*cs.sumsqr(x+1.)   # intermediate cost
 lf = 200*cs.sumsqr(x - xf)  # final cost
 gf = x - xf
 
@@ -62,14 +62,14 @@ solver = nilqr.nIterativeLQR(x = x, u = u, xdot=xdot,
                            intermediate_cost=l,
                            final_cost=lf,
                            intermediate_constraints = constr,
-                           final_constraint=x[0]
+                           final_constraint=x[1]
                              )
 
 solver.setInitialState(x0)
 np.random.seed(11311)
 solver._use_single_shooting_state_update = True
 # solver._use_second_order_dynamics = True
-solver.randomizeInitialGuess()
+#solver.randomizeInitialGuess()
 solver.solve(niter)
 
 if True:

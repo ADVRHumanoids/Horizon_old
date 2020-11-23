@@ -124,12 +124,11 @@ class nIterativeLQR:
         self._constraint_to_go = None
 
         if self._constrained:
-
-            self._constraint_to_go = self.LinearConstraint(self._nx, self._nu, 0)
             self._inter_constraints = [self.LinearConstraint(self._nx, self._nu, 0) for _ in range(self._N)]
 
         # final constraint
         if final_constraint is not None:
+            self._constraint_to_go = self.LinearConstraint(self._nx, self._nu, 0)
 
             self._final_constraint = cs.Function('final_constraint',
                                                  {'x': x, 'u': u, 'hf': final_constraint},
@@ -138,9 +137,9 @@ class nIterativeLQR:
 
             self._final_constraint_jac = self._final_constraint.jac()
 
+
         # intermediate constraints
-        intermediate_constr_r_der = []  # list of intermediate constraint r-th derivatives
-        intermediate_constr_r_der_des = []  # list of intermediate constraint desired r-th derivative value
+        intermediate_constr_r_der = []  # list of intermediate constraint r-th order dynamics
 
         # loop over all defined constraints, fill above lists
         for name, ic in intermediate_constraints.items():
@@ -172,23 +171,18 @@ class nIterativeLQR:
             r = np.linalg.matrix_rank(inter_constraint_jac(x=rand_x, u=rand_u)['DhDu'].toarray())
             print('constraint "{}" rank at random (x, u) is {} vs dim(u) = {}'.format(name, r, self._nu))
 
-            intermediate_constr_r_der.append(ic)
-            hr_des = sym_t.zeros(ic.size1())
-            constr_lambda = 0.1
-            for i in range(rel_degree):
-                hr_des += comb(r, i) * hi_derivatives[i] * constr_lambda**(r-i)
+            hi_dynamics = 0
+            constr_lambda = 10.0 # TODO: setter getter
+            for i in range(rel_degree+1):
+                hi_dynamics += comb(rel_degree, i) * hi_derivatives[i] * constr_lambda**(rel_degree-i)
 
-            intermediate_constr_r_der_des.append(hr_des)
+            intermediate_constr_r_der.append(hi_dynamics)
+
 
         self._inter_constr = cs.Function('intermediate_constraint',
                                          {'x': x, 'u': u, 'h': cs.vertcat(*intermediate_constr_r_der)},
                                          ['x', 'u'],
                                          ['h'])
-
-        self._inter_constr_des = cs.Function('intermediate_constraint_desired',
-                                             {'x': x, 'u': u, 'hdes': cs.vertcat(*intermediate_constr_r_der_des)},
-                                             ['x', 'u'],
-                                             ['hdes'])
 
         self._inter_constr_jac = self._inter_constr.jac()
 
@@ -319,10 +313,8 @@ class nIterativeLQR:
 
                 self._inter_constraints[i].C = jconstr_value['DhDx'].toarray()
                 self._inter_constraints[i].D = jconstr_value['DhDu'].toarray()
-                self._inter_constraints[i].g = self._inter_constr_des(x=self._state_trj[i],
-                                                                      u=self._ctrl_trj[i])['hdes'].toarray().flatten()
-                #self._inter_constraints[i].g -= self._inter_constr(x=self._state_trj[i],
-                #                                                   u=self._ctrl_trj[i])['h'].toarray().flatten()
+                self._inter_constraints[i].g = self._inter_constr(x=self._state_trj[i],
+                                                                  u=self._ctrl_trj[i])['h'].toarray().flatten()
 
         if self._final_constraint is not None:
 
@@ -369,41 +361,99 @@ class nIterativeLQR:
             Fuu = self._lin_dynamics[i].Fuu.reshape((nx, nu, nu))
             Fux = self._lin_dynamics[i].Fux.reshape((nx, nu, nx))
 
-            # intermediate constraint
-            # NOTE: constraint handling is experimental!
-            # NOTE: intermediate constraints don't seem to work well
+            # intermediate constraints
+            C = None
+            D = None
+            g = None
+            if self._has_inter_constr:
+                # extract intermediate constraints
+                C = self._inter_constraints[i].C
+                D = self._inter_constraints[i].D
+                g = self._inter_constraints[i].g
+                # TODO: second order dynamics?
 
             # final constraint
             l_ff = np.zeros(self._nu)
             L_fb = np.zeros((self._nu, self._nx))
             Vns = np.eye(self._nu)
 
-            constr_to_process = self._constraint_to_go is not None or self._has_inter_constr
+            if self._constraint_to_go is not None:
 
-            C = None
-            D = None
-            g = None
-            if self._constrained and constr_to_process:
+                # back-propagate constraint to go from next time step
+                C_to_go = np.matmul(self._constraint_to_go.C, A)
+                D_to_go = np.matmul(self._constraint_to_go.C, B)
+                g_to_go = self._constraint_to_go.g - np.matmul(self._constraint_to_go.C, d)
 
-                if self._constraint_to_go is not None:
+                # svd of constraint input matrix
+                U, sv, V = np.linalg.svd(D_to_go)
+                V = V.T
 
-                    # back-propagate constraint to go from next time step
-                    C = np.matmul(self._constraint_to_go.C, A)
-                    D = np.matmul(self._constraint_to_go.C, B)
-                    g = self._constraint_to_go.g - np.matmul(self._constraint_to_go.C, d)
+                # rotated constraint
+                rot_g = np.matmul(U.T, g_to_go)
+                rot_C = np.matmul(U.T, C_to_go)
 
-                    # add intermediate constraint
-                    C = np.vstack((C, self._inter_constraints[i].C))
-                    D = np.vstack((D, self._inter_constraints[i].D))
-                    g = np.hstack((g, self._inter_constraints[i].g))
+                # non-zero singular values
+                large_sv = sv > 1e-4  # TODO: setter and getter
 
+                nc = g_to_go.size  # number of currently active constraints
+                nsv = len(sv)  # number of singular values
+                rank = np.count_nonzero(large_sv)  # constraint input matrix rank
+
+                # singular value inversion
+                inv_sv = sv.copy()
+                inv_sv[large_sv] = np.reciprocal(sv[large_sv])
+
+                # compute constraint component of control input uc = Lc*x + lc
+                l_ff = np.matmul(-V[:, 0:nsv], (inv_sv * rot_g[0:nsv]))
+                l_ff.flatten()
+                L_fb = np.matmul(-V[:, 0:nsv], np.matmul(np.diag(inv_sv), rot_C[0:nsv, :]))
+
+                # update constraint to go
+                left_constraint_dim = nc - rank
+
+                if left_constraint_dim > 0:
+                    self._constraint_to_go.C = rot_C[rank:, :]
+                    self._constraint_to_go.D = np.zeros((left_constraint_dim, self._nu))
+                    self._constraint_to_go.g = rot_g[rank:]
+
+                nullspace_dim = self._nu - rank
+
+                if nullspace_dim == 0:
+                    Vns = np.zeros((self._nu, 0))
                 else:
+                    Vns = V[:, -nullspace_dim:]
 
-                    # we only have intermediate constraints
-                    C = self._inter_constraints[i].C
-                    D = self._inter_constraints[i].D
-                    g = self._inter_constraints[i].g
+                # the constraint induces a modified dynamics via u = Lx + l + Vns*z (z = new control input)
+                d = d + np.matmul(B, l_ff)
+                A = A + np.matmul(B, L_fb)
+                B = np.matmul(B, Vns)
 
+                if self._use_second_order_dynamics:
+                    tr_idx = (0, 2, 1)
+
+                    d += np.matmul(0.5 * l_ff, np.matmul(Fuu, l_ff))
+                    A += np.matmul(l_ff, np.matmul(Fuu, L_fb)) + np.matmul(l_ff, Fux)
+                    B += np.matmul(l_ff, np.matmul(Fuu, Vns))
+
+                    Fxx = Fxx + np.matmul(L_fb.T, (np.matmul(Fuu, L_fb) + Fux)) + np.matmul(Fux.transpose(tr_idx),
+                                                                                            L_fb)
+                    Fux = np.matmul(Vns.T, (Fux + np.matmul(Fuu, L_fb)))
+                    Fuu = np.matmul(Vns.T, np.matmul(Fuu, Vns))
+
+                q = q + np.matmul(L_fb.T, (r + np.matmul(R, l_ff))) + np.matmul(P.T, l_ff)
+                Q = Q + np.matmul(L_fb.T, np.matmul(R, L_fb)) + np.matmul(L_fb.T, P) + np.matmul(P.T, L_fb)
+                P = np.matmul(Vns.T, (P + np.matmul(R, L_fb)))
+
+                r = np.matmul(Vns.T, (r + np.matmul(R, l_ff)))
+                R = np.matmul(Vns.T, np.matmul(R, Vns))
+
+                if left_constraint_dim == 0:
+                    self._constraint_to_go = None
+
+                if self._has_inter_constr:
+                    g += np.matmul(D, l_ff)
+                    C += np.matmul(D, L_fb)
+                    D = np.matmul(D, Vns)
 
 
 
@@ -422,30 +472,32 @@ class nIterativeLQR:
                 Hxx += (np.matmul(Fxx.T, (s + np.matmul(S, d)))).T
 
             # nullspace projector gain and feedforward computation
-            if D is not None:
+            if Huu.shape[1] > 0:
+                if D is not None:
+                    K = np.vstack([np.hstack([Huu, D.transpose()]), np.hstack([D, np.zeros((D.shape[0], D.shape[0]))])])
+                    iK = np.linalg.pinv(K, rcond=self._kkt_rcond)
+                    lz = np.matmul(iK, np.vstack([-hu.reshape((hu.size, 1)), -g.reshape((g.size, 1))]))[0:Huu.shape[0],:].reshape(Huu.shape[0])
+                    Lz = np.matmul(iK, np.vstack([-Hux, -C]))[0:Huu.shape[0],:]
 
-                K = np.vstack([np.hstack([Huu, D.transpose()]), np.hstack([D, np.zeros((D.shape[0], D.shape[0]))])])
-                iK = np.linalg.pinv(K, rcond=self._kkt_rcond)
-                lz = np.matmul(iK, np.vstack([-hu.reshape((hu.size, 1)), g.reshape((g.size, 1))]))[0:Huu.shape[0],:].reshape(Huu.shape[0])
-                Lz = np.matmul(iK, np.vstack([-Hux, C]))[0:Huu.shape[0],:]
+                    # NULL-SPACE PROJECTOR IMPLEMENTATION
+                    # iH = np.linalg.pinv(Huu, rcond=1e-6)  # H^-1
+                    #
+                    # iHDt = np.matmul(iH, D.transpose()) # H^-1* D'
+                    # O = np.linalg.pinv(np.matmul(D, iHDt), rcond=1e-6) # (D*H^-1*D')^-1
+                    # pinvD = np.matmul(iHDt, O) # H^-1*D'*(D*H^-1*D')^-1 = D^#
+                    #
+                    # pDD = np.matmul(pinvD, D) # D^# * D
+                    # I = np.eye(*pDD.shape)
+                    # NP = np.matmul(iH, (I - pDD)) # H^-1 * (I - D^# * D)
+                    #
+                    # lz = -np.matmul(pinvD, g) -np.matmul(NP, hu.transpose()) # -D^#*g - H^-1 * (I - D^# * D)*hu'
+                    # Lz = -np.matmul(pinvD, C) -np.matmul(NP, Hux)# -D^#*C - H^-1 * (I - D^# * D)*Hux
+                else:
+                    iH = np.linalg.pinv(Huu, rcond=1e-6)  # H^-1
+                    lz = -np.matmul(iH,hu.transpose()) # H^-1 * hu'
+                    Lz = -np.matmul(iH,Hux)# H^-1 * Hux
 
-                # NULL-SPACE PROJECTOR IMPLEMENTATION
-                # iH = np.linalg.pinv(Huu, rcond=1e-6)  # H^-1
-                #
-                # iHDt = np.matmul(iH, D.transpose()) # H^-1* D'
-                # O = np.linalg.pinv(np.matmul(D, iHDt), rcond=1e-6) # (D*H^-1*D')^-1
-                # pinvD = np.matmul(iHDt, O) # H^-1*D'*(D*H^-1*D')^-1 = D^#
-                #
-                # pDD = np.matmul(pinvD, D) # D^# * D
-                # I = np.eye(*pDD.shape)
-                # NP = np.matmul(iH, (I - pDD)) # H^-1 * (I - D^# * D)
-                #
-                # lz = -np.matmul(pinvD, g) -np.matmul(NP, hu.transpose()) # -D^#*g - H^-1 * (I - D^# * D)*hu'
-                # Lz = -np.matmul(pinvD, C) -np.matmul(NP, Hux)# -D^#*C - H^-1 * (I - D^# * D)*Hux
-            else:
-                iH = np.linalg.pinv(Huu, rcond=1e-6)  # H^-1
-                lz = -np.matmul(iH,hu.transpose()) # H^-1 * hu'
-                Lz = -np.matmul(iH,Hux)# H^-1 * Hux
+
 
 
             # overall gain and ffwd including constraint
