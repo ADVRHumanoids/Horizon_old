@@ -217,6 +217,9 @@ class nIterativeLQR:
         self._use_single_shooting_state_update = False
         self._verbose = False
 
+        #Conditioning number for the KKY inversion
+        self._kkt_rcond = 1e-6
+
     @staticmethod
     def _make_jit_function(f):
         # type: (cs.Function) -> cs.external
@@ -330,6 +333,12 @@ class nIterativeLQR:
             self._constraint_to_go.D = np.zeros((nc, self._nu))
             self._constraint_to_go.g = self._final_constraint(x=self._state_trj[-1])['hf'].toarray().flatten()
 
+    def set_kkt_rcond(self, rcond):
+        self._kkt_rcond = rcond
+
+    def get_kkt_rcond(self):
+        return self._kkt_rcond
+
     def _backward_pass(self):
         """
         To be implemented
@@ -413,20 +422,28 @@ class nIterativeLQR:
                 Hxx += (np.matmul(Fxx.T, (s + np.matmul(S, d)))).T
 
             # nullspace projector gain and feedforward computation
-            iH = np.linalg.pinv(Huu, rcond=1e-6) # H^-1
-
             if D is not None:
-                iHDt = np.matmul(iH, D.transpose()) # H^-1* D'
-                O = np.linalg.pinv(np.matmul(D, iHDt), rcond=1e-6) # (D*H^-1*D')^-1
-                pinvD = np.matmul(iHDt, O) # H^-1*D'*(D*H^-1*D')^-1 = D^#
 
-                pDD = np.matmul(pinvD, D) # D^# * D
-                I = np.eye(*pDD.shape)
-                NP = np.matmul(iH, (I - pDD)) # H^-1 * (I - D^# * D)
+                K = np.vstack([np.hstack([Huu, D.transpose()]), np.hstack([D, np.zeros((D.shape[0], D.shape[0]))])])
+                iK = np.linalg.pinv(K, rcond=self._kkt_rcond)
+                lz = np.matmul(iK, np.vstack([-hu.reshape((hu.size, 1)), g.reshape((g.size, 1))]))[0:Huu.shape[0],:].reshape(Huu.shape[0])
+                Lz = np.matmul(iK, np.vstack([-Hux, C]))[0:Huu.shape[0],:]
 
-                lz = -np.matmul(pinvD, g) -np.matmul(NP, hu.transpose()) # -D^#*g - H^-1 * (I - D^# * D)*hu'
-                Lz = -np.matmul(pinvD, C) -np.matmul(NP, Hux)# -D^#*C - H^-1 * (I - D^# * D)*Hux
+                # NULL-SPACE PROJECTOR IMPLEMENTATION
+                # iH = np.linalg.pinv(Huu, rcond=1e-6)  # H^-1
+                #
+                # iHDt = np.matmul(iH, D.transpose()) # H^-1* D'
+                # O = np.linalg.pinv(np.matmul(D, iHDt), rcond=1e-6) # (D*H^-1*D')^-1
+                # pinvD = np.matmul(iHDt, O) # H^-1*D'*(D*H^-1*D')^-1 = D^#
+                #
+                # pDD = np.matmul(pinvD, D) # D^# * D
+                # I = np.eye(*pDD.shape)
+                # NP = np.matmul(iH, (I - pDD)) # H^-1 * (I - D^# * D)
+                #
+                # lz = -np.matmul(pinvD, g) -np.matmul(NP, hu.transpose()) # -D^#*g - H^-1 * (I - D^# * D)*hu'
+                # Lz = -np.matmul(pinvD, C) -np.matmul(NP, Hux)# -D^#*C - H^-1 * (I - D^# * D)*Hux
             else:
+                iH = np.linalg.pinv(Huu, rcond=1e-6)  # H^-1
                 lz = -np.matmul(iH,hu.transpose()) # H^-1 * hu'
                 Lz = -np.matmul(iH,Hux)# H^-1 * Hux
 
