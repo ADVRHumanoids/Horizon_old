@@ -65,10 +65,11 @@ class nIterativeLQR:
                  x, u, xdot,
                  dt, N,
                  intermediate_cost, final_cost,
-                 intermediate_constraints=dict(),  # note: does not work currently
+                 intermediate_constraints=dict(),
                  final_constraint=None,
-                 sym_t=cs.SX):
-        # type: (cs.SX, cs.SX, cs.SX, float, int, cs.SX, cs.SX, Dict, cs.SX, cs.SX) -> None
+                 sym_t=cs.SX,
+                 opt=dict()): # contains options for the solver: {"lambda" : float}
+        # type: (cs.SX, cs.SX, cs.SX, float, int, cs.SX, cs.SX, Dict, cs.SX, cs.SX, Dict) -> None
 
         """
         Constructor
@@ -172,9 +173,12 @@ class nIterativeLQR:
             print('constraint "{}" rank at random (x, u) is {} vs dim(u) = {}'.format(name, r, self._nu))
 
             hi_dynamics = 0
-            constr_lambda = 10.0 # TODO: setter getter
+
+            self._constr_lambda = 10.0
+            if "lambda" in opt:
+                self._constr_lambda = opt["lambda"]
             for i in range(rel_degree+1):
-                hi_dynamics += comb(rel_degree, i) * hi_derivatives[i] * constr_lambda**(rel_degree-i)
+                hi_dynamics += comb(rel_degree, i) * hi_derivatives[i] * self._constr_lambda**(rel_degree-i)
 
             intermediate_constr_r_der.append(hi_dynamics)
 
@@ -213,6 +217,7 @@ class nIterativeLQR:
 
         #Conditioning number for the KKY inversion
         self._kkt_rcond = 1e-6
+        self._svd_thr = 1e-4
 
     @staticmethod
     def _make_jit_function(f):
@@ -331,6 +336,12 @@ class nIterativeLQR:
     def get_kkt_rcond(self):
         return self._kkt_rcond
 
+    def set_svd_thr(self, svd_thr):
+        self._svd_thr = svd_thr
+
+    def get_svd_thr(self):
+        return self._svd_thr
+
     def _backward_pass(self):
         """
         To be implemented
@@ -393,7 +404,7 @@ class nIterativeLQR:
                 rot_C = np.matmul(U.T, C_to_go)
 
                 # non-zero singular values
-                large_sv = sv > 1e-4  # TODO: setter and getter
+                large_sv = sv > self._svd_thr
 
                 nc = g_to_go.size  # number of currently active constraints
                 nsv = len(sv)  # number of singular values
