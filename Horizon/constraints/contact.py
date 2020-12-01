@@ -37,6 +37,46 @@ class contact(constraint_class):
         self.g_mink = np.array([0., 0., 0.]).tolist()
         self.g_maxk = np.array([0., 0., 0.]).tolist()
 
+class no_slip(constraint_class):
+    """
+    No slippage constraint on a desired link
+    """
+    def __init__(self, FKlink, Q, Jac, Qdot, contact_type):
+        """
+        Constructor
+        Args:
+            FKlink: forward kinematics function of desired link
+            Q: position state variables
+            Jac: Jacobian function of the link
+            Qdot: velocity state variables
+        """
+
+        self.FKlink = FKlink
+        self.Jac = Jac
+        self.Q = Q
+        self.Qdot = Qdot
+        self.__contact_type = contact_type
+
+    def virtual_method(self, k):
+        """
+            Compute constraint at given node
+            Args:
+                k: node
+        """
+
+        CLink_jac = self.Jac(q=self.Q[k])['J']
+
+        if self.__contact_type is contact_type.point:
+            self.gk = [mtimes(CLink_jac[0:3, :], self.Qdot[k])]
+            self.g_mink = np.array([0.0, 0.0, 0.0]).tolist()
+            self.g_maxk = np.array([0.0, 0.0, 0.0]).tolist()
+        elif self.__contact_type is contact_type.flat:
+            self.gk = [mtimes(CLink_jac, self.Qdot[k])]
+            self.g_mink = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+            self.g_maxk = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]).tolist()
+        else:
+            raise ValueError('Specified contact type not implemented!')
+
 class surface_contact(constraint_class):
     """
     Position constraint to lies into a plane: ax + by + cz +d = 0 together with 0 Cartesian velocity of the contact
