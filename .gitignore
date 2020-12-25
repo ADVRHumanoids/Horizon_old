@@ -1,0 +1,12 @@
+.idea/
+dist/
+
+Horizon.egg-info/
+
+Horizon/*.pyc
+Horizon/__pycache__/
+Horizon/solvers/__pycache__/
+
+Horizon/constraints/*.pyc
+Horizon/solvers/*.pyc
+Horizon/utils/*.pyc
