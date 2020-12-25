@@ -163,7 +163,7 @@ class nIterativeLQR:
                                                  ['x', 'u'],
                                                  ['hf'])
 
-            self._final_constraint_jac = self._final_constraint.jac()
+            self._final_constraint_jac, _ = jac({'x': x, 'u': u, 'hf': final_constraint}, ['x', 'u'], ['hf'])
 
 
         # intermediate constraints
@@ -344,10 +344,10 @@ class nIterativeLQR:
 
         if self._final_constraint is not None:
 
-            jgf_value = self._final_constraint_jac(x=self._state_trj[-1])
+            jgf_value = self._final_constraint_jac(x=self._state_trj[-1])['DhfDx']
             nc = self._final_constraint.size1_out('hf')
             self._constraint_to_go = self.LinearConstraint(self._nx, self._nu, nc)
-            self._constraint_to_go.C = jgf_value['DhfDx'].toarray()
+            self._constraint_to_go.C = jgf_value.toarray()
             self._constraint_to_go.D = np.zeros((nc, self._nu))
             self._constraint_to_go.g = self._final_constraint(x=self._state_trj[-1])['hf'].toarray().flatten()
 
