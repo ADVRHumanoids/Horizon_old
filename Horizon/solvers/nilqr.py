@@ -176,13 +176,7 @@ class nIterativeLQR:
             hi_derivatives = [ic]  # list of current constraint derivatives
 
             while True:
-
-                inter_constraint = cs.Function('intermediate_constraint',
-                                               {'x': x, 'u': u, 'h': ic},
-                                               ['x', 'u'],
-                                               ['h'])
-
-                inter_constraint_jac = inter_constraint.jac()
+                inter_constraint_jac, _ = jac({'x': x, 'u': u, 'h': ic}, ['x', 'u'], ['h'])
 
                 # if constraint jacobian depends on u, break
                 if inter_constraint_jac(x=x, u=u)['DhDu'].nnz() > 0:
