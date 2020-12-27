@@ -140,7 +140,8 @@ class nIterativeLQR:
                                        ['x', 'u'],
                                        ['lf'])
 
-        self._jacobian_lf = self._final_cost.jac()
+        d = {'x': x, 'u': u, 'lf': final_cost}
+        self._jacobian_lf, _tmp_functions = jac(d, ['x', 'u'], ['lf'])
         self._hessian_lf = self._jacobian_lf.jac()
 
         # discrete dynamics & intermediate cost
