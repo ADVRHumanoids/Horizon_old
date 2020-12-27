@@ -209,7 +209,7 @@ class nIterativeLQR:
                                          ['x', 'u'],
                                          ['h'])
 
-        self._inter_constr_jac = self._inter_constr.jac()
+        self._inter_constr_jac, _ = jac({'x': x, 'u': u, 'h': cs.vertcat(*intermediate_constr_r_der)}, ['x', 'u'], ['h'])
 
         self._has_inter_constr = self._inter_constr.size1_out('h') > 0
 
