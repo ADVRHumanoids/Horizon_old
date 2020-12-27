@@ -292,11 +292,10 @@ class nIterativeLQR:
                               ['xf', 'qf'])
 
         # self._F = integrator.RK4(dae, {'tf': self._dt}, 'SX')
-        self._jacobian_F, _tmp_functions = jac({'x0': x, 'p': u,
-                               'xf': x + self._dt * self._dynamics_ct(x, u),
-                               'qf': self._dt * self._diff_inter_cost(x, u)},
-                                               ['x0', 'p'], ['xf', 'qf'])
-        self._hessian_F = self._jacobian_F.jac()
+        d = {'x0': x, 'p': u, 'xf': x + self._dt * self._dynamics_ct(x, u), 'qf': self._dt * self._diff_inter_cost(x, u)}
+        self._jacobian_F, _tmp_functions = jac(d, ['x0', 'p'], ['xf', 'qf'])
+        dd = dict(d.items() + _tmp_functions.items())
+        self._hessian_F, _ = jac(dd, ['x0', 'p'], _tmp_functions.keys())
 
     def _linearize_quadratize(self):
         """
