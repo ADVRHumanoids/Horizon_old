@@ -6,13 +6,6 @@ import scipy as sc
 import time
 
 
-import pkg_resources
-casadi_version = pkg_resources.get_distribution('casadi').version
-casadi_version_required = "3.4.5"
-if(casadi_version != casadi_version_required):
-    error = "ilqr requires CASADI version " + casadi_version_required + " you have " + casadi_version
-    raise Exception(error)
-
 def jac(dict, var_string_list, function_string_list):
     f = {}
     for function in function_string_list:
