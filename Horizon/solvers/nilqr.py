@@ -7,6 +7,9 @@ import time
 
 
 import pkg_resources
+
+eps_assert = 1e-10
+
 casadi_version = pkg_resources.get_distribution('casadi').version
 casadi_version_required = "3.4.5"
 if(casadi_version != casadi_version_required):
@@ -140,8 +143,14 @@ class nIterativeLQR:
                                        ['x', 'u'],
                                        ['lf'])
 
+        # with CASADI jac
+        self._jacobian_lf_CAS = self._final_cost.jac()
+        # with internal jac
         d = {'x': x, 'u': u, 'lf': final_cost}
         self._jacobian_lf, _tmp_functions = jac(d, ['x', 'u'], ['lf'])
+        # with CASADI jac
+        self._hessian_lf_CAS = self._jacobian_lf.jac()
+        # with internal jac
         dd = dict(d.items() + _tmp_functions.items())
         self._hessian_lf, _ = jac(dd, ['x', 'u'], _tmp_functions.keys())
 
@@ -165,6 +174,9 @@ class nIterativeLQR:
                                                  ['x', 'u'],
                                                  ['hf'])
 
+            # with CASADI jac
+            self._final_constraint_jac_CAS = self._final_constraint.jac()
+            # with internal jac
             self._final_constraint_jac, _ = jac({'x': x, 'u': u, 'hf': final_constraint}, ['x', 'u'], ['hf'])
 
 
@@ -178,10 +190,22 @@ class nIterativeLQR:
             hi_derivatives = [ic]  # list of current constraint derivatives
 
             while True:
+                # with CASADI jac
+                inter_constraint = cs.Function('intermediate_constraint',
+                                               {'x': x, 'u': u, 'h': ic},
+                                               ['x', 'u'],
+                                               ['h'])
+
+                inter_constraint_jac_CAS = inter_constraint.jac()
+                # with internal jac
                 inter_constraint_jac, _ = jac({'x': x, 'u': u, 'h': ic}, ['x', 'u'], ['h'])
 
                 # if constraint jacobian depends on u, break
                 if inter_constraint_jac(x=x, u=u)['DhDu'].nnz() > 0:
+
+                    # DEBUGGING INTERNAL JACOBIAN
+                    assert ((inter_constraint_jac(x=x, u=u)['DhDu'].nnz()-inter_constraint_jac_CAS(x=x, u=u)['DhDu'].nnz()) == 0.0)
+
                     break
 
                 # otherwise, increase relative degree and do time derivative
@@ -193,6 +217,11 @@ class nIterativeLQR:
             rand_x = np.random.standard_normal(self._nx)
             rand_u = np.random.standard_normal(self._nu)
             r = np.linalg.matrix_rank(inter_constraint_jac(x=rand_x, u=rand_u)['DhDu'].toarray())
+
+            # DEBUGGING INTERNAL JACOBIAN
+            assert (np.linalg.norm(np.linalg.matrix_rank(inter_constraint_jac(x=rand_x, u=rand_u)['DhDu'].toarray()) -
+                                   np.linalg.matrix_rank(inter_constraint_jac_CAS(x=rand_x, u=rand_u)['DhDu'].toarray())) == 0.0)
+
             print('constraint "{}" rank at random (x, u) is {} vs dim(u) = {}'.format(name, r, self._nu))
 
             hi_dynamics = 0
@@ -211,6 +240,9 @@ class nIterativeLQR:
                                          ['x', 'u'],
                                          ['h'])
 
+        # with CASADI jac
+        self._inter_constr_jac_CAS = self._inter_constr.jac()
+        # with internal jac
         self._inter_constr_jac, _ = jac({'x': x, 'u': u, 'h': cs.vertcat(*intermediate_constr_r_der)}, ['x', 'u'], ['h'])
 
         self._has_inter_constr = self._inter_constr.size1_out('h') > 0
@@ -294,6 +326,11 @@ class nIterativeLQR:
                               ['xf', 'qf'])
 
         # self._F = integrator.RK4(dae, {'tf': self._dt}, 'SX')
+
+        # with CASADI jac
+        self._jacobian_F_CAS = self._F.jac()
+        self._hessian_F_CAS = self._jacobian_F_CAS.jac()
+        # with internal jac
         d = {'x0': x, 'p': u, 'xf': x + self._dt * self._dynamics_ct(x, u), 'qf': self._dt * self._diff_inter_cost(x, u)}
         self._jacobian_F, _tmp_functions = jac(d, ['x0', 'p'], ['xf', 'qf'])
         dd = dict(d.items() + _tmp_functions.items())
@@ -310,6 +347,12 @@ class nIterativeLQR:
 
         self._final_quad_cost.qx = jl_value['DlfDx'].toarray().flatten()
         self._final_quad_cost.Qxx = hl_value['DDlfDxDx'].toarray()
+
+        # DEBUGGING INTERNAL JACOBIAN
+        jl_value_CAS = self._jacobian_lf_CAS(x=self._state_trj[-1])
+        hl_value_CAS = self._hessian_lf_CAS(x=self._state_trj[-1])
+        assert (np.linalg.norm(jl_value['DlfDx'].toarray().flatten()-jl_value_CAS['DlfDx'].toarray().flatten()) <= eps_assert)
+        assert (np.linalg.norm(hl_value['DDlfDxDx'].toarray() - hl_value_CAS['DDlfDxDx'].toarray()) <= eps_assert)
 
         for i in range(self._N):
 
@@ -328,6 +371,21 @@ class nIterativeLQR:
             self._lin_dynamics[i].A = jode_value['DxfDx0'].toarray()
             self._lin_dynamics[i].B = jode_value['DxfDp'].toarray()
 
+            # DEBUGGING INTERNAL JACOBIAN
+            jode_value_CAS = self._jacobian_F_CAS(x0=self._state_trj[i],
+                                                  p=self._ctrl_trj[i])
+
+            hode_value_CAS = self._hessian_F_CAS(x0=self._state_trj[i],
+                                                 p=self._ctrl_trj[i])
+
+            assert (np.linalg.norm(jode_value['DqfDp'].toarray().flatten()-jode_value_CAS['DqfDp'].toarray().flatten()) <= eps_assert)
+            assert (np.linalg.norm(jode_value['DqfDx0'].toarray().flatten()-jode_value_CAS['DqfDx0'].toarray().flatten()) <= eps_assert)
+            assert (np.linalg.norm(hode_value['DDqfDpDp'].toarray()-hode_value_CAS['DDqfDpDp'].toarray()) <= eps_assert)
+            assert (np.linalg.norm(hode_value['DDqfDx0Dx0'].toarray()-hode_value_CAS['DDqfDx0Dx0'].toarray()) <= eps_assert)
+            assert (np.linalg.norm(hode_value['DDqfDx0Dp'].toarray()-hode_value_CAS['DDqfDx0Dp'].toarray()) <= eps_assert)
+            assert (np.linalg.norm(jode_value['DxfDx0'].toarray() - jode_value_CAS['DxfDx0'].toarray()) <= eps_assert)
+            assert (np.linalg.norm(hode_value['DDqfDx0Dp'].toarray() - hode_value_CAS['DDqfDx0Dp'].toarray()) <= eps_assert)
+
             if self._use_second_order_dynamics:
                 for j in range(self._nx):
                     nx = self._nx
@@ -335,6 +393,11 @@ class nIterativeLQR:
                     self._lin_dynamics[i].Fxx[j*nx:(j+1)*nx, :] = hode_value['DDxfDx0Dx0'].toarray()[j::nx, :]
                     self._lin_dynamics[i].Fuu[j*nu:(j+1)*nu, :] = hode_value['DDxfDpDp'].toarray()[j::nx, :]
                     self._lin_dynamics[i].Fux[j*nu:(j+1)*nu, :] = hode_value['DDxfDpDx0'].toarray()[j::nx, :]
+
+                    # DEBUGGING INTERNAL JACOBIAN
+                    assert (np.linalg.norm(hode_value['DDxfDx0Dx0'].toarray()[j::nx, :]-hode_value_CAS['DDxfDx0Dx0'].toarray()[j::nx, :]) <= eps_assert)
+                    assert(np.linalg.norm(hode_value['DDxfDpDp'].toarray()[j::nx, :]-hode_value_CAS['DDxfDpDp'].toarray()[j::nx, :]) <= eps_assert)
+                    assert(np.linalg.norm(hode_value['DDxfDpDx0'].toarray()[j::nx, :]-hode_value_CAS['DDxfDpDx0'].toarray()[j::nx, :]) <= eps_assert)
 
             if self._constrained:
 
@@ -345,6 +408,12 @@ class nIterativeLQR:
                 self._inter_constraints[i].D = jconstr_value['DhDu'].toarray()
                 self._inter_constraints[i].g = self._inter_constr(x=self._state_trj[i],
                                                                   u=self._ctrl_trj[i])['h'].toarray().flatten()
+                # DEBUGGING INTERNAL JACOBIAN
+                jconstr_value_CAS = self._inter_constr_jac_CAS(x=self._state_trj[i],
+                                                               u=self._ctrl_trj[i])
+
+                assert (np.linalg.norm(jconstr_value['DhDx'].toarray() - jconstr_value_CAS['DhDx'].toarray()) <= eps_assert)
+                assert (np.linalg.norm(jconstr_value['DhDu'].toarray() - jconstr_value_CAS['DhDu'].toarray()) <= eps_assert)
 
         if self._final_constraint is not None:
 
@@ -354,6 +423,11 @@ class nIterativeLQR:
             self._constraint_to_go.C = jgf_value.toarray()
             self._constraint_to_go.D = np.zeros((nc, self._nu))
             self._constraint_to_go.g = self._final_constraint(x=self._state_trj[-1])['hf'].toarray().flatten()
+
+            # DEBUGGING INTERNAL JACOBIAN
+            jgf_value_CAS = self._final_constraint_jac_CAS(x=self._state_trj[-1])['DhfDx']
+
+            assert (np.linalg.norm(jgf_value.toarray() - jgf_value_CAS.toarray()) <= eps_assert)
 
     def set_kkt_rcond(self, rcond):
         self._kkt_rcond = rcond
