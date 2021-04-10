@@ -135,6 +135,42 @@ class surface_contact(constraint_class):
         else:
             raise ValueError('Specified contact type not implemented!')
 
+class contact_unicyle(constraint_class):
+    def __init__(self, ground_z, FKlink, Q, Jac, Qdot, Theta_idx):
+        self.ground_z = ground_z
+        self.FKlink = FKlink
+        self.Jac = Jac
+        self.Q = Q
+        self.Qdot = Qdot
+        self.Theta_idx = Theta_idx
+
+    def virtual_method(self, k):
+        """
+            Compute constraint at given node
+            Args:
+                k: node
+        """
+        CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
+        CLink_jac = self.Jac(q=self.Q[k])['J']
+        CLink_vel = mtimes(CLink_jac[0:3, :], self.Qdot[k])
+        Theta = self.Q[k][self.Theta_idx]
+
+#        self.gk = [CLink_pos[2], CLink_vel[2], CLink_vel[0]*sin(Theta)-CLink_vel[1]*cos(Theta)]
+#        self.g_mink = np.array([0.0, 0.0, 0.0]).tolist()
+#        self.g_maxk = np.array([0.0, 0.0, 0.0]).tolist()
+
+#        self.gk = [CLink_pos[2], CLink_vel[0]*sin(Theta)-CLink_vel[1]*cos(Theta)]
+#        self.g_mink = np.array([0.0, 0.0]).tolist()
+#        self.g_maxk = np.array([0.0, 0.0]).tolist()
+
+#        self.gk = [CLink_pos[2], CLink_vel[0]*Theta-CLink_vel[1]]
+#        self.g_mink = np.array([0.0, 0.0]).tolist()
+#        self.g_maxk = np.array([0.0, 0.0]).tolist()
+
+        self.gk = [CLink_vel[0]*sin(Theta)-CLink_vel[1]*cos(Theta)]
+        self.g_mink = np.array([0.0]).tolist()
+        self.g_maxk = np.array([0.0]).tolist()
+
 class surface_contact_gap(constraint_class):
     """
     TODO: consider a gap not only in z
