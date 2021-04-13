@@ -136,13 +136,11 @@ class surface_contact(constraint_class):
             raise ValueError('Specified contact type not implemented!')
 
 class contact_unicyle(constraint_class):
-    def __init__(self, ground_z, FKlink, Q, Jac, Qdot, Theta_idx):
-        self.ground_z = ground_z
-        self.FKlink = FKlink
-        self.Jac = Jac
+    def __init__(self, kindyn, link_name, Q, Qdot):
+        self.kindyn = kindyn
+        self.link_name = link_name
         self.Q = Q
         self.Qdot = Qdot
-        self.Theta_idx = Theta_idx
 
     def virtual_method(self, k):
         """
@@ -150,29 +148,29 @@ class contact_unicyle(constraint_class):
             Args:
                 k: node
         """
-        CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
-        CLink_rot = self.FKlink(q=self.Q[k])['ee_rot']
-        CLink_jac = self.Jac(q=self.Q[k])['J']
-        CLink_vel = mtimes(CLink_jac[0:3, :], self.Qdot[k])
-        Theta = self.Q[k][self.Theta_idx]
 
-        CLink_vel_proj = mtimes(CLink_rot.T, CLink_vel)
+#        # with Jac LOCAL_WORLD_ALIGNED
+#        FKlink = Function.deserialize(self.kindyn.fk(self.link_name))
+#        CLink_rot = FKlink(q=self.Q[k])['ee_rot']
+#        Jac = Function.deserialize(self.kindyn.jacobian(self.link_name, self.kindyn.LOCAL_WORLD_ALIGNED))
+#        CLink_jac = Jac(q=self.Q[k])['J']
+#        CLink_vel = mtimes(CLink_jac[0:3, :], self.Qdot[k])
+#        CLink_vel_local = mtimes(CLink_rot.T, CLink_vel)
 
-#        self.gk = [CLink_pos[2], CLink_vel[2], CLink_vel[0]*sin(Theta)-CLink_vel[1]*cos(Theta)]
-#        self.g_mink = np.array([0.0, 0.0, 0.0]).tolist()
-#        self.g_maxk = np.array([0.0, 0.0, 0.0]).tolist()
-
-#        self.gk = [CLink_vel[2], CLink_vel[0]*sin(Theta)-CLink_vel[1]*cos(Theta)]
-#        self.g_mink = np.array([0.0, 0.0]).tolist()
-#        self.g_maxk = np.array([0.0, 0.0]).tolist()
-
-#        self.gk = [CLink_vel[0]*sin(Theta)-CLink_vel[1]*cos(Theta)]
+#        self.gk = [CLink_vel_local[1]]
 #        self.g_mink = np.array([0.0]).tolist()
 #        self.g_maxk = np.array([0.0]).tolist()
 
-        self.gk = [CLink_vel_proj[1]]
+        # with Jac LOCAL
+        Jac = Function.deserialize(self.kindyn.jacobian(self.link_name, self.kindyn.LOCAL))
+        CLink_jac = Jac(q=self.Q[k])['J']
+        CLink_vel_local = mtimes(CLink_jac[0:3, :], self.Qdot[k])
+
+        self.gk = [CLink_vel_local[1]]
         self.g_mink = np.array([0.0]).tolist()
         self.g_maxk = np.array([0.0]).tolist()
+
+
 
 
 class surface_contact_gap(constraint_class):
