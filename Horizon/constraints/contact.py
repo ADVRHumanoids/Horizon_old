@@ -136,7 +136,21 @@ class surface_contact(constraint_class):
             raise ValueError('Specified contact type not implemented!')
 
 class contact_unicyle(constraint_class):
+    """
+    Pure rolling constraint:
+        Wheel spinning axis is the X LOCAL axis
+        Zero motion line is along the Y LOCAL axis
+        LOCAL refers to the wheel steering frame
+    """
     def __init__(self, kindyn, link_name, Q, Qdot):
+        """
+        Constructor
+        Args:
+            kindyn: cas_kin_dyn.CasadiKinDyn(urdf)
+            link_name: name of the wheel steering frame
+            Q: position state variables
+            Qdot: velocity state variables
+        """
         self.kindyn = kindyn
         self.link_name = link_name
         self.Q = Q
@@ -149,19 +163,6 @@ class contact_unicyle(constraint_class):
                 k: node
         """
 
-#        # with Jac LOCAL_WORLD_ALIGNED
-#        FKlink = Function.deserialize(self.kindyn.fk(self.link_name))
-#        CLink_rot = FKlink(q=self.Q[k])['ee_rot']
-#        Jac = Function.deserialize(self.kindyn.jacobian(self.link_name, self.kindyn.LOCAL_WORLD_ALIGNED))
-#        CLink_jac = Jac(q=self.Q[k])['J']
-#        CLink_vel = mtimes(CLink_jac[0:3, :], self.Qdot[k])
-#        CLink_vel_local = mtimes(CLink_rot.T, CLink_vel)
-
-#        self.gk = [CLink_vel_local[1]]
-#        self.g_mink = np.array([0.0]).tolist()
-#        self.g_maxk = np.array([0.0]).tolist()
-
-        # with Jac LOCAL
         Jac = Function.deserialize(self.kindyn.jacobian(self.link_name, self.kindyn.LOCAL))
         CLink_jac = Jac(q=self.Q[k])['J']
         CLink_vel_local = mtimes(CLink_jac[0:3, :], self.Qdot[k])
