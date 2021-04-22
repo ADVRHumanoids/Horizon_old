@@ -119,7 +119,7 @@ print 'JJ: ', JJ
 
 
 t = time.time()
-solver = sqp.sqp('solver', "qposes", {'f': vertcat(*JJ), 'x': V, 'g': g}, opts)
+solver = sqp.sqp('solver', 'qpoases', {'f': vertcat(*JJ), 'x': V, 'g': g}, opts)
 
 solution = solver(x0=v0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 #solver = sqp('solver', "osqp", {'f': V, 'x': V}, opts)
