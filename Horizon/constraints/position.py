@@ -25,7 +25,12 @@ class position(constraint_class):
         Args:
             k: node
         """
-        CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
+        CLink_pos = None
+        if 'com' in self.FKlink(q=self.Q[k]).keys():
+            CLink_pos = self.FKlink(q=self.Q[k])['com']
+        else:
+            CLink_pos = self.FKlink(q=self.Q[k])['ee_pos']
+
         self.gk = [CLink_pos]
         self.g_mink = np.array(self.min).tolist()
         self.g_maxk = np.array(self.max).tolist()
