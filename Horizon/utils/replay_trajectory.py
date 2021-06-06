@@ -36,7 +36,7 @@ class replay_trajectory:
                     w_R_f = FK(q=self.q_replay[k])['ee_rot']
                     self.__contact_dict[frame][k] = mtimes(w_R_f.T, self.__contact_dict[frame][k]).T
 
-        self.__COM = []
+        self.__COM = None
         if self.__kindyn != None:
             self.__COM = Function.deserialize(self.__kindyn.centerOfMass())
 
@@ -154,7 +154,8 @@ class replay_trajectory:
                 joint_state_pub.effort = []
                 pub.publish(joint_state_pub)
                 self.publishContactForces(t, k)
-                self.publishCom(t, qk)
+                if self.__COM != None:
+                    self.publishCom(t, qk)
                 rate.sleep()
             if self.__sleep > 0.:
                 time.sleep(self.__sleep)

@@ -135,7 +135,7 @@ class nIterativeLQR:
 
         d = {'x': x, 'u': u, 'lf': final_cost}
         self._jacobian_lf, _tmp_functions = jac(d, ['x', 'u'], ['lf'])
-        dd = dict(d.items() + _tmp_functions.items())
+        dd = dict(list(d.items()) + list(_tmp_functions.items()))
         self._hessian_lf, _ = jac(dd, ['x', 'u'], _tmp_functions.keys())
 
         # discrete dynamics & intermediate cost
@@ -289,7 +289,7 @@ class nIterativeLQR:
         # self._F = integrator.RK4(dae, {'tf': self._dt}, 'SX')
         d = {'x0': x, 'p': u, 'xf': x + self._dt * self._dynamics_ct(x, u), 'qf': self._dt * self._diff_inter_cost(x, u)}
         self._jacobian_F, _tmp_functions = jac(d, ['x0', 'p'], ['xf', 'qf'])
-        dd = dict(d.items() + _tmp_functions.items())
+        dd = dict(list(d.items()) + list(_tmp_functions.items()))
         self._hessian_F, _ = jac(dd, ['x0', 'p'], _tmp_functions.keys())
 
     def _linearize_quadratize(self):

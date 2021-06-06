@@ -1,6 +1,6 @@
 import Horizon.horizon
 from Horizon.utils.integrator import *
-from Horizon.solvers import ilqr
+from Horizon.solvers import nilqr
 
 import casadi as cs
 import numpy as np
@@ -16,11 +16,11 @@ niter = 50  # ilqr iterations
 
 # CREATE VARIABLES
 x, X = create_variable('x', 3, N, "STATE", "MX")
-print 'x: ', x
-print 'X: ', X
-print 'size of x: ', x.size()
-print 'size of X: ', len(X)
-print 'size of X[i], ', X[0].size()
+print('x: ', x)
+print('X: ', X)
+print('size of x: ', x.size())
+print('size of X: ', len(X))
+print('size of X[i], ', X[0].size())
 u, U = create_variable('u', 2, N, "CONTROL", "MX")
 
 xdot = cs.vertcat( u[0] * cs.cos(x[2]),
@@ -40,7 +40,7 @@ gf = x - xf
 
 
 
-solver = ilqr.IterativeLQR(x = x, u = u, xdot=xdot,
+solver = nilqr.nIterativeLQR(x = x, u = u, xdot=xdot,
                            dt=dt, N=N,
                            intermediate_cost=l,
                            final_cost=lf,

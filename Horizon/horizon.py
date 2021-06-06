@@ -636,7 +636,7 @@ def retrieve_solution(input, output_dict, solution):
     for i in range(len(output_keys)):
         tmp = Retrieve(V=solution)[output_keys[i]].full().flatten()
         nq = np.size(tmp)/ns[i]
-        o[output_keys[i]] = tmp.reshape(ns[i], nq)
+        o[output_keys[i]] = tmp.reshape(ns[i], int(nq))
 
     return o
 

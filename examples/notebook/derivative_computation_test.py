@@ -134,23 +134,23 @@ print("Hes_Ff_DDfDuDx: ", my_ass2(x=[1], u=[1])["DDfDuDx"])
 
 print("")
 ###OUR HESSIAN
-d = dict({'x': x, 'u': u}.items() + jack.items())
-print "d: ", d
-print "jac.keys(): ", jack.keys()
+d = dict(list({'x': x, 'u': u}.items()) + list(jack.items()))
+print("d: ", d)
+print("jac.keys(): ", jack.keys())
 hesF, hess = jac(d, ['x', 'u'], jack.keys())
 print("Hes_Ff_DDfDxDx: ", hesF(x=[1], u=[1])["DDfDxDx"])
 print("Hes_Ff_DDfDuDu: ", hesF(x=[1], u=[1])["DDfDuDu"])
 print("Hes_Ff_DDfDxDu: ", hesF(x=[1], u=[1])["DDfDxDu"])
 print("Hes_Ff_DDfDuDx: ", hesF(x=[1], u=[1])["DDfDuDx"])
 
-print "hess: ", hess
+print("hess: ", hess)
 print("")
 ### Next derivative
 for key in jack.keys(): del d[key]
-print "d: ", d
-d = dict(d.items() + hess.items())
+print("d: ", d)
+d = dict(list(d.items()) + list(hess.items()))
 pippoF, pippo = jac(d, ['x', 'u'], hess.keys())
-print "pippo: ", pippo
+print("pippo: ", pippo)
 
 
 sym_t = cs.MX
@@ -163,15 +163,15 @@ f_map = {'f': f}
 var_map = {'x': X}
 var_string_list = ['x']
 for i in range(10):
-    F, f = jac(dict(var_map.items() + f_map.items()), var_string_list, f_map.keys())
-    print "f: ", f
+    F, f = jac(dict(list(var_map.items()) + list(f_map.items())), var_string_list, f_map.keys())
+    print("f: ", f)
     f_map = f
 
 f = X*X*X*X
 f_map = {'f': f}
 var_map = {'x': X}
 for i in range(10):
-    F, f = jac(dict(var_map.items() + f_map.items()), var_string_list, f_map.keys())
-    print "f: ", f
+    F, f = jac(dict(list(var_map.items()) + list(f_map.items())), var_string_list, f_map.keys())
+    print("f: ", f)
     h = F(x=X)["DfDx"]
     f_map = {'f': h}

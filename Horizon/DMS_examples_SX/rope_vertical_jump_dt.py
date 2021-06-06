@@ -6,7 +6,9 @@ sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
 import horizon
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
-import constraints as cons
+from Horizon.constraints import initial_condition
+from Horizon.constraints import torque_limits
+from Horizon.constraints import contact
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
@@ -80,7 +82,7 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    x_foot, 0., 0.,
                    0., alpha, 0.,
                    rope_init_lenght]).tolist()
-print "q_init: ", q_init
+print("q_init: ", q_init)
 
 # STATE AFTER VERTICAL JUMP
 q_final = np.array([0.0, 0.0, -jump_length, 0.0, 0.0, 0.0, 1.0,
@@ -88,7 +90,7 @@ q_final = np.array([0.0, 0.0, -jump_length, 0.0, 0.0, 0.0, 1.0,
                    x_foot, 0., 0.+foot_z_offset,
                    0., alpha, 0.,
                    rope_init_lenght+jump_length]).tolist()
-print "q_final: ", q_final
+print("q_final: ", q_final)
 
 qdot, Qdot = create_variable('Qdot', nv, ns, 'STATE', 'SX')
 qdot_min = (-100.*np.ones(nv)).tolist()
@@ -194,7 +196,7 @@ G = constraint_handler()
 
 # INITIAL CONDITION CONSTRAINT
 x_init = q_init + qdot_init
-init = cons.initial_condition.initial_condition(X[0], x_init)
+init = initial_condition.initial_condition(X[0], x_init)
 g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
@@ -222,12 +224,12 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     0., 0., 0.,  # rope_anchor
                     0.0]).tolist()  # rope
 
-torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
+torque_lims1 = torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
 # ROPE CONTACT CONSTRAINT
-contact_constr = cons.contact.contact(FKRope, Q, q_init)
+contact_constr = contact.contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
@@ -245,12 +247,12 @@ R_wall[1, 1] = 1.0
 R_wall[2, 0] = -1.0
 
 # STANCE PHASE
-contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
+contact_handler_F1 = contact.contact_handler(FKR, F1)
 contact_handler_F1.setContactAndFrictionCone(Q, q_init, mu, R_wall)
 g, g_min, g_max = constraint(contact_handler_F1, 0, lift_node+1)
 G.set_constraint(g, g_min, g_max)
 
-contact_handler_F2 = cons.contact.contact_handler(FKL, F2)
+contact_handler_F2 = contact.contact_handler(FKL, F2)
 contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_wall)
 g, g_min, g_max = constraint(contact_handler_F2, 0, lift_node+1)
 G.set_constraint(g, g_min, g_max)
@@ -278,11 +280,11 @@ surface_dict = {'a': 1., 'd': -x_foot}
 Jac1 = Function.deserialize(kindyn.jacobian('Contact1', kindyn.LOCAL))
 Jac2 = Function.deserialize(kindyn.jacobian('Contact2', kindyn.LOCAL))
 
-contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, cons.contact.contact_type.flat, mu, R_wall)
+contact_handler_F1.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac1, Qdot, contact.contact_type.flat, mu, R_wall)
 g14, g_min14, g_max14 = constraint(contact_handler_F1, touch_down_node, ns)
 G.set_constraint(g14, g_min14, g_max14)
 
-contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, cons.contact.contact_type.flat, mu, R_wall)
+contact_handler_F2.setSurfaceContactAndFrictionCone(Q, surface_dict, Jac2, Qdot, contact.contact_type.flat, mu, R_wall)
 g1111, g_min1111, g_max1111 = constraint(contact_handler_F2, touch_down_node, ns)
 G.set_constraint(g1111, g_min1111, g_max1111)
 

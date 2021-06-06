@@ -2,6 +2,8 @@ from casadi import *
 from Horizon.horizon import *
 from Horizon.utils.integrator import *
 from Horizon.utils.inverse_dynamics import *
+import numpy as np
+import itertools
 
 def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn, force_reference_frame = cas_kin_dyn.CasadiKinDyn.LOCAL):
     """
@@ -261,11 +263,9 @@ def resample_integrator_with_controls(X, U, U_integrator, time, dt, dae, ID, dic
         else:
             raise Exception('Input type can be only casadi.SX or casadi.MX!')
 
-        ni = {}
-        n_res = 0
-        for i in range(np.size(time)):
-            ni[i] = int(round(time[i] / dt))
-            n_res += ni[i]
+        ni = list(itertools.chain.from_iterable(np.array([t/dt for t in time]).round().astype(int).tolist()))
+        n_res = np.sum(ni)
+
 
         # Resample X
         if type(X[0]) is casadi.SX:

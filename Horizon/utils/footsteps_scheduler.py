@@ -55,9 +55,9 @@ class footsteps_scheduler(constraint_handler):
             FOOTSTEP_SCHEDULER_ERROR = 'len(self.__scheduled_walking) != self.__walking_nodes: ' + str(len(self.__scheduled_walking)) + ' > ' + str(self.__walking_nodes)
             raise Exception(FOOTSTEP_SCHEDULER_ERROR)
 
-        print 'number of nodes for walking: ', len(self.__scheduled_walking)
+        print('number of nodes for walking: ', len(self.__scheduled_walking))
 
-        print "creating constraints"
+        print("creating constraints")
         self.__constraint_creator__()
 
     def __action_scheduler__(self):
@@ -141,9 +141,9 @@ class footsteps_scheduler(constraint_handler):
         """
         Print information
         """
-        print "Total walking nodes: ", self.getNumberOfWalkingNode()
-        print "Starting from node ", self.getStartingNode(), " to node ", self.getEndingNode()
-        print 'Actions per walking phase: ', self.getActionsPerWalkingPhase()
-        print 'Number of nodes for single walking phase: ', self.getNodesPerWalkingPhase()
-        print 'Scheduled walking: ', self.getScheduledWalking()
+        print("Total walking nodes: ", self.getNumberOfWalkingNode())
+        print("Starting from node ", self.getStartingNode(), " to node ", self.getEndingNode())
+        print('Actions per walking phase: ', self.getActionsPerWalkingPhase())
+        print('Number of nodes for single walking phase: ', self.getNodesPerWalkingPhase())
+        print('Scheduled walking: ', self.getScheduledWalking())
 
