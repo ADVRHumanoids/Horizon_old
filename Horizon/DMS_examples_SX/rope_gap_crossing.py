@@ -6,7 +6,9 @@ sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
 import horizon
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
-import constraints as cons
+from Horizon.constraints import initial_condition
+from Horizon.constraints import torque_limits
+from Horizon.constraints import contact
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
@@ -76,7 +78,7 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    x_foot, 0., 0.+foot_z_offset,
                    0., alpha, 0.,
                    rope_lenght]).tolist()
-print "q_init: ", q_init
+print("q_init: ", q_init)
 
 # TARGET STATE
 jump_length = 4.
@@ -85,7 +87,7 @@ q_trg = np.array([-0.3, 0.0, -jump_length, 0.0, 0.0, 0.0, 1.0,
                    x_foot, 0., 0.+foot_z_offset,
                    0., 0., 0.,
                    rope_lenght+jump_length]).tolist()
-print "q_target: ", q_trg
+print("q_target: ", q_trg)
 
 
 qdot, Qdot = create_variable('Qdot', nv, ns, 'STATE', 'SX')
@@ -163,12 +165,12 @@ min_dt = lambda k: 1.*dot(Dt[k],Dt[k])
 G = constraint_handler()
 
 # INITIAL CONDITION CONSTRAINT
-x_init = cons.initial_condition.initial_condition(X[0], q_init + qdot_init)
+x_init = initial_condition.initial_condition(X[0], q_init + qdot_init)
 g1, g_min1, g_max1 = constraint(x_init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
 # TARGET CONDITION CONSTRAINT
-x_trg = cons.initial_condition.initial_condition(X[0], q_trg + qdot_init)
+x_trg = initial_condition.initial_condition(X[0], q_trg + qdot_init)
 g_trg, g_min_trg, g_max_trg = constraint(x_trg, ns-5, ns)
 # G.set_constraint(g_trg, g_min_trg, g_max_trg)
 
@@ -197,12 +199,12 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     0., 0., 0.,  # rope_anchor
                     0.0]).tolist()  # rope
 
-torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
+torque_lims1 = torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
 # ROPE CONTACT CONSTRAINT
-contact_constr = cons.contact.contact(FKRope, Q, q_init)
+contact_constr = contact.contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
@@ -222,21 +224,21 @@ JacRope = Function.deserialize(kindyn.jacobian('rope_anchor2', kindyn.LOCAL_WORL
 #FIRST 10 NODES THE ROBOT IS IN CONTACT
 initial_stance_nodes = 5
 
-contact_handler_F1 = cons.contact.contact_handler(FKR, F1)
+contact_handler_F1 = contact.contact_handler(FKR, F1)
 #contact_handler_F1.setContact(Q, q_init)
 #contact_handler_F1.setContactAndFrictionCone(Q, q_init, mu, R_wall)
 contact_handler_F1.setSurfaceContactGapAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
 g4, g_min4, g_max4 = constraint(contact_handler_F1, 0, ns)
 # G.set_constraint(g4, g_min4, g_max4)
 
-contact_handler_F2 = cons.contact.contact_handler(FKL, F2)
+contact_handler_F2 = contact.contact_handler(FKL, F2)
 #contact_handler_F2.setContact(Q, q_init)
 #contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_wall)
 contact_handler_F2.setSurfaceContactGapAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
 g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns)
 # G.set_constraint(g5, g_min5, g_max5)
 
-contact_handler_FRope = cons.contact.contact_handler(FKRope, FRope)
+contact_handler_FRope = contact.contact_handler(FKRope, FRope)
 #contact_handler_F2.setContact(Q, q_init)
 #contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_wall)
 contact_handler_FRope.setSurfaceContactGap(surface_dict, Q, JacRope, Qdot)
@@ -245,14 +247,14 @@ g5, g_min5, g_max5 = constraint(contact_handler_FRope, 0, ns)
 
 
 #ACTIONS
-stance_F1 = cons.contact.contact_handler(FKR, F1)
+stance_F1 = contact.contact_handler(FKR, F1)
 stance_F1.setSurfaceContactGapAndFrictionCone(Q, surface_dict, Jac1, Qdot, mu, R_wall)
-stance_F2 = cons.contact.contact_handler(FKL, F2)
+stance_F2 = contact.contact_handler(FKL, F2)
 stance_F2.setSurfaceContactGapAndFrictionCone(Q, surface_dict, Jac2, Qdot, mu, R_wall)
 
-fly_F1 = cons.contact.contact_handler(FKR, F1)
+fly_F1 = contact.contact_handler(FKR, F1)
 fly_F1.removeContact()
-fly_F2 = cons.contact.contact_handler(FKL, F2)
+fly_F2 = contact.contact_handler(FKL, F2)
 fly_F2.removeContact()
 
 actions_dict = collections.OrderedDict()
