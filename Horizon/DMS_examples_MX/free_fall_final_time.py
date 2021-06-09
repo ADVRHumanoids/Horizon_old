@@ -6,7 +6,9 @@ sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
 import horizon
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
-import constraints as cons
+from Horizon.constraints import initial_condition
+from Horizon.constraints import torque_limits
+from Horizon.constraints import contact
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
@@ -128,7 +130,7 @@ G = constraint_handler()
 
 # INITIAL CONDITION CONSTRAINT
 x_init = q_init + qdot_init
-init = cons.initial_condition.initial_condition(X[0], x_init)
+init = initial_condition.initial_condition(X[0], x_init)
 g1, g_min1, g_max1 = constraint(init, 0, 1)
 G.set_constraint(g1, g_min1, g_max1)
 
@@ -155,12 +157,12 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     0., 0., 0.,  # rope_anchor
                     0.0]).tolist()  # rope
 
-torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
+torque_lims1 = torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
 # ROPE CONTACT CONSTRAINT
-contact_constr = cons.contact.contact(FKRope, Q, q_init)
+contact_constr = contact.contact(FKRope, Q, q_init)
 g5, g_min5, g_max5 = constraint(contact_constr, 0, ns)
 G.set_constraint(g5, g_min5, g_max5)
 
