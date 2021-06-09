@@ -109,11 +109,8 @@ def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn, force_
         else:
             raise Exception('Input type can be only casadi.SX or casadi.MX!')
 
-        ni = {}
-        n_res = 0
-        for i in range(np.size(time)):
-            ni[i] = int(round(time[i] / dt))
-            n_res += ni[i]
+        ni = list(itertools.chain.from_iterable(np.array([t / dt for t in time]).round().astype(int).tolist()))
+        n_res = np.sum(ni)
 
         # Resample X
         if type(X[0]) is casadi.SX:
