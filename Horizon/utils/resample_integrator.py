@@ -44,11 +44,12 @@ def resample_integrator(X, U_integrator, time, dt, dae, ID, dict, kindyn, force_
         Jac = Function.deserialize(kindyn.jacobian(key, force_reference_frame))
 
     if np.size(time) == 1:
-        if(type(time) is list):
+        if(type(time) is np.ndarray or type(time) is list):
             flat_time = [item for sublist in time for item in sublist]
             ti = flat_time[0] / ns  # interval time
         else:
             ti = time / ns  # interval time
+
 
         if dt >= ti:
             dt = ti
