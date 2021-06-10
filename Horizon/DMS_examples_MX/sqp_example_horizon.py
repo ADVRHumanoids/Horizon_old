@@ -28,26 +28,26 @@ du_init = 0.0
 v_min, v_max = create_bounds({"x_min": [dx_min], "x_max": [dx_max],
                               "u_min": [du_min], "u_max": [du_max]}, N)
 
-print "v_min: ", v_min
-print v_min.shape
+print("v_min: ", v_min)
+print(v_min.shape)
 
-print "v_max: ",v_max
-print v_max.shape
+print("v_max: ",v_max)
+print (v_max.shape)
 
 
 v0 = create_init({"x_init": [dx_init], "u_init": [du_init]}, N)
 
-print "v0: ", v0
-print v0.shape
+print ("v0: ", v0)
+print (v0.shape)
 
 X, U = create_state_and_control([Dx], [Du])
 
-print "X: ", X
-print "U: ", U
+print ("X: ", X)
+print ("U: ", U)
 
 
 V = concat_states_and_controls({"X": X, "U": U})
-print "V: ", V
+print ("V: ", V)
 
 # FORMULATE DISCRETE TIME DYNAMICS
 # System dynamics
@@ -56,7 +56,7 @@ dae = {'x': dx, 'p': du, 'ode': xdot, 'quad': []}
 opts = {'tf': T/N}
 F_integrator = RK4(dae, opts, "MX")
 
-print "F_integrator: ", F_integrator
+print ("F_integrator: ", F_integrator)
 
 # INITIAL & FINAL CONDITIONS
 v_min[0] = v_max[0] = v0[0] = 0.
@@ -64,8 +64,8 @@ v_min[1] = v_max[1] = v0[1] = 1.
 
 v_min[-1] = v_max[-1] = 0.
 v_min[-2] = v_max[-2] = 0.
-print "v_min: ", v_min
-print "v_max: ", v_max
+print("v_min: ", v_min)
+print("v_max: ", v_max)
 
 # CONSTRAINTS
 G = constraint_handler()
@@ -79,9 +79,9 @@ G.set_constraint(g1, g_min1, g_max1)
 # Gauss-Newton objective
 g, g_min, g_max = G.get_constraints()
 
-print "g: ", g
-print "g_min: ", g_max
-print "g_max: ", g_min
+print("g: ", g)
+print("g_min: ", g_max)
+print("g_max: ", g_min)
 
 d = {'verbose': False}
 opts = {'max_iter': 10,
@@ -110,19 +110,19 @@ solution = solver(x0=v0, lbx=v_min, ubx=v_max, lbg=g_min, ubg=g_max)
 #solver = sqp('solver', "osqp", {'f': V, 'x': V}, opts)
 #solution = solver(x0=v0, lbx=v_min, ubx=v_max)
 elapsed = time.time() - t
-print "elapsed: ", elapsed
+print("elapsed: ", elapsed)
 
-print "compute Hessian time: ", solver.get_hessian_computation_time()
-print "compute QP time: ", solver.get_qp_computation_time()
+print("compute Hessian time: ", solver.get_hessian_computation_time())
+print("compute QP time: ", solver.get_qp_computation_time())
 
 obj_history = solution['f']
-print "obj_history: ", obj_history
+print("obj_history: ", obj_history)
 con_history = solution['g']
-print "con_history: ", con_history
+print("con_history: ", con_history)
 v_opt = solution['x']
 
 # Print result
-print "solution found: ", v_opt
+print("solution found: ", v_opt)
 
 
 

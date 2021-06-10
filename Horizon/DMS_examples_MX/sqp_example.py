@@ -159,9 +159,9 @@ print("con_history: ", con_history)
 
 # Print result
 elapsed = time.time() - t
-print "elapsed: ", elapsed
+print("elapsed: ", elapsed)
 
-print "solution found: ", v_opt
+print("solution found: ", v_opt)
 
 # Retrieve the solution
 x0_opt = v_opt[0::3]

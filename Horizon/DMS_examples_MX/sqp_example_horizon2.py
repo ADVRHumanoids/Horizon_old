@@ -107,7 +107,7 @@ opts = {'max_iter': 10,
         'osqp.osqp': d}
 
 
-print 'V: ', V
+print('V: ', V)
 
 
 minV = lambda k: vertcat(X[k], U[k])
@@ -115,7 +115,7 @@ FF = ordered_cost_function_handler()
 FF.set_cost_function(minV, 0, N-1)
 FF.set_cost_function(lambda k: X[-1], N-1, N)
 JJ = FF.get_cost_function()
-print 'JJ: ', JJ
+print('JJ: ', JJ)
 
 
 t = time.time()
@@ -174,7 +174,7 @@ FF = ordered_cost_function_handler()
 FF.set_cost_function(minV, 0, N-1)
 FF.set_cost_function(lambda k: Wx*X[-1], N-1, N)
 JJ = FF.get_cost_function()
-print 'JJ: ', JJ
+print('JJ: ', JJ)
 
 
 tic = time.time()

@@ -37,15 +37,15 @@ F = Function('F', {'X': X, 'U': U, 'XF': XF}, ['X', 'U'], ['XF'])
 # Formulate NLP (use matrix graph)
 nv = 1 * N + 2 * (N + 1)
 v = MX.sym("v", nv)
-print "nv: ", nv
+print("nv: ", nv)
 
 # Get the state for each shooting interval
 xk = [v[3 * k: 3 * k + 2] for k in range(N + 1)]
-print "xk: ", xk
+print("xk: ", xk)
 
 # Get the control for each shooting interval
 uk = [v[3 * k + 2] for k in range(N)]
-print "uk: ", uk
+print("uk: ", uk)
 
 # Variable bounds
 vmin = -inf * ones(nv)
@@ -53,16 +53,16 @@ vmax = inf * ones(nv)
 
 # Initial solution guess
 v0 = zeros(nv)
-print v0
-print v0.size
+print(v0)
+print(v0.size)
 
 # Control bounds
 vmin[2::3] = -1.0
-print vmin
-print vmin.size
+print(vmin)
+print(vmin.size)
 vmax[2::3] = 1.0
-print vmax
-print vmax.size
+print(vmax)
+print(vmax.size)
 
 
 # Initial condition
@@ -98,16 +98,16 @@ r = v
 
 opts = {'max_iter': 10}
 solver = sqp('solver', 'qpoases', {'f': r, 'x': v, 'g': g}, opts)
-print "v0: ", v0
+print("v0: ", v0)
 solution = solver(x0=v0, lbx=vmin, ubx=vmax, lbg=gmin, ubg=gmax)
 
 obj_history = solution['f']
-print "obj_history: ", obj_history
+print("obj_history: ", obj_history)
 con_history = solution['g']
 v_opt = solution['x']
 
 # Print result
-print "solution found: ", v_opt
+print("solution found: ", v_opt)
 
 
 # Retrieve the solution
