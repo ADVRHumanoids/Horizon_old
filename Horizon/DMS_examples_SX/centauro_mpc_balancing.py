@@ -7,7 +7,10 @@ sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
 import horizon
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
-import constraints as cons
+from Horizon.constraints import initial_condition
+from Horizon.constraints import torque_limits
+from Horizon.constraints import contact
+from Horizon.constraints import position
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
@@ -80,7 +83,7 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    -0.349999, -0.349999, -0.635,
                    -0.349999, 0.349999, -0.635]).tolist()
 
-print "q_init: ", q_init
+print("q_init: ", q_init)
 
 qdot, Qdot = create_variable('Qdot', nv, ns, 'STATE', 'SX')
 qdot_min = (-100.*np.ones(nv)).tolist()
@@ -162,7 +165,7 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     1000., 1000., 1000.,  # Contact 3
                     1000., 1000., 1000.]).tolist()  # Contact 4
 
-torque_lims = cons.torque_limits.torque_lims_fb(id)
+torque_lims = torque_limits.torque_lims_fb(id)
 g2, g_min2, g_max2 = constraint(torque_lims, 0, ns-1)
 G.set_constraint(g2, g_min2, g_max2)
 
@@ -171,20 +174,20 @@ R_ground = np.identity(3, dtype=float)
 
 # STANCE ON 2 FEET
 ground_z = FK1(q=q_init)['ee_pos'][2]
-C1_ws = cons.position.position(FK1, Q, [-10., -10, ground_z+0.2], [10., 10, 10.])
+C1_ws = position.position(FK1, Q, [-10., -10, ground_z+0.2], [10., 10, 10.])
 g3, g_min3, g_max3 = constraint(C1_ws, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
-C3_ws = cons.position.position(FK3, Q, [-10., -10, ground_z+0.2], [10., 10, 10.])
+C3_ws = position.position(FK3, Q, [-10., -10, ground_z+0.2], [10., 10, 10.])
 g4, g_min4, g_max4 = constraint(C3_ws, 0, ns-1)
 G.set_constraint(g4, g_min4, g_max4)
 
-contact_handler_F2 = cons.contact.contact_handler(FK2, F2)
+contact_handler_F2 = contact.contact_handler(FK2, F2)
 contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, ns-1)
 G.set_constraint(g5, g_min5, g_max5)
 
-contact_handler_F4 = cons.contact.contact_handler(FK4, F4)
+contact_handler_F4 = contact.contact_handler(FK4, F4)
 contact_handler_F4.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g6, g_min6, g_max6 = constraint(contact_handler_F4, 0, ns-1)
 G.set_constraint(g6, g_min6, g_max6)
@@ -355,25 +358,25 @@ J2 = 1e5*(vertcat(*g2)-vertcat(*g_min2))
 # J_mpc_sqp = vertcat(J_mpc_sqp, J2)
 
 C1_init = FK2(q=q_init)['ee_pos']
-C1_ws = cons.position.position(FK1, Q, [C1_init[0], C1_init[1], C1_init[2]], [C1_init[0], C1_init[1],  C1_init[2]])
+C1_ws = position.position(FK1, Q, [C1_init[0], C1_init[1], C1_init[2]], [C1_init[0], C1_init[1],  C1_init[2]])
 g3, g_min3, g_max3 = constraint(C1_ws, 0, ns)
 J3 = 1e1*(vertcat(*g3)-vertcat(*g_min3))
 J_mpc_sqp = vertcat(J_mpc_sqp, J3)
 
 C2_init = FK2(q=q_init)['ee_pos']
-C2_ws = cons.position.position(FK2, Q, C2_init, C2_init)
+C2_ws = position.position(FK2, Q, C2_init, C2_init)
 g4, g_min4, g_max4 = constraint(C2_ws, 0, ns)
 J4 = 1e6*(vertcat(*g4)-vertcat(*g_min4))
 J_mpc_sqp = vertcat(J_mpc_sqp, J4)
 
 C3_init = FK3(q=q_init)['ee_pos']
-C3_ws = cons.position.position(FK3, Q, [C3_init[0], C3_init[1], C3_init[2]], [C3_init[0], C3_init[1],  C3_init[2]])
+C3_ws = position.position(FK3, Q, [C3_init[0], C3_init[1], C3_init[2]], [C3_init[0], C3_init[1],  C3_init[2]])
 g5, g_min5, g_max5 = constraint(C3_ws, 0, ns)
 J5 = 1e1*(vertcat(*g5)-vertcat(*g_min5))
 J_mpc_sqp = vertcat(J_mpc_sqp, J5)
 
 C4_init = FK4(q=q_init)['ee_pos']
-C4_ws = cons.position.position(FK4, Q, C4_init, C4_init)
+C4_ws = position.position(FK4, Q, C4_init, C4_init)
 g6, g_min6, g_max6 = constraint(C4_ws, 0, ns)
 J6 = 1e6*(vertcat(*g6)-vertcat(*g_min6))
 J_mpc_sqp = vertcat(J_mpc_sqp, J6)
@@ -399,11 +402,11 @@ solver_sqp_mpc = sqp('solver', "osqp", {'f': J_mpc_sqp, 'x': V, 'g': g_mpc_sqp},
 
 sol_mpc = w_opt_ipopt
 
-print 'START MPC LOOP'
+print('START MPC LOOP')
 
 for k in range(mpc_iter):
 
-    print 'MPC ITER', k
+    print('MPC ITER', k)
 
     t_mpc = time.time()
     # IPOPT
@@ -464,7 +467,7 @@ for k in range(mpc_iter):
     if 40 <= k <= 45:
         v_min[nq:nq + 6] = v_max[nq:nq + 6] = qdot_sol[1, 0:6] - mtimes(dist_select, dist)
 
-print 'END MPC LOOP'
+print('END MPC LOOP')
 
 logger.add('Q_mpc', Q_mpc)
 logger.add('Qdot_mpc', Qdot_mpc)
