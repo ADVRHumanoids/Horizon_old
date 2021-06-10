@@ -1,6 +1,8 @@
 from casadi import *
 import casadi as cs
 import time
+import numpy
+
 
 def sqpsol(name, qp_solver, problem_dict, options_dict):
     """
@@ -178,7 +180,6 @@ class sqp(object):
         Returns: solution dict {'x': nlp_solution, 'f': value_cost_function, 'g': value_constraints}
 
         """
-        from numpy import *
 
         self.__hessian_computation_time = []
         self.__qp_computation_time = []
@@ -231,7 +232,7 @@ class sqp(object):
 
             # Take the full step
             self.__v_opt += alpha*dv.toarray().flatten()
-            self.__obj.append(float(dot(r_k.T, r_k) / 2.))
+            self.__obj.append(float(numpy.dot(r_k.T, r_k) / 2.))
             if self.__g is not None:
                 self.__constr.append(float(norm_2(g_k)))
 

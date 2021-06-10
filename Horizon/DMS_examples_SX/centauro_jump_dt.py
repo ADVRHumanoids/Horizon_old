@@ -6,7 +6,9 @@ sys.path.append( path.dirname( path.dirname( path.abspath(__file__) ) ) )
 import horizon
 import casadi_kin_dyn.pycasadi_kin_dyn as cas_kin_dyn
 import matlogger2.matlogger as matl
-import constraints as cons
+from Horizon.constraints import initial_condition
+from Horizon.constraints import torque_limits
+from Horizon.constraints import contact
 from utils.resample_integrator import *
 from utils.inverse_dynamics import *
 from utils.replay_trajectory import *
@@ -16,7 +18,7 @@ from utils.normalize_quaternion import *
 from utils.conversions_to_euler import *
 from utils.dt_RKF import *
 
-from solvers.sqp import *
+import solvers.sqp as sqp
 
 logger = matl.MatLogger2('/tmp/centauro_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
@@ -77,7 +79,7 @@ q_init = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
                    -0.349999, -0.349999, -0.635,
                    -0.349999, 0.349999, -0.635]).tolist()
 
-print "q_init: ", q_init
+print("q_init: ", q_init)
 
 qdot, Qdot = create_variable('Qdot', nv, ns, 'STATE', 'SX')
 qdot_min = (-100.*np.ones(nv)).tolist()
@@ -191,7 +193,7 @@ tau_max = np.array([0., 0., 0., 0., 0., 0.,  # Floating base
                     10000., 10000., 10000.,  # Contact 3
                     10000., 10000., 10000.]).tolist()  # Contact 4
 
-torque_lims1 = cons.torque_limits.torque_lims(id, tau_min, tau_max)
+torque_lims1 = torque_limits.torque_lims(id, tau_min, tau_max)
 g3, g_min3, g_max3 = constraint(torque_lims1, 0, ns-1)
 G.set_constraint(g3, g_min3, g_max3)
 
@@ -202,22 +204,22 @@ mu = 0.01
 R_ground = np.identity(3, dtype=float)
 
 # STANCE PHASE
-contact_handler_F1 = cons.contact.contact_handler(FK1, F1)
+contact_handler_F1 = contact.contact_handler(FK1, F1)
 contact_handler_F1.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g4, g_min4, g_max4 = constraint(contact_handler_F1, 0, lift_node+1)
 G.set_constraint(g4, g_min4, g_max4)
 
-contact_handler_F2 = cons.contact.contact_handler(FK2, F2)
+contact_handler_F2 = contact.contact_handler(FK2, F2)
 contact_handler_F2.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g5, g_min5, g_max5 = constraint(contact_handler_F2, 0, lift_node+1)
 G.set_constraint(g5, g_min5, g_max5)
 
-contact_handler_F3 = cons.contact.contact_handler(FK3, F3)
+contact_handler_F3 = contact.contact_handler(FK3, F3)
 contact_handler_F3.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g6, g_min6, g_max6 = constraint(contact_handler_F3, 0, lift_node+1)
 G.set_constraint(g6, g_min6, g_max6)
 
-contact_handler_F4 = cons.contact.contact_handler(FK4, F4)
+contact_handler_F4 = contact.contact_handler(FK4, F4)
 contact_handler_F4.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g7, g_min7, g_max7 = constraint(contact_handler_F4, 0, lift_node+1)
 G.set_constraint(g7, g_min7, g_max7)
@@ -296,15 +298,15 @@ G_sqp.set_constraint(g3, g_min3, g_max3)
 g_sqp, g_min_sqp, g_max_sqp = G_sqp.get_constraints()
 
 t = time.time()
-solver = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': []}, opts)
+solver = sqp.sqp('solver', "osqp", {'f': J_sqp, 'x': V}, opts)
 solution = solver(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=[], ubg=[])
 # solver = sqp('solver', "osqp", {'f': J_sqp, 'x': V, 'g': g_sqp}, opts)
 # solution = solver(x0=w_opt_ipopt, lbx=v_min, ubx=v_max, lbg=g_min_sqp, ubg=g_max_sqp)
 elapsed = time.time() - t
-print "elapsed: ", elapsed
+print("elapsed: ", elapsed)
 
 obj_history = solution['f']
-print "obj_history: ", obj_history
+print("obj_history: ", obj_history)
 con_history = solution['g']
 w_opt = solution['x']
 
