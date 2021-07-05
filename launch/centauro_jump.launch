@@ -19,6 +19,8 @@
         <rosparam param="orientation">[0., 0.7, 0., 0.7]</rosparam>
         <rosparam param="rgba">[0.5, 0.5, 0.5, 0.5]</rosparam>
     </node>
+    
+    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find Horizon)/launch/centauro_jump_dt.rviz" output="screen"/>
 
 
 </launch>
