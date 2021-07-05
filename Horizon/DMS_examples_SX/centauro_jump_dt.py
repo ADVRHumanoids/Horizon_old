@@ -23,6 +23,7 @@ import solvers.sqp as sqp
 logger = matl.MatLogger2('/tmp/centauro_jump_dt_log')
 logger.setBufferMode(matl.BufferMode.CircularBuffer)
 
+# Load urdf on casadi_kin_dyn (Pinocchio)
 urdf = rospy.get_param('robot_description')
 kindyn = cas_kin_dyn.CasadiKinDyn(urdf)
 
