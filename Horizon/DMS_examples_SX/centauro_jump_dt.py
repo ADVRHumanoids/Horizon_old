@@ -243,6 +243,10 @@ g11, g_min11, g_max11 = constraint(contact_handler_F4, lift_node+1, touch_down_n
 G.set_constraint(g11, g_min11, g_max11)
 
 # TOUCH DOWN
+# DECOMMENT TO JUMP FORWARD
+#q_init[7] = q_init[10] = q_init[7] + 0.5
+#q_init[13] = q_init[16] = q_init[13] + 0.5
+
 contact_handler_F1.setContactAndFrictionCone(Q, q_init, mu, R_ground)
 g12, g_min12, g_max12 = constraint(contact_handler_F1, touch_down_node, ns)
 G.set_constraint(g12, g_min12, g_max12)
