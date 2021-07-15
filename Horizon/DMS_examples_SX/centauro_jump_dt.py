@@ -52,11 +52,17 @@ nf = 3  # Force DOfs
 
 # CREATE VARIABLES
 dt, Dt = create_variable('Dt', 1, ns, 'CONTROL', 'SX')
+print("Dt: ", Dt)
+print("dt: ", dt)
 dt_min = 0.03
 dt_max = 0.15
 dt_init = dt_min
 
 q, Q = create_variable('Q', nq, ns, 'STATE', 'SX')
+print("Q: ", Q)
+print("Q[1]: ", Q[1])
+print("Q[1][3]: ", Q[1][3])
+print("q: ", q)
 
 # CENTAURO homing
 
@@ -121,13 +127,19 @@ L = 0.5*dot(qdot, qdot)  # Objective term
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
 F_integrator = RK4_time(dae, 'SX')
 
+
+
 opts = {'tol': 1.e-5}
 #F_integrator = RKF_time(dae, opts, 'SX')
 F_integrator2 = RKF_time(dae, opts, 'SX')
 
 # START WITH AN EMPTY NLP
 X, U = create_state_and_control([Q, Qdot], [Qddot, F1, F2, F3, F4, Dt])
+print("X: ", X)
+print("U: ", U)
+
 V = concat_states_and_controls({"X": X, "U": U})
+
 v_min, v_max = create_bounds({"x_min": [q_min, qdot_min], "x_max": [q_max, qdot_max],
                               "u_min": [qddot_min, f_min1, f_min2, f_min3, f_min4, dt_min], "u_max": [qddot_max, f_max1, f_max2, f_max3, f_max4, dt_max]}, ns)
 
@@ -140,6 +152,10 @@ J = SX([0])
 dict = {'x0':X, 'p':Qddot, 'time':Dt}
 variable_time = dt_RKF(dict, F_integrator2)
 Dt_RKF = variable_time.compute_nodes(0, ns-1)
+print("variable_time: ", variable_time)
+#print("Dt_RKF: ", Dt_RKF)
+
+
 
 q_fb_trg = np.array([0.0, 0.0, 0.8, 0.0, 0.0, 0.0, 1.0]).tolist()
 
@@ -158,6 +174,9 @@ J += cost_function(min_jerk, 0, ns-1) # <- this smooths qddot solution
 min_deltaFC = lambda k: 0.01*dot((F1[k]-F1[k-1])+(F2[k]-F2[k-1])+(F3[k]-F3[k-1])+(F4[k]-F4[k-1]),
                                  (F1[k]-F1[k-1])+(F2[k]-F2[k-1])+(F3[k]-F3[k-1])+(F4[k]-F4[k-1]))  # min Fdot
 J += cost_function(min_deltaFC, touch_down_node+1, ns-1)
+
+print("J: ", J)
+
 
 # CONSTRAINTS
 G = constraint_handler()
